@@ -1,0 +1,11 @@
+langchain
+langgraph
+langchain-openai
+python-dotenv
+flask
+flask-cors
+requests
+langfuse
+pyyaml
+langchain-anthropic
+langchain-ollama

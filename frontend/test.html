@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiteGraph Test</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/litegraph.js/0.7.5/litegraph.min.css" />
+    <style>
+        body { margin: 0; padding: 20px; background: #222; color: white; }
+        #mycanvas { width: 800px; height: 600px; border: 1px solid white; }
+        .status { margin: 10px 0; padding: 10px; background: #333; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>LiteGraph Test Page</h1>
+    <div class="status" id="status">Loading...</div>
+    <button onclick="testAddNode()">Add Test Node</button>
+    <button onclick="checkLiteGraph()">Check LiteGraph</button>
+    <canvas id="mycanvas"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/litegraph.js/0.7.5/litegraph.min.js"></script>
+    <script>
+        console.log("Script started");
+        
+        function checkLiteGraph() {
+            const status = document.getElementById('status');
+            if (typeof LiteGraph !== 'undefined') {
+                status.innerHTML = '✅ LiteGraph is loaded: ' + typeof LiteGraph;
+                console.log('LiteGraph object:', LiteGraph);
+            } else {
+                status.innerHTML = '❌ LiteGraph is NOT defined';
+            }
+            
+            if (typeof LGraph !== 'undefined') {
+                status.innerHTML += '<br>✅ LGraph is loaded: ' + typeof LGraph;
+            } else {
+                status.innerHTML += '<br>❌ LGraph is NOT defined';
+            }
+            
+            if (typeof LGraphCanvas !== 'undefined') {
+                status.innerHTML += '<br>✅ LGraphCanvas is loaded: ' + typeof LGraphCanvas;
+            } else {
+                status.innerHTML += '<br>❌ LGraphCanvas is NOT defined';
+            }
+        }
+
+        // Wait for page to load
+        window.addEventListener('load', function() {
+            console.log("Page loaded");
+            checkLiteGraph();
+            
+            try {
+                // Create graph
+                var graph = new LGraph();
+                console.log("Graph created:", graph);
+                
+                // Create canvas
+                var canvas = new LGraphCanvas("#mycanvas", graph);
+                console.log("Canvas created:", canvas);
+                
+                // Define a simple node
+                function MyTestNode() {
+                    this.addOutput("out", "number");
+                    this.properties = { value: 1 };
+                }
+                MyTestNode.title = "Test Node";
+                
+                // Register node type
+                LiteGraph.registerNodeType("basic/test", MyTestNode);
+                console.log("Node type registered");
+                
+                // Start graph
+                graph.start();
+                console.log("Graph started");
+                
+                document.getElementById('status').innerHTML += '<br>✅ Canvas initialized successfully!';
+            } catch(e) {
+                console.error("Error:", e);
+                document.getElementById('status').innerHTML += '<br>❌ Error: ' + e.message;
+            }
+        });
+        
+        function testAddNode() {
+            try {
+                var node = LiteGraph.createNode("basic/test");
+                if (node) {
+                    node.pos = [100, 100];
+                    graph.add(node);
+                    console.log("Node added:", node);
+                    document.getElementById('status').innerHTML += '<br>✅ Node added successfully!';
+                }
+            } catch(e) {
+                console.error("Error adding node:", e);
+                document.getElementById('status').innerHTML += '<br>❌ Error adding node: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>

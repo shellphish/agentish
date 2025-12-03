@@ -1,0 +1,300 @@
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ASL Builder · Agent Specification Language</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Chivo:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="litegraph.css" />
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <header class="topbar">
+                <div class="brand">
+                    <img
+                        src="artifact/agentish_logo.png"
+                        alt="ASL Builder · LangGraph-ready agent layouts for the iCTF"
+                        class="brand-logo"
+                    />
+                    <div class="sr-only">ASL Builder · LangGraph-ready agent layouts for the iCTF</div>
+                </div>
+                <div class="top-actions">
+                    <input type="file" id="file-input" accept="application/json" hidden />
+                    <button class="btn btn-ghost" id="load-btn">Import Layout</button>
+                    <button class="btn btn-ghost" id="export-layout-btn">Export Layout</button>
+                    <button class="btn btn-ghost" id="save-btn">Save Canvas</button>
+                    <button class="btn btn-ghost" id="export-btn">Export ASL</button>
+                    <button class="btn btn-ghost" id="view-code-btn">View Code</button>
+                    <button class="btn btn-ghost" id="download-btn">Download Submission</button>
+                    <button class="btn btn-primary" id="submit-btn">Submit</button>
+                </div>
+            </header>
+
+            <main class="workspace">
+                <aside class="sidebar">
+                    <section class="sidebar-section">
+                        <div class="section-heading">
+                            <h2>Core Blocks</h2>
+                            <p>Drag blocks into the canvas to build your agent flow.</p>
+                        </div>
+                        <div class="block-grid">
+                            <button class="block" data-node-type="entry" draggable="true">
+                                <span class="block-icon">🚀</span>
+                                <span>
+                                    <strong>Entry Point</strong>
+                                    <small>Initialize state with count and messages.</small>
+                                </span>
+                            </button>
+                            <button class="block" data-node-type="llm" draggable="true">
+                                <span class="block-icon">🧠</span>
+                                <span>
+                                    <strong>LLM Node</strong>
+                                    <small>Invoke model with state messages.</small>
+                                </span>
+                            </button>
+                            <button class="block" data-node-type="router" draggable="true">
+                                <span class="block-icon">🔀</span>
+                                <span>
+                                    <strong>Router Block</strong>
+                                    <small>Route based on conditions (true/false).</small>
+                                </span>
+                            </button>
+                            <!-- <button class="block" data-node-type="conditional" draggable="true">
+                                <span class="block-icon">🔀</span>
+                                <span>
+                                    <strong>Conditional Block</strong>
+                                    <small>Route based on conditions (true/false).</small>
+                                </span>
+                            </button> -->
+                            <!-- <button class="block" data-node-type="tool" draggable="true">
+                                <span class="block-icon">�</span>
+                                <span>
+                                    <strong>Tool Node</strong>
+                                    <small>Execute selected functions.</small>
+                                </span>
+                            </button> -->
+                        </div>
+                    </section>
+
+                    <section class="sidebar-section">
+                        <div class="section-heading">
+                            <h2>🔌 Function Catalog</h2>
+                            <p style="font-size: 0.8em; color: #718096; margin-top: 0.5em;">Drag functions to Tool Nodes</p>
+                        </div>
+                        <div id="function-catalog" style="font-size: 0.85em; margin-top: 1em; max-height: 300px; overflow-y: auto;">
+                            <!-- Function items will be populated here -->
+                        </div>
+                    </section>
+
+                    <section class="sidebar-section tips">
+                        <h2>Tips</h2>
+                        <ul>
+                            <li><strong>Drag blocks</strong> from Core Blocks onto canvas.</li>
+                            <li><strong>Drag functions</strong> from Function Catalog to Tool Nodes.</li>
+                            <li>Connect nodes by dragging from output to input dots.</li>
+                            <li><strong>Pan canvas:</strong> Middle-mouse drag OR Space+drag</li>
+                            <li>Click a node to select and edit properties.</li>
+                            <li><strong>Press Delete or Backspace</strong> to remove a node.</li>
+                            <li>Conditional Blocks must connect from LLM Nodes.</li>
+                            <li>Tool Nodes loop back to LLM Nodes.</li>
+                        </ul>
+                    </section>
+
+                    <section class="sidebar-section">
+                        <div class="section-heading">
+                            <h2>🛠️ Tool Registry</h2>
+                            <button class="btn btn-sm btn-primary" id="new-tool-btn" style="margin-top: 0.5em;">+ New Tool</button>
+                        </div>
+                        <div id="tool-list" style="font-size: 0.85em; margin-top: 1em;">
+                            <!-- Tools will be populated here -->
+                        </div>
+                    </section>
+                </aside>
+
+                <section class="canvas-area">
+                    <div class="canvas-toolbar">
+                        <button class="btn btn-pill" id="zoom-in" title="Zoom in">+</button>
+                        <button class="btn btn-pill" id="zoom-out" title="Zoom out">−</button>
+                        <button class="btn btn-pill" id="reset-zoom" title="Reset zoom">⤾</button>
+                        <span class="toolbar-divider"></span>
+                        <button class="btn btn-pill" id="fit-canvas" title="Center graph">Fit</button>
+                        <span class="toolbar-divider"></span>
+                        <label class="toggle">
+                            <input type="checkbox" id="snap-toggle" checked />
+                            <span>Snap grid</span>
+                        </label>
+                    </div>
+                    <div class="canvas-wrapper">
+                        <canvas id="main-canvas"></canvas>
+                    </div>
+                    <footer class="canvas-footer">
+                        Need inspiration? Load the bundled example from <code>examples/example.json</code> then re-export.
+                    </footer>
+                </section>
+
+                <aside class="inspector">
+                    <section class="panel">
+                        <header>
+                            <h2>State schema</h2>
+                            <p>Shared memory signature available to every node.</p>
+                        </header>
+                        <textarea id="state-schema" spellcheck="false"></textarea>
+                        <div class="panel-actions">
+                            <button class="btn btn-outline" id="apply-state">Apply schema</button>
+                        </div>
+                    </section>
+
+                    <section class="panel" id="properties-panel">
+                        <header>
+                            <h2>Node inspector</h2>
+                            <p>Configure prompts, routing, and memory per block.</p>
+                        </header>
+                        <div id="node-properties" class="empty-state">
+                            <strong>No node selected.</strong>
+                            <p>Select a block to edit its behaviour.</p>
+                        </div>
+                    </section>
+
+                    <section class="panel small">
+                        <header>
+                            <h2>Graph summary</h2>
+                        </header>
+                        <dl class="summary" id="graph-summary">
+                            <div>
+                                <dt>Nodes</dt>
+                                <dd>0</dd>
+                            </div>
+                            <div>
+                                <dt>Edges</dt>
+                                <dd>0</dd>
+                            </div>
+                            <div>
+                                <dt>Entrypoint</dt>
+                                <dd>unset</dd>
+                            </div>
+                        </dl>
+                    </section>
+                </aside>
+            </main>
+        </div>
+
+        <!-- Submission Status Modal -->
+        <div id="submit-status-modal" class="modal-overlay hidden">
+            <div class="modal-panel">
+                <button id="close-submit-modal" class="modal-close" aria-label="Close submission progress">&times;</button>
+                <h2>Submission Progress</h2>
+                <p class="modal-subtitle">Follow the job from compilation through sandbox execution.</p>
+
+                <div class="submit-step" data-step="compile">
+                    <div class="submit-step-header">
+                        <span>1. Generate LangGraph code</span>
+                        <span class="status-badge">Pending</span>
+                    </div>
+                    <div class="submit-step-details"></div>
+                </div>
+
+                <div class="submit-step" data-step="syntax">
+                    <div class="submit-step-header">
+                        <span>2. Syntax compliance check</span>
+                        <span class="status-badge">Pending</span>
+                    </div>
+                    <div class="submit-step-details"></div>
+                </div>
+
+                <div class="submit-step" data-step="execution">
+                    <div class="submit-step-header">
+                        <span>3. Sandbox execution</span>
+                        <span class="status-badge">Pending</span>
+                    </div>
+                    <div class="submit-step-details" data-field="execution-details"></div>
+                    <div class="submit-substeps">
+                        <div class="submit-substep" data-substep="prepare">
+                            <span>Prepare sandbox</span>
+                            <span class="status-badge">Pending</span>
+                        </div>
+                        <div class="submit-substep" data-substep="run">
+                            <span>Execute agent</span>
+                            <span class="status-badge">Pending</span>
+                        </div>
+                        <div class="submit-substep" data-substep="langfuse">
+                            <span>Langfuse trace</span>
+                            <span class="status-badge">Pending</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="trace-link-wrapper" class="hidden">
+                    <a id="trace-link" href="#" target="_blank" rel="noopener">Open Langfuse trace</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Code Modal -->
+        <div id="code-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center;">
+            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 900px; max-height: 80vh; overflow: auto; position: relative;">
+                <button id="close-modal" style="position: absolute; top: 15px; right: 15px; background: #e53e3e; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 20px; cursor: pointer; line-height: 1;">&times;</button>
+                <h2 style="margin-bottom: 20px; color: #667eea;">Generated LangGraph Code</h2>
+                <pre id="generated-code" style="background: #f5f7fa; padding: 20px; border-radius: 8px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5; color: #1a202c;"></pre>
+                <button id="download-code-btn" style="margin-top: 20px; padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">💾 Download Code</button>
+            </div>
+        </div>
+
+        <!-- Tool Editor Modal -->
+        <div id="tool-editor-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10001; align-items: center; justify-content: center; overflow-y: auto;">
+            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 800px; max-height: 90vh; overflow-y: auto; position: relative; margin: 20px;">
+                <button id="close-tool-editor" style="position: absolute; top: 15px; right: 15px; background: #e53e3e; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 20px; cursor: pointer; line-height: 1;">&times;</button>
+                <h2 style="margin-bottom: 20px; color: #667eea;">✨ Create Custom Tool</h2>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #2d3748;">Tool Name</label>
+                    <input type="text" id="tool-name" placeholder="e.g., calculate_offset" style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px;">
+                    <small style="color: #718096;">Must be a valid Python identifier</small>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #2d3748;">Description</label>
+                    <textarea id="tool-description" placeholder="Describe what this tool does..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px; min-height: 60px;"></textarea>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #2d3748;">Arguments</label>
+                    <div id="tool-arguments">
+                        <!-- Arguments will be added here -->
+                    </div>
+                    <button id="add-argument-btn" style="margin-top: 10px; padding: 8px 16px; background: #48bb78; color: white; border: none; border-radius: 6px; cursor: pointer;">+ Add Argument</button>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #2d3748;">Return Schema (JSON)</label>
+                    <textarea id="tool-return-schema" placeholder='{"result": "Any", "success": "bool"}' style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 13px; min-height: 80px;"></textarea>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #2d3748;">Implementation (Python)</label>
+                    <select id="template-selector" style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #cbd5e0; border-radius: 6px;">
+                        <option value="">Select a template...</option>
+                        <option value="addition">Addition Example</option>
+                    </select>
+                    <button id="validate-syntax-btn" style="padding: 6px 12px; background: #4299e1; color: white; border: none; border-radius: 6px; cursor: pointer; margin-right: 8px; font-size: 13px;">Validate Syntax</button>
+                    <textarea id="tool-implementation" placeholder="def tool_implementation(...):" style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 13px; min-height: 300px; margin-top: 10px;"></textarea>
+                    <div id="syntax-feedback" style="margin-top: 8px; padding: 10px; border-radius: 6px; display: none;"></div>
+                </div>
+
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 30px;">
+                    <button id="cancel-tool-btn" style="padding: 12px 24px; background: #e2e8f0; color: #2d3748; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Cancel</button>
+                    <button id="save-tool-btn" style="padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Save Tool</button>
+                </div>
+            </div>
+        </div>
+
+        <script src="litegraph.min.js"></script>
+        <script src="asl_editor.js"></script>
+    </body>
+</html>
