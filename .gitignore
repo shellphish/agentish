@@ -1,1 +1,9 @@
+# Byte-compiled / optimized / DLL files
 *.pyc
+*.pyo
+__pycache__/
+
+# Environment files
+.env
+.env.local
+.env.*.local
