@@ -66,6 +66,13 @@
                                     <small>Route based on conditions (true/false).</small>
                                 </span>
                             </button>
+                            <button class="block" data-node-type="worker" draggable="true">
+                                <span class="block-icon">👷</span>
+                                <span>
+                                    <strong>Worker Node</strong>
+                                    <small>Background task with no output edge.</small>
+                                </span>
+                            </button>
                             <!-- <button class="block" data-node-type="conditional" draggable="true">
                                 <span class="block-icon">🔀</span>
                                 <span>
@@ -93,20 +100,6 @@
                         </div>
                     </section>
 
-                    <section class="sidebar-section tips">
-                        <h2>Tips</h2>
-                        <ul>
-                            <li><strong>Drag blocks</strong> from Core Blocks onto canvas.</li>
-                            <li><strong>Drag functions</strong> from Function Catalog to Tool Nodes.</li>
-                            <li>Connect nodes by dragging from output to input dots.</li>
-                            <li><strong>Pan canvas:</strong> Middle-mouse drag OR Space+drag</li>
-                            <li>Click a node to select and edit properties.</li>
-                            <li><strong>Press Delete or Backspace</strong> to remove a node.</li>
-                            <li>Conditional Blocks must connect from LLM Nodes.</li>
-                            <li>Tool Nodes loop back to LLM Nodes.</li>
-                        </ul>
-                    </section>
-
                     <section class="sidebar-section">
                         <div class="section-heading">
                             <h2>🛠️ Tool Registry</h2>
@@ -119,24 +112,9 @@
                 </aside>
 
                 <section class="canvas-area">
-                    <div class="canvas-toolbar">
-                        <button class="btn btn-pill" id="zoom-in" title="Zoom in">+</button>
-                        <button class="btn btn-pill" id="zoom-out" title="Zoom out">−</button>
-                        <button class="btn btn-pill" id="reset-zoom" title="Reset zoom">⤾</button>
-                        <span class="toolbar-divider"></span>
-                        <button class="btn btn-pill" id="fit-canvas" title="Center graph">Fit</button>
-                        <span class="toolbar-divider"></span>
-                        <label class="toggle">
-                            <input type="checkbox" id="snap-toggle" checked />
-                            <span>Snap grid</span>
-                        </label>
-                    </div>
                     <div class="canvas-wrapper">
                         <canvas id="main-canvas"></canvas>
                     </div>
-                    <footer class="canvas-footer">
-                        Need inspiration? Load the bundled example from <code>examples/example.json</code> then re-export.
-                    </footer>
                 </section>
 
                 <aside class="inspector">

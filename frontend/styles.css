@@ -578,6 +578,7 @@ h5 {
   flex-direction: column;
   gap: 20px;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .panel {
@@ -590,6 +591,7 @@ h5 {
   border: 1px solid rgba(148, 163, 184, 0.16);
   box-shadow: var(--shadow-border);
   min-height: 0;
+  flex-shrink: 0;
 }
 
 .panel.small {
@@ -650,6 +652,8 @@ textarea#state-schema {
   flex-direction: column;
   gap: 16px;
   min-height: 160px;
+  overflow-y: auto;
+  max-height: calc(100vh - 400px);
 }
 
 #node-properties form {
@@ -662,6 +666,7 @@ textarea#state-schema {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin-bottom: 18px;  /* ADD THIS LINE */
 }
 
 .control-group label {

@@ -78,55 +78,100 @@ const NODE_FORMS = {
             rows: 4,
             description: "Optional human message template evaluated before invoking the LLM."
         },
-    ],
-    "asl/conditional": [
-        { key: "title", label: "Block title", type: "text", placeholder: "Conditional" },
         {
-            key: "condition",
-            label: "Condition",
-            type: "text",
-            placeholder: "tool_detection or Python expression",
-            description: "Use 'tool_detection' to check for tool calls, or a Python expression like state['count'] < 5"
+            key: "structured_output_enabled",
+            label: "Structured JSON output",
+            type: "checkbox",
+            description: "Enable structured JSON output from the LLM"
         },
         {
-            key: "true_label",
-            label: "True edge label",
-            type: "text",
-            placeholder: "true",
-            description: "Label for the true branch"
+            key: "structured_output_schema",
+            label: "JSON Schema",
+            type: "json",
+            rows: 6,
+            description: "Define the structure for LLM output (only shown when structured output is enabled)",
+            conditional: { field: "structured_output_enabled", value: true }
         },
-        {
-            key: "false_label",
-            label: "False edge label",
-            type: "text",
-            placeholder: "false",
-            description: "Label for the false branch"
-        }
-    ],
-    "asl/tool": [
-        { key: "title", label: "Tool Node title", type: "text", placeholder: "Tools" },
         {
             key: "selected_tools",
             label: "Selected tools",
             type: "list",
             placeholder: "Drag functions from catalog",
-            description: "Tools that this node can execute"
+            description: "Tools that this LLM can use"
         },
         {
             key: "max_tool_iterations",
             label: "Max tool iterations",
             type: "number",
             placeholder: "30",
-            description: "How many consecutive tool executions are allowed before forcing the false branch.",
+            description: "Maximum number of tool calls allowed (only shown when tools are selected)",
             min: 1,
-            step: 1
+            step: 1,
+            conditional: { field: "selected_tools", hasItems: true }
         },
         {
             key: "iteration_warning_message",
             label: "Iteration warning message",
             type: "textarea",
             rows: 3,
-            description: "Human message injected into the conversation when the iteration limit is reached."
+            description: "Warning message when approaching tool iteration limit (only shown when tools are selected)",
+            conditional: { field: "selected_tools", hasItems: true }
+        }
+    ],
+    "asl/worker": [
+        { key: "title", label: "Node title", type: "text", placeholder: "Worker Node" },
+        {
+            key: "output_key",
+            label: "Store output as",
+            type: "text",
+            placeholder: "worker_output",
+            description: "State key to store the response"
+        },
+        {
+            key: "system_prompt",
+            label: "System prompt",
+            type: "textarea",
+            rows: 4,
+            description: "System instruction for this worker node."
+        },
+        {
+            key: "structured_output_enabled",
+            label: "Structured JSON output",
+            type: "checkbox",
+            description: "Enable structured JSON output from the LLM"
+        },
+        {
+            key: "structured_output_schema",
+            label: "JSON Schema",
+            type: "json",
+            rows: 6,
+            description: "Define the structure for LLM output (only shown when structured output is enabled)",
+            conditional: { field: "structured_output_enabled", value: true }
+        },
+        {
+            key: "selected_tools",
+            label: "Selected tools",
+            type: "list",
+            placeholder: "Drag functions from catalog",
+            description: "Tools that this worker can use"
+        },
+        {
+            key: "max_tool_iterations",
+            label: "Max tool iterations",
+            type: "number",
+            placeholder: "30",
+            description: "Maximum number of tool calls allowed (only shown when tools are selected)",
+            min: 1,
+            step: 1,
+            conditional: { field: "selected_tools", hasItems: true }
+        },
+        {
+            key: "iteration_warning_message",
+            label: "Iteration warning message",
+            type: "textarea",
+            rows: 3,
+            description: "Warning message when approaching tool iteration limit (only shown when tools are selected)",
+            conditional: { field: "selected_tools", hasItems: true }
         }
     ]
 };
@@ -141,15 +186,15 @@ const NODE_FORM_KEYS = Object.fromEntries(
 const NODE_TYPE_MAP = {
     entry: "asl/entry",
     llm: "asl/llm",
-    conditional: "asl/conditional",
-    tool: "asl/tool"
+    router: "asl/router",
+    worker: "asl/worker"
 };
 
 const EXPORT_TYPE_MAP = {
     "asl/entry": "EntryPoint",
     "asl/llm": "LLMNode",
-    "asl/conditional": "ConditionalBlock",
-    "asl/tool": "ToolNode"
+    "asl/router": "RouterBlock",
+    "asl/worker": "WorkerNode"
 };
 
 const IMPORT_TYPE_MAP = Object.fromEntries(
@@ -230,11 +275,14 @@ function initializeEditor() {
     canvas.read_only = false;
     canvas.allow_interaction = true;
     canvas.allow_dragnodes = true;
-    canvas.allow_dragcanvas = false;  // DISABLE left-click canvas dragging!
+    canvas.allow_dragcanvas = true;  // Enable canvas dragging (middle-mouse or space+drag)
     canvas.allow_reconnect_links = true;
     canvas.live_mode = false;  // Ensure we're not in live mode
     // Disable the search box on double-click
     canvas.allow_searchbox = false;
+    // Disable debug info rendering (the blue line at bottom left)
+    // canvas.render_canvas_border = false;
+    // canvas.render_info = false;
     
     // Ensure connections are visible
     canvas.render_connections_border = true;
@@ -255,66 +303,10 @@ function initializeEditor() {
         }
     });
     
-    // Override mouse handlers to enable canvas panning with middle-mouse or space+drag
-    const originalProcessMouseDown = canvas.processMouseDown;
-    const originalProcessMouseMove = canvas.processMouseMove;
-    
-    canvas.processMouseDown = function(e) {
-        // Debug logging
-        console.log("=== MOUSE DOWN ===");
-        console.log("Position:", e.canvasX, e.canvasY);
-        console.log("Mouse button:", e.which, "Space pressed:", spacePressed);
-        console.log("Flags - read_only:", this.read_only, "allow_interaction:", this.allow_interaction, "live_mode:", this.live_mode);
-        console.log("connecting_node:", this.connecting_node);
-        
-        const node = this.graph.getNodeOnPos(e.canvasX, e.canvasY, this.visible_nodes);
-        if (node) {
-            console.log("Node found:", node.title);
-            console.log("Node pos:", node.pos, "size:", node.size);
-            console.log("Node outputs:", node.outputs);
-            console.log("Node inputs:", node.inputs);
-            
-            // Check if we clicked on an output slot
-            if (node.outputs) {
-                for (let i = 0; i < node.outputs.length; i++) {
-                    const link_pos = node.getConnectionPos(false, i);
-                    console.log(`Output ${i} (${node.outputs[i].name}) position:`, link_pos);
-                    const dist = Math.sqrt(Math.pow(e.canvasX - link_pos[0], 2) + Math.pow(e.canvasY - link_pos[1], 2));
-                    console.log(`Distance from click: ${dist}`);
-                }
-            }
-        } else {
-            console.log("No node at this position");
-        }
-        
-        // Enable canvas dragging temporarily if middle-mouse or space+left-click
-        if (e.which === 2 || (spacePressed && e.which === 1)) {
-            console.log("Enabling canvas drag for this action (middle-click or space+click)");
-            this.allow_dragcanvas = true;
-        }
-        
-        const result = originalProcessMouseDown.call(this, e);
-        console.log("After processMouseDown - connecting_node:", this.connecting_node);
-        console.log("=================");
-        return result;
-    };
-    
-    canvas.processMouseMove = function(e) {
-        // Keep canvas dragging enabled if middle-mouse or space is pressed
-        if (e.which === 2 || (spacePressed && e.which === 1)) {
-            this.allow_dragcanvas = true;
-        }
-        return originalProcessMouseMove.call(this, e);
-    };
-    
-    // Reset canvas dragging on mouse up
-    const originalProcessMouseUp = canvas.processMouseUp;
-    canvas.processMouseUp = function(e) {
-        const result = originalProcessMouseUp.call(this, e);
-        // Disable canvas dragging after mouse up
-        this.allow_dragcanvas = false;
-        return result;
-    };
+    // Note: Canvas dragging is now enabled by default with middle-mouse button
+    // LiteGraph handles this natively when allow_dragcanvas = true
+    // Note: Canvas dragging is now enabled by default with middle-mouse button
+    // LiteGraph handles this natively when allow_dragcanvas = true
 
     const nodePropertiesContainer = document.getElementById("node-properties");
     const stateSchemaTextarea = document.getElementById("state-schema");
@@ -322,11 +314,12 @@ function initializeEditor() {
     const fileInput = document.getElementById("file-input");
     const summaryEl = document.getElementById("graph-summary");
 
-    const zoomInBtn = document.getElementById("zoom-in");
-    const zoomOutBtn = document.getElementById("zoom-out");
-    const resetZoomBtn = document.getElementById("reset-zoom");
-    const fitCanvasBtn = document.getElementById("fit-canvas");
-    const snapToggle = document.getElementById("snap-toggle");
+    // Canvas controls (removed from UI)
+    // const zoomInBtn = document.getElementById("zoom-in");
+    // const zoomOutBtn = document.getElementById("zoom-out");
+    // const resetZoomBtn = document.getElementById("reset-zoom");
+    // const fitCanvasBtn = document.getElementById("fit-canvas");
+    // const snapToggle = document.getElementById("snap-toggle");
 
     let appState = {
         schemaRaw: JSON.stringify(DEFAULT_SCHEMA, null, 2),
@@ -350,7 +343,7 @@ function initializeEditor() {
         if (node.type === "asl/entry") {
             delete node.properties.system_prompt;
         }
-        if (node.type === "asl/llm") {
+        if (node.type === "asl/llm" || node.type === "asl/worker") {
             delete node.properties.model;
             delete node.properties.temperature;
             delete node.properties.tools;
@@ -361,17 +354,28 @@ function initializeEditor() {
             if (typeof node.properties.human_prompt !== "string") {
                 node.properties.human_prompt = "";
             }
-        }
-        if (node.type === "asl/tool") {
-            const props = node.properties;
-            const limit = Number(props.max_tool_iterations);
-            if (!Number.isFinite(limit) || limit <= 0) {
-                props.max_tool_iterations = DEFAULT_TOOL_MAX_ITERATIONS;
-            } else {
-                props.max_tool_iterations = Math.trunc(limit);
+            // Initialize structured output properties
+            if (typeof node.properties.structured_output_enabled !== "boolean") {
+                node.properties.structured_output_enabled = false;
             }
-            if (typeof props.iteration_warning_message !== "string" || !props.iteration_warning_message.trim()) {
-                props.iteration_warning_message = DEFAULT_TOOL_LIMIT_WARNING;
+            if (!node.properties.structured_output_schema) {
+                node.properties.structured_output_schema = {};
+            }
+            // Initialize tool properties
+            if (!Array.isArray(node.properties.selected_tools)) {
+                node.properties.selected_tools = [];
+            }
+            // Only set tool iteration properties if tools are present
+            if (node.properties.selected_tools.length > 0) {
+                const limit = Number(node.properties.max_tool_iterations);
+                if (!Number.isFinite(limit) || limit <= 0) {
+                    node.properties.max_tool_iterations = DEFAULT_TOOL_MAX_ITERATIONS;
+                } else {
+                    node.properties.max_tool_iterations = Math.trunc(limit);
+                }
+                if (typeof node.properties.iteration_warning_message !== "string" || !node.properties.iteration_warning_message.trim()) {
+                    node.properties.iteration_warning_message = DEFAULT_TOOL_LIMIT_WARNING;
+                }
             }
         }
     }
@@ -414,89 +418,36 @@ function initializeEditor() {
 
     function LLMNode() {
         this.title = "LLM Node";
-        this.size = [220, 80];
+        this.size = [220, 120];
         this.color = "#EE7733";
         this.bgcolor = "#EE7733";
         this.properties = {
             title: "LLM Node",
             output_key: "llm_output",
             system_prompt: "",
-            human_prompt: ""
-        };
-        this.addInput("in", "flow");
-        this.addOutput("out", "flow");
-        this.widgets_up = true;
-        this.serialize_widgets = true;
-    }
-    LLMNode.title = "LLM Node";
-    LLMNode.title_color = "#000000";
-
-    function RouterBlockNode(){
-        this.title = "Router Block";
-        this.size = [220, 100]
-        this.color = "#cba8d5ff";
-        this.bgcolor = "#cba8d5ff";
-        this.properties = {
-            title: "Router Block",
-            // router node should get system node from the user, and should be forwarded LLM response, as user prompt, and based on that it decides which path to take.
-            system_prompt: "",
-        };
-        this.addInput("from_llm", "flow");  // Only from LLM
-        // it can have multiple output edges based on LLM nodes connected to it.
-        this.addOutput("out", "flow");
-        this.widgets_up = true;
-        this.serialize_widgets = true;
-    }
-    RouterBlockNode.title = "Router Block";
-    RouterBlockNode.title_color = "#FFFFFF";
-
-
-    function ConditionalBlockNode() {
-        this.title = "Conditional";
-        this.size = [220, 100];
-        this.color = "#CC3311";
-        this.bgcolor = "#CC3311";
-        this.properties = {
-            title: "Conditional",
-            condition: "tool_detection",  // or expression
-            true_label: "true",
-            false_label: "false"
-        };
-        this.addInput("from_llm", "flow");  // Only from LLM
-        this.addOutput("true", "flow");
-        this.addOutput("false", "flow");
-        this.widgets_up = true;
-        this.serialize_widgets = true;
-    }
-    ConditionalBlockNode.title = "Conditional";
-    ConditionalBlockNode.title_color = "#FFFFFF";
-
-    function ToolNode() {
-        this.title = "Tool Node";
-        this.size = [240, 110];
-        this.color = "#33BBEE";
-        this.bgcolor = "#33BBEE";
-        this.properties = {
-            title: "Tool Node",
-            selected_tools: [],  // List of tool names
+            human_prompt: "",
+            structured_output_enabled: false,
+            structured_output_schema: {},
+            selected_tools: [],
             max_tool_iterations: DEFAULT_TOOL_MAX_ITERATIONS,
             iteration_warning_message: DEFAULT_TOOL_LIMIT_WARNING
         };
-        // ToolNode has INPUT from Conditional Block's "true" branch
-        // NO output - automatically returns to the calling LLM node
-        // The return path is inferred by both frontend and compiler
         this.addInput("in", "flow");
+        this.addOutput("out", "flow");
         this.widgets_up = true;
         this.serialize_widgets = true;
         
+        // Render selected tools on the node
         const renderSelectedTools = (ctx) => {
             const tools = this.properties.selected_tools || [];
+            if (tools.length === 0) return;
+            
             ctx.save();
             ctx.fillStyle = "#000000";
-            ctx.font = "12px 'Inter', sans-serif";
+            ctx.font = "11px 'Inter', sans-serif";
             ctx.textAlign = "left";
             ctx.textBaseline = "top";
-            const text = tools.length ? tools.join(", ") : "Drop tools here";
+            const text = tools.length ? `🔧 ${tools.join(", ")}` : "";
             const maxWidth = this.size[0] - 16;
             const words = text.split(" ");
             const lines = [];
@@ -515,10 +466,10 @@ function initializeEditor() {
             if (current) {
                 lines.push(current);
             }
-            let offsetY = this.size[1] - 40;
+            let offsetY = this.size[1] - 35;
             lines.forEach((line) => {
                 ctx.fillText(line, 8, offsetY);
-                offsetY += 14;
+                offsetY += 13;
             });
             ctx.restore();
         };
@@ -538,6 +489,10 @@ function initializeEditor() {
                 return false;
             }
             this.properties.selected_tools.push(toolName);
+            // Resize node to accommodate tools display
+            const minHeight = 120;
+            const toolsHeight = Math.ceil(this.properties.selected_tools.length / 2) * 15;
+            this.size[1] = Math.max(minHeight, minHeight + toolsHeight);
             graph.setDirtyCanvas(true, true);
             if (canvas.selected_nodes && canvas.selected_nodes[this.id]) {
                 renderInspector(this);
@@ -555,14 +510,215 @@ function initializeEditor() {
             return this._addTool(toolName);
         };
     }
-    ToolNode.title = "Tool Node";
-    ToolNode.title_color = "#000000";
+    LLMNode.title = "LLM Node";
+    LLMNode.title_color = "#000000";
+
+    function RouterBlockNode(){
+        this.title = "Router Block";
+        this.size = [220, 100]
+        this.color = "#cba8d5ff";
+        this.bgcolor = "#cba8d5ff";
+        this.properties = {
+            title: "Router Block",
+            // router node should get system node from the user, and should be forwarded LLM response, as user prompt, and based on that it decides which path to take.
+            system_prompt: "",
+        };
+        this.addInput("in", "flow");  // Only from LLM
+        // it can have multiple output edges based on LLM nodes connected to it.
+        this.addOutput("out", "flow");
+        this.widgets_up = true;
+        this.serialize_widgets = true;
+    }
+    RouterBlockNode.title = "Router Block";
+    RouterBlockNode.title_color = "#FFFFFF";
+
+    function WorkerNode() {
+        this.title = "Worker Node";
+        this.size = [220, 120];
+        this.color = "#009E73";
+        this.bgcolor = "#009E73";
+        this.properties = {
+            title: "Worker Node",
+            output_key: "worker_output",
+            system_prompt: "",
+            structured_output_enabled: false,
+            structured_output_schema: {},
+            selected_tools: [],
+            max_tool_iterations: DEFAULT_TOOL_MAX_ITERATIONS,
+            iteration_warning_message: DEFAULT_TOOL_LIMIT_WARNING
+        };
+        // Worker has input only, no output
+        this.addInput("in", "flow");
+        this.widgets_up = true;
+        this.serialize_widgets = true;
+        
+        // Render selected tools on the node
+        const renderSelectedTools = (ctx) => {
+            const tools = this.properties.selected_tools || [];
+            if (tools.length === 0) return;
+            
+            ctx.save();
+            ctx.fillStyle = "#000000";
+            ctx.font = "11px 'Inter', sans-serif";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "top";
+            const text = tools.length ? `🔧 ${tools.join(", ")}` : "";
+            const maxWidth = this.size[0] - 16;
+            const words = text.split(" ");
+            const lines = [];
+            let current = "";
+            words.forEach((word) => {
+                const tentative = current ? current + " " + word : word;
+                if (ctx.measureText(tentative).width > maxWidth) {
+                    if (current) {
+                        lines.push(current);
+                    }
+                    current = word;
+                } else {
+                    current = tentative;
+                }
+            });
+            if (current) {
+                lines.push(current);
+            }
+            let offsetY = this.size[1] - 35;
+            lines.forEach((line) => {
+                ctx.fillText(line, 8, offsetY);
+                offsetY += 13;
+            });
+            ctx.restore();
+        };
+
+        this.onDrawForeground = function(ctx) {
+            renderSelectedTools(ctx);
+        };
+
+        this._addTool = (toolName) => {
+            this.properties.selected_tools = this.properties.selected_tools || [];
+            if (this.properties.selected_tools.includes(toolName)) {
+                showToast(`Tool "${toolName}" already added`, "info");
+                return true;
+            }
+            if (!globalTools[toolName]) {
+                showToast(`Tool "${toolName}" is not defined`, "error");
+                return false;
+            }
+            this.properties.selected_tools.push(toolName);
+            // Resize node to accommodate tools display
+            const minHeight = 120;
+            const toolsHeight = Math.ceil(this.properties.selected_tools.length / 2) * 15;
+            this.size[1] = Math.max(minHeight, minHeight + toolsHeight);
+            graph.setDirtyCanvas(true, true);
+            if (canvas.selected_nodes && canvas.selected_nodes[this.id]) {
+                renderInspector(this);
+            }
+            showToast(`Added tool "${toolName}"`, "success");
+            return true;
+        };
+
+        // Add drop zone for tools
+        this.onDropItem = function(event) {
+            const toolName = event?.dataTransfer?.getData("tool-name");
+            if (!toolName) {
+                return false;
+            }
+            return this._addTool(toolName);
+        };
+    }
+    WorkerNode.title = "Worker Node";
+    WorkerNode.title_color = "#FFFFFF";
+
+    // function ToolNode() {
+    //     this.title = "Tool Node";
+    //     this.size = [240, 110];
+    //     this.color = "#33BBEE";
+    //     this.bgcolor = "#33BBEE";
+    //     this.properties = {
+    //         title: "Tool Node",
+    //         selected_tools: [],  // List of tool names
+    //         max_tool_iterations: DEFAULT_TOOL_MAX_ITERATIONS,
+    //         iteration_warning_message: DEFAULT_TOOL_LIMIT_WARNING
+    //     };
+    //     // ToolNode has INPUT from Conditional Block's "true" branch
+    //     // NO output - automatically returns to the calling LLM node
+    //     // The return path is inferred by both frontend and compiler
+    //     this.addInput("in", "flow");
+    //     this.widgets_up = true;
+    //     this.serialize_widgets = true;
+        
+    //     const renderSelectedTools = (ctx) => {
+    //         const tools = this.properties.selected_tools || [];
+    //         ctx.save();
+    //         ctx.fillStyle = "#000000";
+    //         ctx.font = "12px 'Inter', sans-serif";
+    //         ctx.textAlign = "left";
+    //         ctx.textBaseline = "top";
+    //         const text = tools.length ? tools.join(", ") : "Drop tools here";
+    //         const maxWidth = this.size[0] - 16;
+    //         const words = text.split(" ");
+    //         const lines = [];
+    //         let current = "";
+    //         words.forEach((word) => {
+    //             const tentative = current ? current + " " + word : word;
+    //             if (ctx.measureText(tentative).width > maxWidth) {
+    //                 if (current) {
+    //                     lines.push(current);
+    //                 }
+    //                 current = word;
+    //             } else {
+    //                 current = tentative;
+    //             }
+    //         });
+    //         if (current) {
+    //             lines.push(current);
+    //         }
+    //         let offsetY = this.size[1] - 40;
+    //         lines.forEach((line) => {
+    //             ctx.fillText(line, 8, offsetY);
+    //             offsetY += 14;
+    //         });
+    //         ctx.restore();
+    //     };
+
+    //     this.onDrawForeground = function(ctx) {
+    //         renderSelectedTools(ctx);
+    //     };
+
+    //     this._addTool = (toolName) => {
+    //         this.properties.selected_tools = this.properties.selected_tools || [];
+    //         if (this.properties.selected_tools.includes(toolName)) {
+    //             showToast(`Tool "${toolName}" already added`, "info");
+    //             return true;
+    //         }
+    //         if (!globalTools[toolName]) {
+    //             showToast(`Tool "${toolName}" is not defined`, "error");
+    //             return false;
+    //         }
+    //         this.properties.selected_tools.push(toolName);
+    //         graph.setDirtyCanvas(true, true);
+    //         if (canvas.selected_nodes && canvas.selected_nodes[this.id]) {
+    //             renderInspector(this);
+    //         }
+    //         showToast(`Added tool "${toolName}"`, "success");
+    //         return true;
+    //     };
+
+    //     // Add drop zone for tools
+    //     this.onDropItem = function(event) {
+    //         const toolName = event?.dataTransfer?.getData("tool-name");
+    //         if (!toolName) {
+    //             return false;
+    //         }
+    //         return this._addTool(toolName);
+    //     };
+    // }
+    // ToolNode.title = "Tool Node";
+    // ToolNode.title_color = "#000000";
 
     LiteGraph.registerNodeType("asl/entry", EntryPointNode);
     LiteGraph.registerNodeType("asl/llm", LLMNode);
-    LiteGraph.registerNodeType("asl/conditional", ConditionalBlockNode);
-    LiteGraph.registerNodeType("asl/tool", ToolNode);
     LiteGraph.registerNodeType("asl/router", RouterBlockNode);
+    LiteGraph.registerNodeType("asl/worker", WorkerNode);
 
     // ---------------------- Helper Functions ----------------------
     function ensureSingleEntry(node) {
@@ -662,6 +818,11 @@ function initializeEditor() {
         function commit(newList) {
             node.properties[def.key] = newList;
             graph.setDirtyCanvas(true, true);
+            // Re-render inspector if this is the selected_tools field for LLM nodes
+            // This ensures conditional fields (max_tool_iterations) show/hide correctly
+            if (node.type === "asl/llm" && def.key === "selected_tools") {
+                renderInspector(node);
+            }
         }
 
         function renderPills(values) {
@@ -726,6 +887,22 @@ function initializeEditor() {
 
         const formDefs = NODE_FORMS[node.type] || [];
         formDefs.forEach((def) => {
+            // Handle conditional rendering
+            if (def.conditional) {
+                if (def.conditional.field && def.conditional.value !== undefined) {
+                    // Checkbox-based conditional
+                    if (node.properties?.[def.conditional.field] !== def.conditional.value) {
+                        return; // Skip this field
+                    }
+                } else if (def.conditional.field && def.conditional.hasItems) {
+                    // Array-based conditional (show only if array has items)
+                    const arr = node.properties?.[def.conditional.field];
+                    if (!Array.isArray(arr) || arr.length === 0) {
+                        return; // Skip this field
+                    }
+                }
+            }
+
             const wrapper = document.createElement("div");
             wrapper.className = "control-group";
 
@@ -870,13 +1047,9 @@ function initializeEditor() {
                     }
                 }
 
-                if (node.type === "asl/conditional") {
-                    if (def.key === "true_label" && node.outputs?.[0]) {
-                        node.outputs[0].name = value || "true";
-                    }
-                    if (def.key === "false_label" && node.outputs?.[1]) {
-                        node.outputs[1].name = value || "false";
-                    }
+                // Re-render inspector when conditional field values change (structured output checkbox)
+                if (node.type === "asl/llm" && def.key === "structured_output_enabled") {
+                    renderInspector(node);
                 }
 
                 graph.setDirtyCanvas(true, true);
@@ -970,7 +1143,8 @@ function initializeEditor() {
         }
     });
 
-    // ---------------------- Canvas controls ----------------------
+    // ---------------------- Canvas controls (removed from UI) ----------------------
+    /*
     function setScale(newScale) {
         const clamped = Math.min(Math.max(newScale, 0.2), 2.5);
         canvas.ds.scale = clamped;
@@ -1020,6 +1194,7 @@ function initializeEditor() {
         canvas.grid = snapToggle.checked ? 24 : 0;
         canvas.draw(true, true);
     });
+    */
 
     // ---------------------- Serialization Helpers ----------------------
     function collectEdges(serializedGraph) {
@@ -1034,76 +1209,17 @@ function initializeEditor() {
                     const edge = {
                         from: String(node.id),
                         to: String(link.target_id),
-                        type: (node.type === "asl/router" || node.type === "asl/conditional") ? "ConditionalEdge" : "NormalEdge"
+                        type: (node.type === "asl/router") ? "ConditionalEdge" : "NormalEdge"
                     };
                     if (edge.type === "ConditionalEdge") {
-                        edge.condition = output.name || "true";
+                        edge.condition = output.name || "default";
                     }
                     edges.push(edge);
                 });
             });
         });
         
-        // Infer tool node return paths
-        // Pattern: LLM → Conditional → ToolNode (true branch)
-        // Infer: ToolNode → LLM (auto-return)
-        inferToolNodeReturns(serializedGraph, edges);
-        
         return edges;
-    }
-    
-    function inferToolNodeReturns(serializedGraph, edges) {
-        // Find all tool nodes
-        const toolNodes = serializedGraph.nodes.filter(n => n.type === "asl/tool");
-        
-        toolNodes.forEach(toolNode => {
-            const toolNodeId = String(toolNode.id);
-            
-            // Find the conditional that leads to this tool node
-            const conditionalEdge = edges.find(e => 
-                e.to === toolNodeId && 
-                e.type === "ConditionalEdge" && 
-                e.condition === "true"
-            );
-            
-            if (!conditionalEdge) {
-                console.warn(`Tool node ${toolNodeId} is not connected via a Conditional's true branch`);
-                return;
-            }
-            
-            const conditionalNodeId = conditionalEdge.from;
-            
-            // Find the LLM that connects to this conditional
-            const llmEdge = edges.find(e => e.to === conditionalNodeId);
-            
-            if (!llmEdge) {
-                console.warn(`Conditional ${conditionalNodeId} has no incoming edge from LLM`);
-                return;
-            }
-            
-            const llmNodeId = llmEdge.from;
-            const llmNode = serializedGraph.nodes.find(n => String(n.id) === llmNodeId);
-            
-            if (!llmNode || llmNode.type !== "asl/llm") {
-                console.warn(`Node ${llmNodeId} is not an LLM node`);
-                return;
-            }
-            
-            // Add the implicit return edge: ToolNode → LLM
-            const returnEdge = {
-                from: toolNodeId,
-                to: llmNodeId,
-                type: "NormalEdge",
-                implicit: true  // Mark as auto-generated
-            };
-            
-            // Check if this edge already exists
-            const exists = edges.some(e => e.from === toolNodeId && e.to === llmNodeId);
-            if (!exists) {
-                edges.push(returnEdge);
-                console.log(`Inferred return path: Tool(${toolNodeId}) → LLM(${llmNodeId})`);
-            }
-        });
     }
 
     function deriveToolRegistry(nodes) {
@@ -1148,10 +1264,6 @@ function initializeEditor() {
                 });
             } else {
                 config = JSON.parse(JSON.stringify(props));
-            }
-            if (node.type === "asl/conditional") {
-                config.true_label = config.true_label || node.outputs?.[0]?.name || "true";
-                config.false_label = config.false_label || node.outputs?.[1]?.name || "false";
             }
             return {
                 id: String(node.id),
@@ -1215,10 +1327,6 @@ function initializeEditor() {
             if (nodeInfo.label) {
                 node.title = nodeInfo.label;
             }
-            if (node.type === "asl/conditional") {
-                if (node.outputs?.[0]) node.outputs[0].name = node.properties.true_label || "true";
-                if (node.outputs?.[1]) node.outputs[1].name = node.properties.false_label || "false";
-            }
             graph.add(node);
             idMap.set(String(nodeInfo.id), node);
             if (node.type === "asl/entry") {
@@ -1242,16 +1350,9 @@ function initializeEditor() {
                 return;
             }
             
-            // Skip edges FROM tool nodes (they have no outputs)
-            // But ALLOW edges TO tool nodes (they have an input)
-            if (fromNode.type === "asl/tool") {
-                console.log(`Skipping edge FROM tool node (no outputs, return path is implicit)`);
-                return;
-            }
-            
             let outputIndex = 0;
-            if ((fromNode.type === "asl/router" || fromNode.type === "asl/conditional") && edge.condition) {
-                console.log(`Conditional edge - looking for output "${edge.condition}"`);
+            if (fromNode.type === "asl/router" && edge.condition) {
+                console.log(`Router edge - looking for output "${edge.condition}"`);
                 console.log(`Available outputs:`, fromNode.outputs);
                 const targetName = edge.condition.toLowerCase();
                 outputIndex = (fromNode.outputs || []).findIndex((output) => output.name?.toLowerCase() === targetName);
