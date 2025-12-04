@@ -242,6 +242,49 @@ function patchConnectionArrows() {
     proto._aslArrowPatched = true;
 }
 
+function patchNodeRendering() {
+    if (!window.LGraphCanvas || window.LGraphCanvas.prototype._aslNodePatched) {
+        return;
+    }
+    
+    // Store accent colors for each node type
+    const nodeAccents = {
+        'asl/entry': '#3B82F6',    // Blue
+        'asl/llm': '#F59E0B',       // Orange
+        'asl/router': '#A855F7',    // Purple
+        'asl/worker': '#10B981'     // Green
+    };
+    
+    const proto = LGraphCanvas.prototype;
+    const originalDrawNode = proto.drawNode;
+    
+    proto.drawNode = function(node, ctx) {
+        const accentColor = nodeAccents[node.type];
+        
+        if (accentColor) {
+            // Temporarily override colors to use dark theme
+            const originalColor = node.color;
+            const originalBgcolor = node.bgcolor;
+            
+            // Force dark colors for rendering
+            node.color = '#1E293B';  // Dark header
+            node.bgcolor = '#1E293B';  // Dark body
+            
+            // Call original draw
+            originalDrawNode.call(this, node, ctx);
+            
+            // Restore original colors
+            node.color = originalColor;
+            node.bgcolor = originalBgcolor;
+        } else {
+            // Default rendering for unknown types
+            originalDrawNode.call(this, node, ctx);
+        }
+    };
+    
+    proto._aslNodePatched = true;
+}
+
 function initializeEditor() {
     console.log("=== Initializing Editor ===");
     console.log("LiteGraph available:", typeof LiteGraph !== 'undefined');
@@ -255,6 +298,7 @@ function initializeEditor() {
     }
 
     patchConnectionArrows();
+    patchNodeRendering();
     
     try {
         console.log("Creating LGraph...");
@@ -396,8 +440,8 @@ function initializeEditor() {
     function EntryPointNode() {
         this.title = "Entry Point";
         this.size = [220, 80];
-        this.color = "#0077BB";
-        this.bgcolor = "#0077BB";
+        this.color = "#334155";  // Subtle border
+        this.bgcolor = "#1E293B";  // Dark slate body
         this.resizable = false;
         this.properties = {
             title: "Entry Point",
@@ -408,19 +452,25 @@ function initializeEditor() {
         this.widgets_up = true;
         this.serialize_widgets = true;
         
+        // Draw blue top border accent
+        this.onDrawForeground = function(ctx) {
+            ctx.fillStyle = "#3B82F6";  // Blue accent
+            ctx.fillRect(0, 0, this.size[0], 3);
+        };
+        
         // Debug: log when output is clicked
         this.onOutputClick = function(slot_index, e) {
             console.log("Entry Point output clicked:", slot_index);
         };
     }
     EntryPointNode.title = "Entry Point";
-    EntryPointNode.title_color = "#FFFFFF";
+    EntryPointNode.title_color = "#F8FAFC";
 
     function LLMNode() {
         this.title = "LLM Node";
         this.size = [220, 120];
-        this.color = "#EE7733";
-        this.bgcolor = "#EE7733";
+        this.color = "#334155";  // Subtle border
+        this.bgcolor = "#1E293B";  // Dark slate body
         this.properties = {
             title: "LLM Node",
             output_key: "llm_output",
@@ -443,7 +493,7 @@ function initializeEditor() {
             if (tools.length === 0) return;
             
             ctx.save();
-            ctx.fillStyle = "#000000";
+            ctx.fillStyle = "#94A3B8";  // Muted text color
             ctx.font = "11px 'Inter', sans-serif";
             ctx.textAlign = "left";
             ctx.textBaseline = "top";
@@ -475,6 +525,9 @@ function initializeEditor() {
         };
 
         this.onDrawForeground = function(ctx) {
+            // Draw orange top border accent
+            ctx.fillStyle = "#F59E0B";  // Orange accent
+            ctx.fillRect(0, 0, this.size[0], 3);
             renderSelectedTools(ctx);
         };
 
@@ -511,13 +564,13 @@ function initializeEditor() {
         };
     }
     LLMNode.title = "LLM Node";
-    LLMNode.title_color = "#000000";
+    LLMNode.title_color = "#F8FAFC";
 
     function RouterBlockNode(){
         this.title = "Router Block";
         this.size = [220, 100]
-        this.color = "#cba8d5ff";
-        this.bgcolor = "#cba8d5ff";
+        this.color = "#334155";  // Subtle border
+        this.bgcolor = "#1E293B";  // Dark slate body
         this.properties = {
             title: "Router Block",
             // router node should get system node from the user, and should be forwarded LLM response, as user prompt, and based on that it decides which path to take.
@@ -528,15 +581,21 @@ function initializeEditor() {
         this.addOutput("out", "flow");
         this.widgets_up = true;
         this.serialize_widgets = true;
+        
+        // Draw purple top border accent
+        this.onDrawForeground = function(ctx) {
+            ctx.fillStyle = "#A855F7";  // Purple accent
+            ctx.fillRect(0, 0, this.size[0], 3);
+        };
     }
     RouterBlockNode.title = "Router Block";
-    RouterBlockNode.title_color = "#FFFFFF";
+    RouterBlockNode.title_color = "#F8FAFC";
 
     function WorkerNode() {
         this.title = "Worker Node";
         this.size = [220, 120];
-        this.color = "#009E73";
-        this.bgcolor = "#009E73";
+        this.color = "#334155";  // Subtle border
+        this.bgcolor = "#1E293B";  // Dark slate body
         this.properties = {
             title: "Worker Node",
             output_key: "worker_output",
@@ -558,7 +617,7 @@ function initializeEditor() {
             if (tools.length === 0) return;
             
             ctx.save();
-            ctx.fillStyle = "#000000";
+            ctx.fillStyle = "#94A3B8";  // Muted text color
             ctx.font = "11px 'Inter', sans-serif";
             ctx.textAlign = "left";
             ctx.textBaseline = "top";
@@ -590,6 +649,9 @@ function initializeEditor() {
         };
 
         this.onDrawForeground = function(ctx) {
+            // Draw green top border accent
+            ctx.fillStyle = "#10B981";  // Green accent
+            ctx.fillRect(0, 0, this.size[0], 3);
             renderSelectedTools(ctx);
         };
 
@@ -626,7 +688,7 @@ function initializeEditor() {
         };
     }
     WorkerNode.title = "Worker Node";
-    WorkerNode.title_color = "#FFFFFF";
+    WorkerNode.title_color = "#F8FAFC";
 
     // function ToolNode() {
     //     this.title = "Tool Node";
