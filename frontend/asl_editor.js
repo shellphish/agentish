@@ -1682,15 +1682,43 @@ function initializeEditor() {
     renderFunctionCatalog();
     hydrateMcpTools();
 
-    // ---------------------- Action Buttons ----------------------
-    document.getElementById("save-btn").addEventListener("click", () => {
-        graph.extra = graph.extra || {};
-        graph.extra.stateSchema = appState.schema;
-        downloadFile("asl_workspace.json", JSON.stringify(graph.serialize(), null, 2));
-        showToast("Workspace saved", "success");
+    // ---------------------- Dropdown Menu Management ----------------------
+    // Toggle dropdown menus
+    document.querySelectorAll('.dropdown-toggle').forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dropdown = button.closest('.dropdown');
+            const menu = dropdown.querySelector('.dropdown-menu');
+            
+            // Close other dropdowns
+            document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+                if (m !== menu) m.classList.remove('show');
+            });
+            
+            // Toggle current dropdown
+            menu.classList.toggle('show');
+        });
     });
 
-    document.getElementById("export-layout-btn").addEventListener("click", () => {
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+            m.classList.remove('show');
+        });
+    });
+
+    // ---------------------- Helper Functions for Menu Actions ----------------------
+    function downloadASL() {
+        try {
+            const asl = serializeToASL();
+            downloadFile("asl_graph.json", JSON.stringify(asl, null, 2));
+            showToast("ASL specification downloaded", "success");
+        } catch (err) {
+            showToast(err.message, "error");
+        }
+    }
+
+    function downloadLayout() {
         try {
             const serialized = graph.serialize();
             const layoutPayload = {
@@ -1702,17 +1730,241 @@ function initializeEditor() {
                 }
             };
             downloadFile("asl_layout.json", JSON.stringify(layoutPayload, null, 2));
-            showToast("Layout exported", "success");
+            showToast("Layout downloaded", "success");
         } catch (err) {
-            showToast(`Failed to export layout: ${err.message}`, "error");
+            showToast(`Failed to download layout: ${err.message}`, "error");
         }
+    }
+
+    async function downloadCode() {
+        try {
+            const asl = serializeToASL();
+            const response = await fetch('/submission/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(asl)
+            });
+            const contentType = response.headers.get('content-type') || '';
+            if (!response.ok) {
+                if (contentType.includes('application/json')) {
+                    const data = await response.json().catch(() => null);
+                    throw new Error(data?.error || `HTTP ${response.status}`);
+                }
+                const text = await response.text().catch(() => '');
+                throw new Error(text || `HTTP ${response.status}`);
+            }
+            if (contentType.includes('application/json')) {
+                const data = await response.json().catch(() => null);
+                throw new Error(data?.error || 'Server returned JSON instead of a downloadable file');
+            }
+            const blob = await response.blob();
+            const disposition = response.headers.get('content-disposition') || '';
+            let filename = 'asl_submission.py';
+            const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+            if (match && match[1]) {
+                filename = match[1];
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("Code downloaded", "success");
+        } catch (err) {
+            console.error("Download failed:", err);
+            showToast(`Download failed: ${err.message}`, "error");
+        }
+    }
+
+    async function downloadBundle() {
+        try {
+            if (typeof JSZip === 'undefined') {
+                throw new Error('JSZip library not loaded. Please refresh the page.');
+            }
+
+            showToast("Creating bundle...", "info");
+            const zip = new JSZip();
+            
+            // Add ASL specification
+            const asl = serializeToASL();
+            zip.file('asl_spec.json', JSON.stringify(asl, null, 2));
+            
+            // Add layout
+            const serialized = graph.serialize();
+            const layoutPayload = {
+                nodes: serialized.nodes || [],
+                links: serialized.links || [],
+                groups: serialized.groups || [],
+                config: {
+                    state_schema: appState.schema
+                }
+            };
+            zip.file('layout.json', JSON.stringify(layoutPayload, null, 2));
+            
+            // Add compiled code
+            const codeResponse = await fetch('/compile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(asl)
+            });
+            
+            if (!codeResponse.ok) {
+                throw new Error(`Failed to compile code: HTTP ${codeResponse.status}`);
+            }
+            
+            const result = await codeResponse.json();
+            if (!result.code) {
+                throw new Error('No code returned from compiler');
+            }
+            zip.file('compiled_agent.py', result.code);
+            
+            // Add README
+            const readme = `# Agent Bundle
+
+This bundle contains:
+- asl_spec.json: The ASL specification
+- layout.json: The visual layout data
+- compiled_agent.py: The compiled LangGraph agent
+
+## Usage
+
+1. Review the ASL specification in asl_spec.json
+2. Run the agent with: python compiled_agent.py
+3. Import the layout back into the editor using layout.json
+
+Generated: ${new Date().toISOString()}
+`;
+            zip.file('README.md', readme);
+            
+            // Generate and download
+            const blob = await zip.generateAsync({type: 'blob'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'agent_bundle.zip';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast("Bundle downloaded", "success");
+        } catch (err) {
+            console.error("Bundle creation failed:", err);
+            showToast(`Bundle failed: ${err.message}`, "error");
+        }
+    }
+
+    function viewASL() {
+        try {
+            const asl = serializeToASL();
+            const formatted = JSON.stringify(asl, null, 2);
+            document.getElementById('asl-content').textContent = formatted;
+            document.getElementById('asl-view-modal').style.display = 'flex';
+        } catch (err) {
+            showToast(`Failed to view ASL: ${err.message}`, "error");
+        }
+    }
+
+    async function viewCode() {
+        try {
+            const asl = serializeToASL();
+            const response = await fetch('/compile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(asl)
+            });
+
+            if (!response.ok) {
+                const contentType = response.headers.get('content-type') || '';
+                let errorMsg = `HTTP ${response.status}`;
+
+                if (contentType.includes('application/json')) {
+                    const errorData = await response.json().catch(() => null);
+                    if (errorData && errorData.error) errorMsg = errorData.error;
+                } else {
+                    const text = await response.text().catch(() => '');
+                    if (text) {
+                        const snippet = text.replace(/\s+/g, ' ').slice(0, 400);
+                        errorMsg += `: ${snippet}`;
+                    }
+                }
+
+                if (response.status === 501) {
+                    errorMsg += ' — Start the Flask backend with `python3 backend/server.py`';
+                }
+
+                document.getElementById('generated-code').textContent = `Compiler error:\n\n${errorMsg}`;
+                document.getElementById('code-modal').style.display = 'flex';
+                throw new Error(errorMsg);
+            }
+
+            const result = await response.json();
+
+            if (result.code) {
+                document.getElementById('generated-code').textContent = result.code;
+                document.getElementById('code-modal').style.display = 'flex';
+            } else {
+                throw new Error('No code returned from compiler');
+            }
+        } catch (err) {
+            showToast(`Failed to generate code: ${err.message}`, "error");
+            console.error("Code generation error:", err);
+        }
+    }
+
+    // ---------------------- Dropdown Menu Items ----------------------
+    document.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', async (e) => {
+            const action = e.target.dataset.action;
+            
+            // Close dropdown
+            e.target.closest('.dropdown-menu').classList.remove('show');
+            
+            // Execute action
+            switch(action) {
+                // Import actions
+                case 'import-asl':
+                    document.getElementById('file-input-asl').click();
+                    break;
+                case 'import-layout':
+                    document.getElementById('file-input-layout').click();
+                    break;
+                case 'import-bundle':
+                    document.getElementById('file-input-bundle').click();
+                    break;
+                case 'import-auto':
+                    document.getElementById('file-input').click();
+                    break;
+                // Download actions (merged from Export)
+                case 'download-asl':
+                    downloadASL();
+                    break;
+                case 'download-layout':
+                    downloadLayout();
+                    break;
+                case 'download-code':
+                    await downloadCode();
+                    break;
+                case 'download-bundle':
+                    await downloadBundle();
+                    break;
+                // View actions
+                case 'view-asl':
+                    viewASL();
+                    break;
+                case 'view-code':
+                    await viewCode();
+                    break;
+            }
+        });
     });
 
-    document.getElementById("load-btn").addEventListener("click", () => {
-        fileInput.click();
-    });
-
-    fileInput.addEventListener("change", (event) => {
+    // ---------------------- Import Handlers ----------------------
+    // Auto-detect import (original behavior)
+    document.getElementById("file-input").addEventListener("change", (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
         const reader = new FileReader();
@@ -1721,6 +1973,7 @@ function initializeEditor() {
                 const data = JSON.parse(e.target.result);
                 if (data.graph && data.graph.nodes) {
                     configureFromASL(data);
+                    showToast("ASL specification loaded", "success");
                 } else {
                     graph.configure(data);
                     if (data.extra?.stateSchema) {
@@ -1729,69 +1982,131 @@ function initializeEditor() {
                         stateSchemaTextarea.value = appState.schemaRaw;
                     }
                     updateSummary();
-                    showToast("Workspace restored", "success");
+                    showToast("Layout loaded", "success");
                 }
             } catch (err) {
                 showToast(`Failed to load file: ${err.message}`, "error");
             }
         };
         reader.readAsText(file);
+        event.target.value = ''; // Reset input
     });
 
-    document.getElementById("export-btn").addEventListener("click", () => {
-        try {
-            const asl = serializeToASL();
-            downloadFile("asl_graph.json", JSON.stringify(asl, null, 2));
-            showToast("ASL schema exported", "success");
-        } catch (err) {
-            showToast(err.message, "error");
-        }
-    });
-
-    document.getElementById("download-btn").addEventListener("click", () => {
-        (async () => {
+    // Import ASL (strict format check)
+    document.getElementById("file-input-asl").addEventListener("change", (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
             try {
-                const asl = serializeToASL();
-                const response = await fetch('/submission/download', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(asl)
-                });
-                const contentType = response.headers.get('content-type') || '';
-                if (!response.ok) {
-                    if (contentType.includes('application/json')) {
-                        const data = await response.json().catch(() => null);
-                        throw new Error(data?.error || `HTTP ${response.status}`);
-                    }
-                    const text = await response.text().catch(() => '');
-                    throw new Error(text || `HTTP ${response.status}`);
+                const data = JSON.parse(e.target.result);
+                if (!data.graph || !data.graph.nodes) {
+                    throw new Error("Invalid ASL format: missing graph.nodes");
                 }
-                if (contentType.includes('application/json')) {
-                    const data = await response.json().catch(() => null);
-                    throw new Error(data?.error || 'Server returned JSON instead of a downloadable file');
-                }
-                const blob = await response.blob();
-                const disposition = response.headers.get('content-disposition') || '';
-                let filename = 'asl_submission.py';
-                const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
-                if (match && match[1]) {
-                    filename = match[1];
-                }
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                showToast("Validated submission downloaded", "success");
+                configureFromASL(data);
+                showToast("ASL specification loaded", "success");
             } catch (err) {
-                console.error("Download failed:", err);
-                showToast(`Download failed: ${err.message}`, "error");
+                showToast(`Failed to load ASL: ${err.message}`, "error");
             }
-        })();
+        };
+        reader.readAsText(file);
+        event.target.value = '';
     });
+
+    // Import Layout (strict format check)
+    document.getElementById("file-input-layout").addEventListener("change", (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.graph && data.graph.nodes) {
+                    throw new Error("This appears to be an ASL file. Use 'Import → ASL Specification' instead.");
+                }
+                if (!data.nodes || !Array.isArray(data.nodes)) {
+                    throw new Error("Invalid Layout format: missing nodes array");
+                }
+                graph.configure(data);
+                if (data.extra?.stateSchema) {
+                    appState.schema = data.extra.stateSchema;
+                    appState.schemaRaw = JSON.stringify(appState.schema, null, 2);
+                    stateSchemaTextarea.value = appState.schemaRaw;
+                }
+                if (data.config?.state_schema) {
+                    appState.schema = data.config.state_schema;
+                    appState.schemaRaw = JSON.stringify(appState.schema, null, 2);
+                    stateSchemaTextarea.value = appState.schemaRaw;
+                }
+                updateSummary();
+                showToast("Layout loaded", "success");
+            } catch (err) {
+                showToast(`Failed to load layout: ${err.message}`, "error");
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = '';
+    });
+
+    // Import Bundle (extract from ZIP)
+    document.getElementById("file-input-bundle").addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        
+        try {
+            if (typeof JSZip === 'undefined') {
+                throw new Error('JSZip library not loaded. Please refresh the page.');
+            }
+
+            showToast("Extracting bundle...", "info");
+            
+            const zip = new JSZip();
+            const contents = await zip.loadAsync(file);
+            
+            // Try to find ASL spec first (preferred)
+            let aslFile = contents.file("asl_spec.json") || contents.file("asl_graph.json");
+            
+            if (aslFile) {
+                const aslContent = await aslFile.async("string");
+                const data = JSON.parse(aslContent);
+                configureFromASL(data);
+                showToast("Bundle imported (ASL specification)", "success");
+            } else {
+                // Fall back to layout
+                let layoutFile = contents.file("layout.json") || contents.file("asl_layout.json");
+                
+                if (layoutFile) {
+                    const layoutContent = await layoutFile.async("string");
+                    const data = JSON.parse(layoutContent);
+                    graph.configure(data);
+                    if (data.extra?.stateSchema || data.config?.state_schema) {
+                        appState.schema = data.extra?.stateSchema || data.config?.state_schema;
+                        appState.schemaRaw = JSON.stringify(appState.schema, null, 2);
+                        stateSchemaTextarea.value = appState.schemaRaw;
+                    }
+                    updateSummary();
+                    showToast("Bundle imported (Layout)", "success");
+                } else {
+                    throw new Error("Bundle does not contain asl_spec.json or layout.json");
+                }
+            }
+            
+        } catch (err) {
+            showToast(`Failed to import bundle: ${err.message}`, "error");
+            console.error("Bundle import error:", err);
+        }
+        
+        event.target.value = '';
+    });
+
+    // Old handlers removed - now using dropdown menus
+    // The following buttons no longer exist:
+    // - load-btn (now Import dropdown menu)
+    // - save-btn (removed)
+    // - export-layout-btn (merged into Download menu)
+    // - export-btn (merged into Download menu)
+    // - download-btn (now in Download menu)
+    // - view-code-btn (now in View menu)
 
     const submitModal = document.getElementById('submit-status-modal');
     const closeSubmitModalBtn = document.getElementById('close-submit-modal');
@@ -1966,69 +2281,15 @@ function initializeEditor() {
         }
     });
     
-    // View Generated Code button
-    document.getElementById("view-code-btn").addEventListener("click", async () => {
-        try {
-            const asl = serializeToASL();
-            
-            // Call the compiler API to generate code. Use a relative path so
-            // the request goes to the same origin that's serving the frontend
-            // (the Flask backend when you run `python backend/server.py`).
-            const response = await fetch('/compile', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(asl)
-            });
-
-            if (!response.ok) {
-                // Try to extract a useful error message. Some servers (like
-                // python -m http.server) return HTML for unsupported methods
-                // which can't be parsed as JSON — handle that gracefully.
-                const contentType = response.headers.get('content-type') || '';
-                let errorMsg = `HTTP ${response.status}`;
-
-                if (contentType.includes('application/json')) {
-                    const errorData = await response.json().catch(() => null);
-                    if (errorData && errorData.error) errorMsg = errorData.error;
-                } else {
-                    const text = await response.text().catch(() => '');
-                    if (text) {
-                        const snippet = text.replace(/\s+/g, ' ').slice(0, 400);
-                        errorMsg += `: ${snippet}`;
-                    }
-                }
-
-                if (response.status === 501) {
-                    errorMsg += ' — It looks like a static HTTP server is handling requests (python -m http.server). Start the Flask backend with `python3 backend/server.py` and open the UI at http://127.0.0.1:8000 so /compile is handled by the compiler.';
-                }
-
-                // Display the error in the same modal so the user can copy it
-                document.getElementById('generated-code').textContent = `Compiler error:\n\n${errorMsg}`;
-                document.getElementById('code-modal').style.display = 'flex';
-                throw new Error(errorMsg);
-            }
-
-            const result = await response.json();
-
-            if (result.code) {
-                // Display the code in the modal
-                document.getElementById('generated-code').textContent = result.code;
-                document.getElementById('code-modal').style.display = 'flex';
-            } else {
-                throw new Error('No code returned from compiler');
-            }
-        } catch (err) {
-            showToast(`Failed to generate code: ${err.message}`, "error");
-            console.error("Code generation error:", err);
-        }
-    });
+    // Old view-code-btn handler removed - now using View menu dropdown
     
-    // Close modal button
+    // ---------------------- Modal Event Handlers ----------------------
+    // Close code modal button
     document.getElementById("close-modal").addEventListener("click", () => {
         document.getElementById('code-modal').style.display = 'none';
     });
     
-    // Download code button
+    // Download code button from modal
     document.getElementById("download-code-btn").addEventListener("click", () => {
         const code = document.getElementById('generated-code').textContent;
         const blob = new Blob([code], { type: 'text/plain' });
@@ -2043,10 +2304,41 @@ function initializeEditor() {
         showToast("Code downloaded", "success");
     });
     
-    // Close modal when clicking outside
+    // Close code modal when clicking outside
     document.getElementById('code-modal').addEventListener('click', (e) => {
         if (e.target.id === 'code-modal') {
             document.getElementById('code-modal').style.display = 'none';
+        }
+    });
+
+    // ASL View Modal handlers
+    document.getElementById("close-asl-modal").addEventListener("click", () => {
+        document.getElementById('asl-view-modal').style.display = 'none';
+    });
+
+    document.getElementById("copy-asl-btn").addEventListener("click", () => {
+        const content = document.getElementById('asl-content').textContent;
+        navigator.clipboard.writeText(content).then(() => {
+            showToast("ASL copied to clipboard", "success");
+        }).catch(err => {
+            showToast("Failed to copy", "error");
+        });
+    });
+
+    document.getElementById("download-asl-from-modal-btn").addEventListener("click", () => {
+        try {
+            const asl = serializeToASL();
+            downloadFile("asl_graph.json", JSON.stringify(asl, null, 2));
+            showToast("ASL downloaded", "success");
+        } catch (err) {
+            showToast(`Download failed: ${err.message}`, "error");
+        }
+    });
+
+    // Close ASL modal when clicking outside
+    document.getElementById('asl-view-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'asl-view-modal') {
+            document.getElementById('asl-view-modal').style.display = 'none';
         }
     });
 

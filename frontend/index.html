@@ -27,12 +27,44 @@
                 </div>
                 <div class="top-actions">
                     <input type="file" id="file-input" accept="application/json" hidden />
-                    <button class="btn btn-ghost" id="load-btn">Import Layout</button>
-                    <button class="btn btn-ghost" id="export-layout-btn">Export Layout</button>
-                    <button class="btn btn-ghost" id="save-btn">Save Canvas</button>
-                    <button class="btn btn-ghost" id="export-btn">Export ASL</button>
-                    <button class="btn btn-ghost" id="view-code-btn">View Code</button>
-                    <button class="btn btn-ghost" id="download-btn">Download Submission</button>
+                    <input type="file" id="file-input-asl" accept="application/json" hidden />
+                    <input type="file" id="file-input-layout" accept="application/json" hidden />
+                    <input type="file" id="file-input-bundle" accept=".zip,application/zip" hidden />
+                    
+                    <div class="dropdown">
+                        <button class="btn btn-ghost dropdown-toggle" id="import-menu-btn">
+                            Import <span class="dropdown-arrow">▾</span>
+                        </button>
+                        <div class="dropdown-menu">
+                            <button class="dropdown-item" data-action="import-asl">ASL Specification</button>
+                            <button class="dropdown-item" data-action="import-layout">Layout</button>
+                            <button class="dropdown-item" data-action="import-bundle">Bundle (ZIP)</button>
+                            <button class="dropdown-item" data-action="import-auto">Auto-Detect</button>
+                        </div>
+                    </div>
+                    
+                    <div class="dropdown">
+                        <button class="btn btn-ghost dropdown-toggle" id="download-menu-btn">
+                            Download <span class="dropdown-arrow">▾</span>
+                        </button>
+                        <div class="dropdown-menu">
+                            <button class="dropdown-item" data-action="download-asl">ASL Specification</button>
+                            <button class="dropdown-item" data-action="download-layout">Layout</button>
+                            <button class="dropdown-item" data-action="download-code">Code (Validated)</button>
+                            <button class="dropdown-item" data-action="download-bundle">Bundle (Complete)</button>
+                        </div>
+                    </div>
+                    
+                    <div class="dropdown">
+                        <button class="btn btn-ghost dropdown-toggle" id="view-menu-btn">
+                            View <span class="dropdown-arrow">▾</span>
+                        </button>
+                        <div class="dropdown-menu">
+                            <button class="dropdown-item" data-action="view-asl">ASL</button>
+                            <button class="dropdown-item" data-action="view-code">Code</button>
+                        </div>
+                    </div>
+                    
                     <button class="btn btn-primary" id="submit-btn">Submit</button>
                 </div>
             </header>
@@ -73,20 +105,6 @@
                                     <small>Background task with no output edge.</small>
                                 </span>
                             </button>
-                            <!-- <button class="block" data-node-type="conditional" draggable="true">
-                                <span class="block-icon">🔀</span>
-                                <span>
-                                    <strong>Conditional Block</strong>
-                                    <small>Route based on conditions (true/false).</small>
-                                </span>
-                            </button> -->
-                            <!-- <button class="block" data-node-type="tool" draggable="true">
-                                <span class="block-icon">�</span>
-                                <span>
-                                    <strong>Tool Node</strong>
-                                    <small>Execute selected functions.</small>
-                                </span>
-                            </button> -->
                         </div>
                     </section>
 
@@ -224,6 +242,19 @@
             </div>
         </div>
 
+        <!-- ASL View Modal -->
+        <div id="asl-view-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center;">
+            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 900px; max-height: 80vh; overflow: auto; position: relative;">
+                <button id="close-asl-modal" style="position: absolute; top: 15px; right: 15px; background: #e53e3e; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 20px; cursor: pointer; line-height: 1;">&times;</button>
+                <h2 style="margin-bottom: 20px; color: #3b82f6;">ASL Specification</h2>
+                <pre id="asl-content" style="background: #f5f7fa; padding: 20px; border-radius: 8px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5; color: #1a202c;"></pre>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button id="copy-asl-btn" style="padding: 12px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">📋 Copy</button>
+                    <button id="download-asl-from-modal-btn" style="padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">💾 Download</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Tool Editor Modal -->
         <div id="tool-editor-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10001; align-items: center; justify-content: center; overflow-y: auto;">
             <div style="background: white; border-radius: 12px; padding: 30px; max-width: 800px; max-height: 90vh; overflow-y: auto; position: relative; margin: 20px;">
@@ -272,6 +303,7 @@
             </div>
         </div>
 
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
         <script src="litegraph.min.js"></script>
         <script src="asl_editor.js"></script>
     </body>
