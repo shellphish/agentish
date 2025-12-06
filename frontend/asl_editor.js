@@ -58,6 +58,17 @@ const NODE_FORMS = {
     "asl/llm": [
         { key: "title", label: "Node title", type: "text", placeholder: "LLM Node" },
         {
+            key: "num_inputs",
+            label: "Number of input slots",
+            type: "number",
+            placeholder: "1",
+            description: "How many input connections this node should accept",
+            min: 1,
+            max: 10,
+            step: 1,
+            default: 1
+        },
+        {
             key: "output_key",
             label: "Store output as",
             type: "text",
@@ -173,6 +184,16 @@ const NODE_FORMS = {
             description: "Warning message when approaching tool iteration limit (only shown when tools are selected)",
             conditional: { field: "selected_tools", hasItems: true }
         }
+    ],
+    "asl/router": [
+        { key: "title", label: "Node title", type: "text", placeholder: "Router Block" },
+        {
+            key: "system_prompt",
+            label: "System prompt",
+            type: "textarea",
+            rows: 4,
+            description: "System instruction for routing decisions."
+        }
     ]
 };
 
@@ -257,6 +278,110 @@ function patchNodeRendering() {
     
     const proto = LGraphCanvas.prototype;
     const originalDrawNode = proto.drawNode;
+    const originalDrawNodeShape = proto.drawNodeShape;
+    
+    // Helper function to calculate wrapped lines and required height
+    function calculateWrappedTitle(ctx, node, maxWidth) {
+        // Use properties.title if available, otherwise fall back to node.title
+        const title = node.properties?.title || node.title;
+        if (!title) return { lines: [], height: LiteGraph.NODE_TITLE_HEIGHT };
+        
+        ctx.save();
+        ctx.font = "bold 14px Arial";
+        
+        const words = title.split(" ");
+        const lines = [];
+        let currentLine = "";
+        
+        words.forEach((word) => {
+            const testLine = currentLine ? currentLine + " " + word : word;
+            const metrics = ctx.measureText(testLine);
+            if (metrics.width > maxWidth && currentLine) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+        });
+        if (currentLine) lines.push(currentLine);
+        
+        ctx.restore();
+        
+        const lineHeight = 16;
+        const requiredHeight = Math.max(LiteGraph.NODE_TITLE_HEIGHT, lines.length * lineHeight + 8);
+        
+        return { lines, height: requiredHeight };
+    }
+
+    function drawWrappedTitle(ctx, canvas, node) {
+        if (!node._wrappedTitleLines || node._wrappedTitleLines.length === 0) {
+            return;
+        }
+        const titleHeight = node._titleHeight || LiteGraph.NODE_TITLE_HEIGHT;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, -titleHeight, node.size[0], titleHeight);
+        ctx.clip();
+        ctx.font = "bold 14px Arial";
+        const textColor = node.is_selected
+            ? LiteGraph.NODE_SELECTED_TITLE_COLOR
+            : (node.constructor.title_text_color || canvas.node_title_color || "#ffffff");
+        ctx.fillStyle = textColor;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        let y = -titleHeight + 8;
+        const lineHeight = 16;
+        node._wrappedTitleLines.forEach((line) => {
+            ctx.fillText(line, 10, y);
+            y += lineHeight;
+        });
+        ctx.restore();
+    }
+    
+    // Override drawNodeShape to handle dynamic title height and render wrapped titles ourselves
+    proto.drawNodeShape = function(node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
+        const maxWidth = node.size[0] - 20;
+        const titleData = calculateWrappedTitle(ctx, node, maxWidth);
+        const title_height = titleData.height;
+
+        node._wrappedTitleLines = titleData.lines;
+        node._titleHeight = title_height;
+
+        const originalTitleHeight = LiteGraph.NODE_TITLE_HEIGHT;
+        const originalTitle = node.title;
+        const hasOwnCtorTitle = node.constructor ? Object.prototype.hasOwnProperty.call(node.constructor, "title") : false;
+        const originalCtorTitle = node.constructor ? node.constructor.title : undefined;
+        const hasOwnGetTitle = Object.prototype.hasOwnProperty.call(node, "getTitle");
+        const originalGetTitle = node.getTitle;
+
+        // Suppress LiteGraph's default title rendering by clearing the sources it uses.
+        node.title = "";
+        if (node.constructor) {
+            node.constructor.title = "";
+        }
+        node.getTitle = () => "";
+
+        LiteGraph.NODE_TITLE_HEIGHT = title_height;
+
+        originalDrawNodeShape.call(this, node, ctx, size, fgcolor, bgcolor, selected, mouse_over);
+
+        drawWrappedTitle(ctx, this, node);
+
+        LiteGraph.NODE_TITLE_HEIGHT = originalTitleHeight;
+        node.title = originalTitle;
+        if (node.constructor) {
+            if (hasOwnCtorTitle) {
+                node.constructor.title = originalCtorTitle;
+            } else {
+                delete node.constructor.title;
+            }
+        }
+        if (hasOwnGetTitle) {
+            node.getTitle = originalGetTitle;
+        } else {
+            delete node.getTitle;
+        }
+    };
     
     proto.drawNode = function(node, ctx) {
         const accentColor = nodeAccents[node.type];
@@ -335,12 +460,66 @@ function initializeEditor() {
     
     // Track space key for canvas panning
     let spacePressed = false;
+    let copiedNode = null;
+    
     window.addEventListener('keydown', (e) => {
         if (e.code === 'Space' && !e.repeat && e.target === document.body) {
             spacePressed = true;
             e.preventDefault();
         }
+        
+        // Skip if typing in input fields
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+            return;
+        }
+        
+        // Ctrl+C: Copy selected node
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+            const selectedNodes = Object.values(canvas.selected_nodes || {});
+            if (selectedNodes.length === 1) {
+                copiedNode = selectedNodes[0];
+                showToast("Node copied (Ctrl+V to paste)", "success");
+                e.preventDefault();
+            }
+        }
+        
+        // Ctrl+V: Paste copied node
+        if ((e.ctrlKey || e.metaKey) && e.key === 'v' && copiedNode) {
+            const newNode = LiteGraph.createNode(copiedNode.type);
+            if (newNode) {
+                // Copy properties
+                newNode.properties = JSON.parse(JSON.stringify(copiedNode.properties));
+                newNode.title = copiedNode.title;
+                newNode.size = [...copiedNode.size];
+                
+                // Position offset from original
+                newNode.pos = [copiedNode.pos[0] + 30, copiedNode.pos[1] + 30];
+                
+                graph.add(newNode);
+                ensureSingleEntry(newNode);
+                canvas.selectNode(newNode);
+                updateSummary();
+                showToast("Node cloned", "success");
+                e.preventDefault();
+            }
+        }
+        
+        // Backspace or Delete: Remove selected node
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            const selectedNodes = Object.values(canvas.selected_nodes || {});
+            if (selectedNodes.length > 0) {
+                selectedNodes.forEach(node => {
+                    graph.remove(node);
+                });
+                canvas.selected_nodes = {};
+                updateSummary();
+                renderEmptyInspector();
+                showToast("Node(s) deleted", "success");
+                e.preventDefault();
+            }
+        }
     });
+    
     window.addEventListener('keyup', (e) => {
         if (e.code === 'Space') {
             spacePressed = false;
@@ -422,6 +601,11 @@ function initializeEditor() {
                 }
             }
         }
+        
+        // Sync title property to display title
+        if (node.properties.title) {
+            node.title = node.properties.title;
+        }
     }
 
     function updateSummary() {
@@ -464,15 +648,16 @@ function initializeEditor() {
         };
     }
     EntryPointNode.title = "Entry Point";
-    EntryPointNode.title_color = "#F8FAFC";
+    EntryPointNode.title_color = "#000000";
 
     function LLMNode() {
         this.title = "LLM Node";
-        this.size = [220, 120];
+        this.size = [220, 140];
         this.color = "#334155";  // Subtle border
         this.bgcolor = "#1E293B";  // Dark slate body
         this.properties = {
             title: "LLM Node",
+            num_inputs: 1,
             output_key: "llm_output",
             system_prompt: "",
             human_prompt: "",
@@ -482,6 +667,7 @@ function initializeEditor() {
             max_tool_iterations: DEFAULT_TOOL_MAX_ITERATIONS,
             iteration_warning_message: DEFAULT_TOOL_LIMIT_WARNING
         };
+        // Start with one input slot
         this.addInput("in", "flow");
         this.addOutput("out", "flow");
         this.widgets_up = true;
@@ -562,9 +748,38 @@ function initializeEditor() {
             }
             return this._addTool(toolName);
         };
+
+        // Method to dynamically update input slots
+        this.updateInputSlots = function(numInputs) {
+            const currentInputs = this.inputs ? this.inputs.length : 0;
+            
+            // Remove excess inputs
+            while (this.inputs && this.inputs.length > numInputs) {
+                this.removeInput(this.inputs.length - 1);
+            }
+            
+            // Add missing inputs
+            while (!this.inputs || this.inputs.length < numInputs) {
+                const slotIndex = this.inputs ? this.inputs.length : 0;
+                const slotName = numInputs === 1 ? "in" : `in${slotIndex + 1}`;
+                this.addInput(slotName, "flow");
+            }
+            
+            // Adjust node height based on number of inputs
+            const baseHeight = 120;
+            const inputHeight = numInputs > 3 ? (numInputs - 3) * 20 : 0;
+            const toolsHeight = this.properties.selected_tools?.length 
+                ? Math.ceil(this.properties.selected_tools.length / 2) * 15 
+                : 0;
+            this.size[1] = Math.max(baseHeight, baseHeight + inputHeight + toolsHeight);
+            
+            if (graph) {
+                graph.setDirtyCanvas(true, true);
+            }
+        };
     }
     LLMNode.title = "LLM Node";
-    LLMNode.title_color = "#F8FAFC";
+    LLMNode.title_color = "#000000";
 
     function RouterBlockNode(){
         this.title = "Router Block";
@@ -589,7 +804,7 @@ function initializeEditor() {
         };
     }
     RouterBlockNode.title = "Router Block";
-    RouterBlockNode.title_color = "#F8FAFC";
+    RouterBlockNode.title_color = "#000000";
 
     function WorkerNode() {
         this.title = "Worker Node";
@@ -688,7 +903,7 @@ function initializeEditor() {
         };
     }
     WorkerNode.title = "Worker Node";
-    WorkerNode.title_color = "#F8FAFC";
+    WorkerNode.title_color = "#000000";
 
     // function ToolNode() {
     //     this.title = "Tool Node";
@@ -946,6 +1161,12 @@ function initializeEditor() {
 
         const form = document.createElement("form");
         form.className = "controls-grid";
+        
+        // Prevent form submission on Enter key
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            return false;
+        });
 
         const formDefs = NODE_FORMS[node.type] || [];
         formDefs.forEach((def) => {
@@ -1057,7 +1278,7 @@ function initializeEditor() {
                 }
             }
 
-            input.addEventListener("change", () => {
+            input.addEventListener("input", () => {
                 let value = input.value;
                 if (def.type === "checkbox") {
                     value = input.checked;
@@ -1098,6 +1319,19 @@ function initializeEditor() {
                     }
                 }
                 node.properties[def.key] = value;
+
+                // Update node title in UI when title property changes
+                if (def.key === "title") {
+                    node.title = value || node.type;
+                    // Clear cached wrapped lines to force recalculation
+                    node._wrappedTitleLines = null;
+                    node._titleHeight = null;
+                }
+
+                // Update input slots dynamically for LLM nodes
+                if (node.type === "asl/llm" && def.key === "num_inputs" && typeof node.updateInputSlots === "function") {
+                    node.updateInputSlots(value);
+                }
 
                 // Keep router socket labels updated.
                 if (node.type === "asl/router") {
@@ -1388,6 +1622,7 @@ function initializeEditor() {
             normalizeNodeProperties(node);
             if (nodeInfo.label) {
                 node.title = nodeInfo.label;
+                node.properties.title = nodeInfo.label;  // Sync to properties
             }
             graph.add(node);
             idMap.set(String(nodeInfo.id), node);
