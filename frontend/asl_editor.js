@@ -58,17 +58,6 @@ const NODE_FORMS = {
     "asl/llm": [
         { key: "title", label: "Node title", type: "text", placeholder: "LLM Node" },
         {
-            key: "num_inputs",
-            label: "Number of input slots",
-            type: "number",
-            placeholder: "1",
-            description: "How many input connections this node should accept",
-            min: 1,
-            max: 10,
-            step: 1,
-            default: 1
-        },
-        {
             key: "output_key",
             label: "Store output as",
             type: "text",
@@ -657,7 +646,6 @@ function initializeEditor() {
         this.bgcolor = "#1E293B";  // Dark slate body
         this.properties = {
             title: "LLM Node",
-            num_inputs: 1,
             output_key: "llm_output",
             system_prompt: "",
             human_prompt: "",
@@ -672,6 +660,35 @@ function initializeEditor() {
         this.addOutput("out", "flow");
         this.widgets_up = true;
         this.serialize_widgets = true;
+        
+        // Auto-expand inputs when connections are made
+        this.onConnectionsChange = function(type, slot, isConnected, link_info, slot_info) {
+            if (type === LiteGraph.INPUT && isConnected) {
+                // When an input is connected, check if we need to add another empty slot
+                const hasEmptySlot = this.inputs.some(input => !input.link);
+                if (!hasEmptySlot) {
+                    const newSlotIndex = this.inputs.length;
+                    const slotName = newSlotIndex === 0 ? "in" : `in${newSlotIndex + 1}`;
+                    this.addInput(slotName, "flow");
+                    if (graph) {
+                        graph.setDirtyCanvas(true, true);
+                    }
+                }
+            } else if (type === LiteGraph.INPUT && !isConnected) {
+                // When disconnected, remove trailing empty slots (keep at least one)
+                while (this.inputs.length > 1) {
+                    const lastInput = this.inputs[this.inputs.length - 1];
+                    if (!lastInput.link) {
+                        this.removeInput(this.inputs.length - 1);
+                    } else {
+                        break;
+                    }
+                }
+                if (graph) {
+                    graph.setDirtyCanvas(true, true);
+                }
+            }
+        };
         
         // Render selected tools on the node
         const renderSelectedTools = (ctx) => {
@@ -747,35 +764,6 @@ function initializeEditor() {
                 return false;
             }
             return this._addTool(toolName);
-        };
-
-        // Method to dynamically update input slots
-        this.updateInputSlots = function(numInputs) {
-            const currentInputs = this.inputs ? this.inputs.length : 0;
-            
-            // Remove excess inputs
-            while (this.inputs && this.inputs.length > numInputs) {
-                this.removeInput(this.inputs.length - 1);
-            }
-            
-            // Add missing inputs
-            while (!this.inputs || this.inputs.length < numInputs) {
-                const slotIndex = this.inputs ? this.inputs.length : 0;
-                const slotName = numInputs === 1 ? "in" : `in${slotIndex + 1}`;
-                this.addInput(slotName, "flow");
-            }
-            
-            // Adjust node height based on number of inputs
-            const baseHeight = 120;
-            const inputHeight = numInputs > 3 ? (numInputs - 3) * 20 : 0;
-            const toolsHeight = this.properties.selected_tools?.length 
-                ? Math.ceil(this.properties.selected_tools.length / 2) * 15 
-                : 0;
-            this.size[1] = Math.max(baseHeight, baseHeight + inputHeight + toolsHeight);
-            
-            if (graph) {
-                graph.setDirtyCanvas(true, true);
-            }
         };
     }
     LLMNode.title = "LLM Node";
@@ -1328,11 +1316,6 @@ function initializeEditor() {
                     node._titleHeight = null;
                 }
 
-                // Update input slots dynamically for LLM nodes
-                if (node.type === "asl/llm" && def.key === "num_inputs" && typeof node.updateInputSlots === "function") {
-                    node.updateInputSlots(value);
-                }
-
                 // Keep router socket labels updated.
                 if (node.type === "asl/router") {
                     if (def.key === "truthy_label" && node.outputs?.[0]) {
@@ -1505,6 +1488,7 @@ function initializeEditor() {
                     const edge = {
                         from: String(node.id),
                         to: String(link.target_id),
+                        target_slot: link.target_slot,
                         type: (node.type === "asl/router") ? "ConditionalEdge" : "NormalEdge"
                     };
                     if (edge.type === "ConditionalEdge") {
@@ -1631,8 +1615,23 @@ function initializeEditor() {
             }
         });
 
+        // First pass: pre-expand input slots for LLM nodes based on target_slot requirements
         (graphData.edges || []).forEach((edge) => {
-            console.log(`Creating edge: ${edge.from} → ${edge.to} (type: ${edge.type}, condition: ${edge.condition}, implicit: ${edge.implicit})`);
+            if (edge.implicit) return;
+            const toNode = idMap.get(String(edge.to));
+            if (toNode && toNode.type === "asl/llm" && edge.target_slot !== undefined) {
+                const requiredSlots = edge.target_slot + 1;
+                while (toNode.inputs.length < requiredSlots) {
+                    const newSlotIndex = toNode.inputs.length;
+                    const slotName = newSlotIndex === 0 ? "in" : `in${newSlotIndex + 1}`;
+                    toNode.addInput(slotName, "flow");
+                }
+            }
+        });
+
+        // Second pass: create connections
+        (graphData.edges || []).forEach((edge) => {
+            console.log(`Creating edge: ${edge.from} → ${edge.to} (type: ${edge.type}, condition: ${edge.condition}, implicit: ${edge.implicit}, target_slot: ${edge.target_slot})`);
             
             // Skip implicit edges (auto-generated tool returns)
             if (edge.implicit) {
@@ -1656,8 +1655,11 @@ function initializeEditor() {
                 console.log(`Output index for "${edge.condition}": ${outputIndex}`);
                 if (outputIndex < 0) outputIndex = 0;
             }
-            console.log(`Connecting: ${fromNode.title}[${outputIndex}] → ${toNode.title}[0]`);
-            fromNode.connect(outputIndex, toNode, 0);
+            
+            // Use target_slot from edge data, fallback to 0 for backward compatibility
+            const targetSlot = edge.target_slot !== undefined ? edge.target_slot : 0;
+            console.log(`Connecting: ${fromNode.title}[${outputIndex}] → ${toNode.title}[${targetSlot}]`);
+            fromNode.connect(outputIndex, toNode, targetSlot);
         });
 
         updateSummary();
