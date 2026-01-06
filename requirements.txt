@@ -9,3 +9,4 @@ langfuse
 pyyaml
 langchain-anthropic
 langchain-ollama
+jinja2
