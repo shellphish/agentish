@@ -79,18 +79,11 @@ const NODE_FORMS = {
             description: "Optional human message template evaluated before invoking the LLM."
         },
         {
-            key: "structured_output_enabled",
-            label: "Structured JSON output",
-            type: "checkbox",
-            description: "Enable structured JSON output from the LLM"
-        },
-        {
             key: "structured_output_schema",
             label: "JSON Schema",
             type: "json",
             rows: 6,
-            description: "Define the structure for LLM output (only shown when structured output is enabled)",
-            conditional: { field: "structured_output_enabled", value: true }
+            description: "Define the structure for LLM output"
         },
         {
             key: "selected_tools",
@@ -135,18 +128,11 @@ const NODE_FORMS = {
             description: "System instruction for this worker node."
         },
         {
-            key: "structured_output_enabled",
-            label: "Structured JSON output",
-            type: "checkbox",
-            description: "Enable structured JSON output from the LLM"
-        },
-        {
             key: "structured_output_schema",
             label: "JSON Schema",
             type: "json",
             rows: 6,
-            description: "Define the structure for LLM output (only shown when structured output is enabled)",
-            conditional: { field: "structured_output_enabled", value: true }
+            description: "Define the structure for LLM output"
         },
         {
             key: "selected_tools",
@@ -568,7 +554,7 @@ function initializeEditor() {
             }
             // Initialize structured output properties
             if (typeof node.properties.structured_output_enabled !== "boolean") {
-                node.properties.structured_output_enabled = false;
+                node.properties.structured_output_enabled = true;
             }
             if (!node.properties.structured_output_schema) {
                 node.properties.structured_output_schema = {};
@@ -649,7 +635,7 @@ function initializeEditor() {
             output_key: "llm_output",
             system_prompt: "",
             human_prompt: "",
-            structured_output_enabled: false,
+            structured_output_enabled: true,
             structured_output_schema: {},
             selected_tools: [],
             max_tool_iterations: DEFAULT_TOOL_MAX_ITERATIONS,
@@ -803,7 +789,7 @@ function initializeEditor() {
             title: "Worker Node",
             output_key: "worker_output",
             system_prompt: "",
-            structured_output_enabled: false,
+            structured_output_enabled: true,
             structured_output_schema: {},
             selected_tools: [],
             max_tool_iterations: DEFAULT_TOOL_MAX_ITERATIONS,
@@ -1324,11 +1310,6 @@ function initializeEditor() {
                     if (def.key === "falsy_label" && node.outputs?.[1]) {
                         node.outputs[1].name = value || "false";
                     }
-                }
-
-                // Re-render inspector when conditional field values change (structured output checkbox)
-                if (node.type === "asl/llm" && def.key === "structured_output_enabled") {
-                    renderInspector(node);
                 }
 
                 graph.setDirtyCanvas(true, true);
