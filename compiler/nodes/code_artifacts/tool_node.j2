@@ -1,0 +1,61 @@
+#{ Template for generating tool node function with Command pattern - Single Global State #}
+def tool_{{ node_id }}_node(global_state: GlobalState) -> Command:
+    """Tool node for LLM node {{ node_id }} - performs tool calls with iteration tracking."""
+    
+    messages = global_state.get("node_{{ node_id }}_messages", [])
+    if not messages:
+        return Command(update={}, goto="llm_{{ node_id }}_node")
+    
+    last_message = messages[-1]
+    if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
+        return Command(update={}, goto="llm_{{ node_id }}_node")
+    
+    # Get current iteration count and max from global state
+    current_iteration = global_state.get("node_{{ node_id }}_tool_iteration_count", 0)
+    max_iterations = {{ max_tool_iterations }}
+    
+    # Check iteration limit BEFORE processing
+    if current_iteration >= max_iterations:
+        # Hit limit - return to LLM without processing tools
+        warning_msg = HumanMessage(
+            content="Tool iteration limit reached. Please provide a final response without using more tools."
+        )
+        return Command(
+            update={
+                "messages": [warning_msg],
+                "node_{{ node_id }}_messages": [warning_msg]
+            },
+            goto="llm_{{ node_id }}_node"
+        )
+    
+    remaining = max_iterations - current_iteration
+    
+    # Process tool calls
+    result = []
+    for tool_call in last_message.tool_calls:
+        tool = tools_by_name_for_node_{{ node_id }}.get(tool_call["name"])
+        if tool:
+            observation = tool.invoke(tool_call["args"])
+            result.append(ToolMessage(content=str(observation), tool_call_id=tool_call["id"]))
+        else:
+            result.append(ToolMessage(
+                content=f"Error: Tool '{tool_call['name']}' not found",
+                tool_call_id=tool_call["id"]
+            ))
+    
+    # Add warning if we're close to the limit
+    if remaining <= 5 and remaining > 0:
+        warning_msg = HumanMessage(
+            content="{{ iteration_warning_message }}"
+        )
+        result.append(warning_msg)
+    
+    # Return Command routing back to LLM node - update both global and node-specific messages
+    return Command(
+        update={
+            "messages": result,
+            "node_{{ node_id }}_messages": result,
+            "node_{{ node_id }}_tool_iteration_count": current_iteration + 1
+        },
+        goto="llm_{{ node_id }}_node"
+    )

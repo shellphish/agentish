@@ -1,0 +1,12 @@
+#{ Template for generating should_continue function for nodes with tools #}
+def should_continue_{{ node_id }}_node(global_state: GlobalState, local_state: LLMState_{{ node_id }}) -> Literal["tool_{{ node_id }}_node", END]:
+    """Decide if we should continue to tool node or stop for LLM node {{ node_id }}."""
+    messages = local_state["messages"]
+    last_message = messages[-1]
+    
+    # If the LLM makes a tool call, then perform an action
+    if last_message.tool_calls:
+        return "tool_{{ node_id }}_node"
+    
+    # Otherwise, we stop (reply to the user)
+    return END

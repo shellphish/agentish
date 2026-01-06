@@ -1,0 +1,66 @@
+#{ Template for generating LLM node function with Command pattern - Single Global State #}
+def llm_{{ node_id }}_node(global_state: GlobalState) -> Command:
+    """LLM Node {{ node_id }}: {{ title }}"""
+    
+    # Build message list
+    messages = []
+    
+    # Add system prompt if provided
+    system_prompt_rendered = render_template({{ system_prompt|tojson }}, global_state)
+    if system_prompt_rendered:
+        messages.append(SystemMessage(content=system_prompt_rendered))
+    
+    # Add conversation history from node-specific messages in global state
+    messages.extend(global_state.get("node_{{ node_id }}_messages", []))
+    
+    # Add human prompt if provided
+    human_prompt_rendered = render_template({{ human_prompt|tojson }}, global_state)
+    if human_prompt_rendered:
+        messages.append(HumanMessage(content=human_prompt_rendered))
+    
+    # Invoke the model
+    {%- if structured_output_enabled %}
+    # Use structured output with Pydantic model
+    model_with_output = model_{{ node_id }}.with_structured_output({{ structured_output_schema_class }})
+    response = model_with_output.invoke(messages)
+    {%- else %}
+    response = model_{{ node_id }}.invoke(messages)
+    {%- endif %}
+    
+    {% if has_tools %}
+    # Check for tool calls (iteration limit enforced in tool node)
+    if hasattr(response, 'tool_calls') and response.tool_calls:
+        # Continue to tool node
+        return Command(
+            update={
+                "count": 1,
+                "messages": [response],
+                "node_{{ node_id }}_messages": [response],
+                "node_{{ node_id }}_llm_calls": 1
+            },
+            goto="tool_{{ node_id }}_node"
+        )
+    else:
+        # No more tools - go to next node
+        return Command(
+            update={
+                "count": 1,
+                "messages": [response],
+                "node_{{ node_id }}_messages": [response],
+                "node_{{ node_id }}_llm_calls": 1,
+                "node_{{ node_id }}_tool_iteration_count": 0
+            },
+            goto="{{ next_node }}"
+        )
+    {% else %}
+    # No tools - just update state and route to next
+    return Command(
+        update={
+            "count": 1,
+            "messages": [response],
+            "node_{{ node_id }}_messages": [response],
+            "node_{{ node_id }}_llm_calls": 1
+        },
+        goto="{{ next_node }}"
+    )
+    {% endif %}

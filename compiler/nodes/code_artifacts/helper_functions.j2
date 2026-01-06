@@ -1,0 +1,25 @@
+#{ Template for helper utility functions #}
+# ==========================================
+# HELPER FUNCTIONS
+# ==========================================
+
+class _SafeFormat(dict):
+    """Safe string formatter that returns placeholders for missing keys."""
+    def __missing__(self, key):
+        return "{" + key + "}"
+
+
+def render_template(template: str, state: dict) -> str:
+    """Render a template string with state variables."""
+    if not template:
+        return ""
+    try:
+        format_map = _SafeFormat({**state, "state": state})
+        return template.format_map(format_map)
+    except Exception:
+        return template
+
+
+def _generate_session_id() -> str:
+    """Generate a unique session ID for langfuse tracing."""
+    return uuid.uuid4().hex

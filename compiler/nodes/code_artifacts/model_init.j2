@@ -1,0 +1,79 @@
+#{ Template for model initialization with langfuse support #}
+# ==========================================
+# MODEL INITIALIZATION AND LANGFUSE SETUP
+# ==========================================
+
+def _load_env_config():
+    """Load environment configuration for LLM and Langfuse."""
+    return {
+        "llm_model_name": os.getenv("LLM_MODEL_NAME", "gpt-4"),
+        "llm_temperature": float(os.getenv("LLM_TEMPERATURE", "0.0")),
+        "llm_context_window": int(os.getenv("LLM_CONTEXT_WINDOW", "8192")),
+        "llm_max_output_tokens": int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "4096")),
+        "llm_endpoint": os.getenv("LLM_ENDPOINT", ""),
+        "llm_api_key": os.getenv("LLM_API_KEY", ""),
+        "langfuse_api_key": os.getenv("LANGFUSE_API_KEY", ""),
+        "langfuse_project_name": os.getenv("LANGFUSE_PROJECT_NAME", "default_project"),
+        "langfuse_host": os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+    }
+
+ENV_CONFIG = _load_env_config()
+
+
+def _create_langfuse_handler():
+    """Create Langfuse callback handler if configured."""
+    if not ENV_CONFIG.get("langfuse_api_key"):
+        return None
+    
+    try:
+        os.environ["LANGFUSE_PUBLIC_KEY"] = ENV_CONFIG["langfuse_api_key"]
+        os.environ["LANGFUSE_SECRET_KEY"] = ENV_CONFIG.get("langfuse_secret_key", ENV_CONFIG["langfuse_api_key"])
+        os.environ["LANGFUSE_HOST"] = ENV_CONFIG["langfuse_host"]
+        
+        return CallbackHandler(
+            public_key=ENV_CONFIG["langfuse_api_key"],
+            secret_key=ENV_CONFIG.get("langfuse_secret_key", ENV_CONFIG["langfuse_api_key"]),
+            host=ENV_CONFIG["langfuse_host"]
+        )
+    except Exception as e:
+        print(f"Warning: Failed to initialize Langfuse: {e}")
+        return None
+
+
+def init_chat_model(model_name: str = None, temperature: float = None, max_tokens: int = None, tools: list = None):
+    """Initialize chat model with optional tool binding."""
+    model_name = model_name or ENV_CONFIG["llm_model_name"]
+    temperature = temperature if temperature is not None else ENV_CONFIG["llm_temperature"]
+    max_tokens = max_tokens or ENV_CONFIG["llm_max_output_tokens"]
+    
+    # Detect provider from model name
+    if model_name.startswith("gpt-") or model_name.startswith("o1-"):
+        model = ChatOpenAI(
+            model=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            api_key=ENV_CONFIG["llm_api_key"]
+        )
+    elif model_name.startswith("claude-"):
+        model = ChatAnthropic(
+            model=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            api_key=ENV_CONFIG["llm_api_key"]
+        )
+    else:
+        # Default to Ollama for local models
+        model = ChatOllama(
+            model=model_name,
+            temperature=temperature,
+            num_ctx=ENV_CONFIG["llm_context_window"]
+        )
+    
+    # Bind tools if provided
+    if tools:
+        model = model.bind_tools(tools)
+    
+    return model
+
+
+LANGFUSE_HANDLER = _create_langfuse_handler()

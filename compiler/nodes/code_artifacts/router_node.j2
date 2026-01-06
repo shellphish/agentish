@@ -1,0 +1,63 @@
+#{ Template for router node - Always uses structured output with Command pattern #}
+def router_{{ node_id }}_node(global_state: GlobalState) -> Command:
+    """Router Node {{ node_id }}: {{ title }}
+    
+    Decides which node to route to based on LLM analysis with structured output.
+    """
+    
+    # Define routing decision schema (always structured for routers)
+    class RouterDecision(BaseModel):
+        next_node: str = Field(description="ID of next node to route to")
+        reason: str = Field(description="Reasoning for routing decision")
+    
+    # Build message list
+    messages = []
+    
+    # Add system prompt
+    system_prompt_rendered = render_template({{ system_prompt|tojson }}, global_state)
+    if system_prompt_rendered:
+        messages.append(SystemMessage(content=system_prompt_rendered))
+    
+    # Get conversation history from global state
+    messages.extend(global_state.get("messages", []))
+    
+    # Build human message with available routing options
+    routing_options = {
+{%- for node_func_name, node_info in outgoing_nodes.items() %}
+        {{ node_func_name|tojson }}: {{ node_info|tojson }},
+{%- endfor %}
+    }
+    
+    options_text = "Available routing options:\n"
+    for func_name, node_info in routing_options.items():
+        options_text += f"- {func_name}: {node_info.get('title', 'Unknown')}\n"
+    
+    routing_prompt = f"""Based on the conversation so far, choose the most appropriate next node to handle the request.
+
+{options_text}
+
+Choose the node function name from the options above."""
+    
+    messages.append(HumanMessage(content=routing_prompt))
+    
+    # Use structured output - no manual parsing needed!
+    router_model = model_router_{{ node_id }}.with_structured_output(RouterDecision)
+    decision = router_model.invoke(messages)
+    
+    # Validate the decision
+    if decision.next_node not in routing_options:
+        # Fallback to first option if invalid
+        decision.next_node = list(routing_options.keys())[0]
+    
+    # Create AI message with routing decision
+    routing_message = AIMessage(content=f"Routing to {decision.next_node}: {decision.reason}")
+    
+    # Return Command with routing decision
+    return Command(
+        update={
+            "count": 1,
+            "messages": [routing_message],
+            "routing_reason": decision.reason
+        },
+        goto=decision.next_node
+    )

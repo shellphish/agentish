@@ -1,0 +1,12 @@
+#{ Template for generating Local State TypedDict class for LLM/Worker nodes #}
+class {{ state_prefix | default("LLMState") }}_{{ node_id }}(TypedDict):
+    """Local state for {{ state_prefix | default("LLM") }} node {{ node_id }}."""
+    messages: Annotated[list[BaseMessage], operator.add]
+    llm_calls: int
+    tool_call_iteration_count: int
+    max_tool_calls: int
+{%- if custom_state_fields %}
+{%- for field_name, field_type in custom_state_fields.items() %}
+    {{ field_name }}: {{ field_type }}
+{%- endfor %}
+{%- endif %}
