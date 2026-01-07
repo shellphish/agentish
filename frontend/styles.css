@@ -785,6 +785,36 @@ textarea#state-schema {
   box-shadow: 0 0 0 3px rgba(255, 111, 145, 0.25) !important;
 }
 
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.checkbox-item:hover {
+  background: var(--bg-accent);
+}
+
+.checkbox-item input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.checkbox-item span {
+  font-size: 0.9em;
+  color: var(--text-primary);
+}
+
 .empty-state {
   text-align: center;
   border: 1px dashed rgba(148, 163, 184, 0.24);

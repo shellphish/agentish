@@ -39,14 +39,7 @@ const TOOL_TEMPLATE_ADDITION = `def tool_implementation(a: int, b: int, state: d
 
 const NODE_FORMS = {
     "asl/entry": [
-        { key: "title", label: "Display name", type: "text", placeholder: "Entry Point" },
-        {
-            key: "description",
-            label: "Description",
-            type: "textarea",
-            rows: 3,
-            description: "Describe what this agent does."
-        },
+        { key: "title", label: "Display name", type: "text", placeholder: "Entry Node" },
         {
             key: "initial_state",
             label: "Initial state (JSON)",
@@ -58,11 +51,10 @@ const NODE_FORMS = {
     "asl/llm": [
         { key: "title", label: "Node title", type: "text", placeholder: "LLM Node" },
         {
-            key: "output_key",
-            label: "Store output as",
-            type: "text",
-            placeholder: "llm_output",
-            description: "State key to store the response"
+            key: "output_state_keys",
+            label: "Global state to update",
+            type: "state_checkboxes",
+            description: "Select which state variables to update with LLM output"
         },
         {
             key: "system_prompt",
@@ -113,13 +105,6 @@ const NODE_FORMS = {
     ],
     "asl/worker": [
         { key: "title", label: "Node title", type: "text", placeholder: "Worker Node" },
-        {
-            key: "output_key",
-            label: "Store output as",
-            type: "text",
-            placeholder: "worker_output",
-            description: "State key to store the response"
-        },
         {
             key: "system_prompt",
             label: "System prompt",
@@ -597,14 +582,13 @@ function initializeEditor() {
 
     // ---------------------- Node Definitions ----------------------
     function EntryPointNode() {
-        this.title = "Entry Point";
+        this.title = "Entry Node";
         this.size = [220, 80];
         this.color = "#334155";  // Subtle border
         this.bgcolor = "#1E293B";  // Dark slate body
         this.resizable = false;
         this.properties = {
-            title: "Entry Point",
-            description: "Initialize agent state",
+            title: "Entry Node",
             initial_state: {}
         };
         this.addOutput("next", "flow");  // Only outgoing
@@ -619,10 +603,10 @@ function initializeEditor() {
         
         // Debug: log when output is clicked
         this.onOutputClick = function(slot_index, e) {
-            console.log("Entry Point output clicked:", slot_index);
+            console.log("Entry Node output clicked:", slot_index);
         };
     }
-    EntryPointNode.title = "Entry Point";
+    EntryPointNode.title = "Entry Node";
     EntryPointNode.title_color = "#000000";
 
     function LLMNode() {
@@ -633,6 +617,7 @@ function initializeEditor() {
         this.properties = {
             title: "LLM Node",
             output_key: "llm_output",
+            output_state_keys: [],
             system_prompt: "",
             human_prompt: "",
             structured_output_enabled: true,
@@ -787,7 +772,6 @@ function initializeEditor() {
         this.bgcolor = "#1E293B";  // Dark slate body
         this.properties = {
             title: "Worker Node",
-            output_key: "worker_output",
             system_prompt: "",
             structured_output_enabled: true,
             structured_output_schema: {},
@@ -1182,6 +1166,95 @@ function initializeEditor() {
                 return;
             }
 
+            // Handle state_checkboxes for LLM Node output selection
+            if (def.type === "state_checkboxes") {
+                // Get current global schema (excluding count and messages)
+                const stateVars = Object.keys(appState.schema || {})
+                    .filter(key => key !== "count" && key !== "messages");
+                
+                if (stateVars.length === 0) {
+                    const hint = document.createElement("small");
+                    hint.textContent = "No additional state variables defined. Add them in Entry Node's Initial State.";
+                    hint.style.color = "#94a3b8";
+                    wrapper.appendChild(hint);
+                } else {
+                    const checkboxContainer = document.createElement("div");
+                    checkboxContainer.className = "checkbox-group";
+                    
+                    // Get currently selected keys (backward compatibility with output_key)
+                    let selectedKeys = node.properties?.[def.key] || [];
+                    if (!Array.isArray(selectedKeys)) {
+                        selectedKeys = node.properties?.output_key ? [node.properties.output_key] : [];
+                    }
+                    
+                    stateVars.forEach(varName => {
+                        const checkboxWrapper = document.createElement("label");
+                        checkboxWrapper.className = "checkbox-item";
+                        
+                        const checkbox = document.createElement("input");
+                        checkbox.type = "checkbox";
+                        checkbox.value = varName;
+                        checkbox.checked = selectedKeys.includes(varName);
+                        
+                        checkbox.addEventListener("change", () => {
+                            // Update selected keys array
+                            let updated = node.properties.output_state_keys || [];
+                            if (checkbox.checked) {
+                                if (!updated.includes(varName)) {
+                                    updated.push(varName);
+                                }
+                            } else {
+                                updated = updated.filter(k => k !== varName);
+                            }
+                            node.properties.output_state_keys = updated;
+                            
+                            // Also update output_key for backward compatibility (use first selected)
+                            node.properties.output_key = updated[0] || "";
+                            
+                            // Auto-update JSON Schema with exact values from global state
+                            const newSchema = {};
+                            updated.forEach(key => {
+                                // Copy the exact value/type from global state
+                                if (appState.schema.hasOwnProperty(key)) {
+                                    newSchema[key] = appState.schema[key];
+                                }
+                            });
+                            
+                            // Update the node's structured_output_schema property
+                            node.properties.structured_output_schema = newSchema;
+                            
+                            // Update the JSON Schema textarea in the inspector
+                            const textareas = document.querySelectorAll('textarea[data-is-json="true"]');
+                            for (const textarea of textareas) {
+                                const wrapper = textarea.closest('.control-group');
+                                if (!wrapper) continue;
+                                
+                                const label = wrapper.querySelector('label');
+                                if (label && label.textContent.includes('JSON Schema')) {
+                                    textarea.value = JSON.stringify(newSchema, null, 2);
+                                    textarea.classList.remove('input-error');
+                                    break;
+                                }
+                            }
+                            
+                            graph.setDirtyCanvas(true, true);
+                        });
+                        
+                        const labelText = document.createElement("span");
+                        labelText.textContent = varName;
+                        
+                        checkboxWrapper.appendChild(checkbox);
+                        checkboxWrapper.appendChild(labelText);
+                        checkboxContainer.appendChild(checkboxWrapper);
+                    });
+                    
+                    wrapper.appendChild(checkboxContainer);
+                }
+                
+                form.appendChild(wrapper);
+                return;
+            }
+
             switch (def.type) {
                 case "textarea":
                 case "code": {
@@ -1285,6 +1358,30 @@ function initializeEditor() {
                 if (input.dataset.isJson === "true") {
                     try {
                         value = value ? JSON.parse(value) : def.type === "json" && def.key === "arguments" ? [] : {};
+                        
+                        // Special validation for Entry Node initial_state
+                        if (node.type === "asl/entry" && def.key === "initial_state") {
+                            if (value.hasOwnProperty("count")) {
+                                delete value.count;
+                                showToast("'count' is a reserved state variable and cannot be overridden", "error");
+                            }
+                            if (value.hasOwnProperty("messages")) {
+                                delete value.messages;
+                                showToast("'messages' is a reserved state variable and cannot be overridden", "error");
+                            }
+                            // Update the textarea to show cleaned JSON
+                            input.value = JSON.stringify(value, null, 2);
+                        }
+                        
+                        // Validate structured_output_schema is not empty
+                        if (def.key === "structured_output_schema") {
+                            if (Object.keys(value).length === 0) {
+                                input.classList.add("input-error");
+                                showToast("JSON Schema cannot be empty. Define the output structure.", "error");
+                                return; // Don't save empty schema
+                            }
+                        }
+                        
                         input.classList.remove("input-error");
                     } catch (err) {
                         input.classList.add("input-error");
@@ -1293,6 +1390,27 @@ function initializeEditor() {
                     }
                 }
                 node.properties[def.key] = value;
+
+                // Special handling for Entry Node initial_state - auto-update global state schema
+                if (node.type === "asl/entry" && def.key === "initial_state") {
+                    // Merge initial_state with default schema
+                    const mergedSchema = {
+                        count: "int",
+                        messages: "Annotated[List[BaseMessage], lambda x, y: x + y]",
+                        ...value  // Spread additional state fields
+                    };
+                    
+                    // Update global state schema
+                    appState.schema = mergedSchema;
+                    appState.schemaRaw = JSON.stringify(mergedSchema, null, 2);
+                    stateSchemaTextarea.value = appState.schemaRaw;
+                    
+                    // Update graph extra
+                    graph.extra = graph.extra || {};
+                    graph.extra.stateSchema = mergedSchema;
+                    
+                    showToast("Global state schema updated", "success");
+                }
 
                 // Update node title in UI when title property changes
                 if (def.key === "title") {
