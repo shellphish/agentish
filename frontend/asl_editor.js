@@ -72,7 +72,7 @@ const NODE_FORMS = {
         },
         {
             key: "structured_output_schema",
-            label: "JSON Schema",
+            label: "Output Schema",
             type: "json",
             rows: 6,
             description: "Define the structure for LLM output"
@@ -1211,7 +1211,7 @@ function initializeEditor() {
                             // Also update output_key for backward compatibility (use first selected)
                             node.properties.output_key = updated[0] || "";
                             
-                            // Auto-update JSON Schema with exact values from global state
+                            // Auto-update Output Schema with exact values from global state
                             const newSchema = {};
                             updated.forEach(key => {
                                 // Copy the exact value/type from global state
@@ -1222,15 +1222,15 @@ function initializeEditor() {
                             
                             // Update the node's structured_output_schema property
                             node.properties.structured_output_schema = newSchema;
-                            
-                            // Update the JSON Schema textarea in the inspector
+
+                            // Update the Output Schema textarea in the inspector
                             const textareas = document.querySelectorAll('textarea[data-is-json="true"]');
                             for (const textarea of textareas) {
                                 const wrapper = textarea.closest('.control-group');
                                 if (!wrapper) continue;
                                 
                                 const label = wrapper.querySelector('label');
-                                if (label && label.textContent.includes('JSON Schema')) {
+                                if (label && label.textContent.includes('Output Schema')) {
                                     textarea.value = JSON.stringify(newSchema, null, 2);
                                     textarea.classList.remove('input-error');
                                     break;
@@ -1377,7 +1377,7 @@ function initializeEditor() {
                         if (def.key === "structured_output_schema") {
                             if (Object.keys(value).length === 0) {
                                 input.classList.add("input-error");
-                                showToast("JSON Schema cannot be empty. Define the output structure.", "error");
+                                showToast("Output Schema cannot be empty. Define the output structure.", "error");
                                 return; // Don't save empty schema
                             }
                         }
@@ -2538,6 +2538,53 @@ Generated: ${new Date().toISOString()}
         }
     }
 
+    function validateASLBeforeSubmit() {
+        const errors = [];
+        const serializedGraph = graph.serialize();
+        const nodes = serializedGraph.nodes || [];
+
+        // Check Entry node has additional variables in initial_state
+        const entryNode = nodes.find(node => node.type === "asl/entry");
+        if (entryNode) {
+            const initialState = entryNode.properties?.initial_state || {};
+            const additionalVars = Object.keys(initialState).filter(
+                key => key !== 'count' && key !== 'messages'
+            );
+            if (additionalVars.length === 0) {
+                errors.push("Entry Node must have at least one additional variable in Initial State (beyond 'count' and 'messages')");
+            }
+        }
+
+        // Check all Worker, LLM, and Router nodes
+        nodes.forEach(node => {
+            const nodeTitle = node.properties?.title || node.title || `Node ${node.id}`;
+            
+            // Check system_prompt for Worker, LLM, and Router nodes
+            if (node.type === "asl/worker" || node.type === "asl/llm" || node.type === "asl/router") {
+                const systemPrompt = node.properties?.system_prompt;
+                if (!systemPrompt || systemPrompt.trim() === '') {
+                    const nodeTypeName = node.type === "asl/worker" ? "Worker Node" : 
+                                       node.type === "asl/llm" ? "LLM Node" : "Router Node";
+                    errors.push(`${nodeTypeName} "${nodeTitle}": System Message cannot be empty`);
+                }
+            }
+
+            // Check structured_output_schema for Worker and LLM nodes
+            if (node.type === "asl/worker" || node.type === "asl/llm") {
+                const schema = node.properties?.structured_output_schema;
+                if (!schema || Object.keys(schema).length === 0) {
+                    const nodeTypeName = node.type === "asl/worker" ? "Worker Node" : "LLM Node";
+                    errors.push(`${nodeTypeName} "${nodeTitle}": Output Schema cannot be empty`);
+                }
+            }
+        });
+
+        return {
+            valid: errors.length === 0,
+            errors: errors
+        };
+    }
+
     function resetSubmitModal() {
         submissionJobId = null;
         if (submissionPollTimer) {
@@ -2650,8 +2697,34 @@ Generated: ${new Date().toISOString()}
 
     document.getElementById("submit-btn").addEventListener("click", async () => {
         try {
-            const asl = serializeToASL();
+            // First, perform ASL validation
+            const validation = validateASLBeforeSubmit();
+            
+            // Open the submit modal to show validation status
             openSubmitModal();
+            
+            const aslCheckStep = submitModal.querySelector('.submit-step[data-step="asl_check"]');
+            
+            if (!validation.valid) {
+                // Validation failed - show errors
+                setBadgeStatus(aslCheckStep, 'error');
+                const detailsEl = aslCheckStep.querySelector('.submit-step-details');
+                if (detailsEl) {
+                    detailsEl.textContent = validation.errors.join(' • ');
+                }
+                showToast('ASL Validation failed. Please fix the errors.', 'error');
+                return; // Stop submission
+            }
+            
+            // Validation passed
+            setBadgeStatus(aslCheckStep, 'success');
+            const detailsEl = aslCheckStep.querySelector('.submit-step-details');
+            if (detailsEl) {
+                detailsEl.textContent = 'All validations passed';
+            }
+            
+            // Continue with normal submission
+            const asl = serializeToASL();
             const response = await fetch('/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
