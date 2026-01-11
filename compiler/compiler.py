@@ -11,8 +11,9 @@ import os
 import sys
 import argparse
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple, Optional
 from jinja2 import Template
+from datetime import datetime
 
 # Import utilities and graph builder
 try:
@@ -275,43 +276,53 @@ def assemble_final_code(sorted_data: Dict[str, Any]) -> str:
 # MAIN COMPILER FUNCTION
 # ==========================================
 
-def compile_asl(input_path: Path, output_path: Path, validate_only: bool = False) -> bool:
+def compile_asl(input_path: Path, output_dir: Optional[Path] = None, validate_only: bool = False) -> Tuple[bool, Optional[str]]:
     """
     Main compiler function.
     
     Args:
-        input_path: Path to ASL JSON file
-        output_path: Path to output Python file
+        input_path: Path to ASL JSON file or string path
+        output_dir: Directory to write compiled output (optional)
+                   If None, code is only returned, not written to file
         validate_only: If True, only validate without generating code
         
     Returns:
-        True if successful, False otherwise
+        Tuple of (success: bool, generated_code: Optional[str])
+        - For validate_only: (True/False, None)
+        - For normal compilation: (True/False, code_string or None)
     """
+    # Convert string path to Path object if needed
+    if isinstance(input_path, str):
+        input_path = Path(input_path)
+    
+    if isinstance(output_dir, str):
+        output_dir = Path(output_dir)
+    
     # Read input file
     try:
         with open(input_path, "r") as f:
             asl_content = f.read()
     except Exception as e:
         print(f"Error reading input file: {e}")
-        return False
+        return (False, None)
     
     # Validate JSON
     if not check_valid_json(asl_content):
         print(f"Error: The input file {input_path} is not a valid JSON file.")
-        return False
+        return (False, None)
     
     # Parse JSON
     asl_dict = json.loads(asl_content)
     
     # Validate ASL structure
     if not validate_asl_structure(asl_dict):
-        return False
+        return (False, None)
     
     print(f"✓ JSON validation passed")
     
     if validate_only:
         print(f"✓ ASL structure validation passed")
-        return True
+        return (True, None)
     
     # Sort and extract data
     sorted_data = data_sorter(asl_dict)
@@ -327,31 +338,46 @@ def compile_asl(input_path: Path, output_path: Path, validate_only: bool = False
         print(f"Error generating code: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        return (False, None)
     
-    # Write output
-    try:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w") as f:
-            f.write(final_code)
-        print(f"✓ Successfully compiled to {output_path}")
-        return True
-    except Exception as e:
-        print(f"Error writing output file: {e}")
-        return False
+    # Write output to file if output_dir is specified
+    if output_dir:
+        try:
+            # Create output directory if it doesn't exist
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate timestamped filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_filename = f"compiled_{timestamp}.py"
+            output_path = output_dir / output_filename
+            
+            # Write the file
+            with open(output_path, "w") as f:
+                f.write(final_code)
+            print(f"✓ Successfully compiled to {output_path}")
+        except Exception as e:
+            print(f"Error writing output file: {e}")
+            return (False, None)
+    else:
+        print(f"✓ Code generation successful (no output file written)")
+    
+    return (True, final_code)
 
 
 def main():
     """Main entry point."""
     args = parse_arguments()
     input_path = Path(args.input_file)
-    output_path = Path(args.output_file)
+    output_file_path = Path(args.output_file)
+    
+    # Extract directory from output file path for backward compatibility
+    output_dir = output_file_path.parent if output_file_path else None
     
     if not input_path.exists():
         print(f"Error: Input file {input_path} does not exist")
         sys.exit(1)
     
-    success = compile_asl(input_path, output_path, args.validate_only)
+    success, _ = compile_asl(input_path, output_dir, args.validate_only)
     sys.exit(0 if success else 1)
 
 
