@@ -970,6 +970,207 @@ input[type="checkbox"] {
   color: #ffffff !important;
 }
 
+/* Output Schema Table Styles */
+.output-schema-table-container {
+  margin-top: 8px;
+}
+
+.output-schema-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.output-schema-table thead {
+  background: var(--bg-panel-elevated);
+}
+
+.output-schema-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.output-schema-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.output-schema-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.output-schema-table tbody tr:hover {
+  background: var(--bg-accent);
+}
+
+.output-schema-table input[type="text"],
+.output-schema-table select {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+
+.output-schema-table input[type="text"]:focus,
+.output-schema-table select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.output-schema-table input.input-error {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.field-name-input {
+  font-family: var(--font-mono) !important;
+}
+
+.field-type-select {
+  font-family: var(--font-mono) !important;
+}
+
+.field-desc-input {
+  font-family: var(--font-sans) !important;
+}
+
+.btn-add-field {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-add-field:hover {
+  background: var(--accent-strong);
+}
+
+.btn-remove-field {
+  padding: 2px 8px;
+  background: var(--danger);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  line-height: 1;
+}
+
+.btn-remove-field:hover {
+  opacity: 0.8;
+}
+
+/* Warning hints for descriptions */
+.control-group small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.control-group small:has-text("⚠️") {
+  color: var(--warning);
+  font-weight: 500;
+}
+
+/* Router Values Table Styles */
+.router-values-table-container {
+  margin-top: 8px;
+}
+
+.router-values-helper {
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--bg-accent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  font-style: italic;
+}
+
+.router-values-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.router-values-table thead {
+  background: var(--bg-panel-elevated);
+}
+
+.router-values-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.router-values-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.router-values-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.router-values-table tbody tr:hover {
+  background: var(--bg-accent);
+}
+
+.router-node-name {
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.router-desc-input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+}
+
+.router-desc-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.router-desc-input.input-error {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+
 @media (max-width: 1080px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);

@@ -49,7 +49,13 @@ const NODE_FORMS = {
         }
     ],
     "asl/llm": [
-        { key: "title", label: "Node title", type: "text", placeholder: "LLM Node" },
+        { key: "title", label: "Node title", type: "text", placeholder: "LLM Node", description: "⚠️ Please ensure each node has a unique title name" },
+        {
+            key: "input_state_keys",
+            label: "Input State",
+            type: "state_checkboxes",
+            description: "Input State to provide in context"
+        },
         {
             key: "output_state_keys",
             label: "Global state to update",
@@ -73,8 +79,7 @@ const NODE_FORMS = {
         {
             key: "structured_output_schema",
             label: "Output Schema",
-            type: "json",
-            rows: 6,
+            type: "output_schema_table",
             description: "Define the structure for LLM output"
         },
         {
@@ -104,7 +109,14 @@ const NODE_FORMS = {
         }
     ],
     "asl/worker": [
-        { key: "title", label: "Node title", type: "text", placeholder: "Worker Node" },
+        { key: "title", label: "Node title", type: "text", placeholder: "Worker Node", description: "⚠️ Please ensure each node has a unique title name" },
+        {
+            key: "description",
+            label: "Description",
+            type: "textarea",
+            rows: 2,
+            description: "Brief description of this worker's purpose"
+        },
         {
             key: "system_prompt",
             label: "System prompt",
@@ -115,8 +127,7 @@ const NODE_FORMS = {
         {
             key: "structured_output_schema",
             label: "JSON Schema",
-            type: "json",
-            rows: 6,
+            type: "output_schema_table",
             description: "Define the structure for LLM output"
         },
         {
@@ -146,13 +157,25 @@ const NODE_FORMS = {
         }
     ],
     "asl/router": [
-        { key: "title", label: "Node title", type: "text", placeholder: "Router Block" },
+        { key: "title", label: "Node title", type: "text", placeholder: "Router Block", description: "⚠️ Please ensure each node has a unique title name" },
+        {
+            key: "input_state_keys",
+            label: "Input State",
+            type: "state_checkboxes",
+            description: "Input State to provide in context"
+        },
         {
             key: "system_prompt",
             label: "System prompt",
             type: "textarea",
             rows: 4,
             description: "System instruction for routing decisions."
+        },
+        {
+            key: "router_values",
+            label: "Router Values",
+            type: "router_values_table",
+            description: "Define descriptions for each routing option"
         }
     ]
 };
@@ -521,6 +544,33 @@ function initializeEditor() {
         console.log(`[${tag}] ${message}`);
     }
 
+    function inferTypeFromSchema(schemaValue) {
+        if (!schemaValue) return 'str';
+        const val = String(schemaValue).toLowerCase();
+        
+        if (val.includes('int')) return 'int';
+        if (val.includes('float')) return 'float';
+        if (val.includes('bool')) return 'bool';
+        if (val.includes('list')) {
+            if (val.includes('str')) return 'List[str]';
+            if (val.includes('int')) return 'List[int]';
+            if (val.includes('float')) return 'List[float]';
+            if (val.includes('dict')) return 'List[dict]';
+            return 'list';
+        }
+        if (val.includes('dict')) {
+            if (val.includes('str') && val.includes('int')) return 'Dict[str, int]';
+            if (val.includes('str') && val.includes('str')) return 'Dict[str, str]';
+            return 'Dict[str, Any]';
+        }
+        if (val.includes('optional')) {
+            if (val.includes('str')) return 'Optional[str]';
+            if (val.includes('int')) return 'Optional[int]';
+            if (val.includes('dict')) return 'Optional[dict]';
+        }
+        return 'str';
+    }
+
     function normalizeNodeProperties(node) {
         node.properties = node.properties || {};
         if (node.type === "asl/entry") {
@@ -542,7 +592,7 @@ function initializeEditor() {
                 node.properties.structured_output_enabled = true;
             }
             if (!node.properties.structured_output_schema) {
-                node.properties.structured_output_schema = {};
+                node.properties.structured_output_schema = [];
             }
             // Initialize tool properties
             if (!Array.isArray(node.properties.selected_tools)) {
@@ -617,11 +667,12 @@ function initializeEditor() {
         this.properties = {
             title: "LLM Node",
             output_key: "llm_output",
+            input_state_keys: [],
             output_state_keys: [],
             system_prompt: "",
             human_prompt: "",
             structured_output_enabled: true,
-            structured_output_schema: {},
+            structured_output_schema: [],
             selected_tools: [],
             max_tool_iterations: DEFAULT_TOOL_MAX_ITERATIONS,
             iteration_warning_message: DEFAULT_TOOL_LIMIT_WARNING
@@ -747,6 +798,8 @@ function initializeEditor() {
         this.bgcolor = "#1E293B";  // Dark slate body
         this.properties = {
             title: "Router Block",
+            input_state_keys: [],
+            router_values: [],
             // router node should get system node from the user, and should be forwarded LLM response, as user prompt, and based on that it decides which path to take.
             system_prompt: "",
         };
@@ -755,6 +808,18 @@ function initializeEditor() {
         this.addOutput("out", "flow");
         this.widgets_up = true;
         this.serialize_widgets = true;
+        
+        // Auto-sync router values when connections change
+        this.onConnectionsChange = function(type, slot, isConnected, link_info, slot_info) {
+            if (type === LiteGraph.OUTPUT) {
+                // Sync router_values with current connections
+                syncRouterValues(this);
+                // Re-render inspector if this router is selected
+                if (canvas && canvas.selected_nodes && canvas.selected_nodes[this.id]) {
+                    renderInspector(this);
+                }
+            }
+        };
         
         // Draw purple top border accent
         this.onDrawForeground = function(ctx) {
@@ -772,9 +837,10 @@ function initializeEditor() {
         this.bgcolor = "#1E293B";  // Dark slate body
         this.properties = {
             title: "Worker Node",
+            description: "Performs specialized analysis and processing tasks delegated by the orchestrator",
             system_prompt: "",
             structured_output_enabled: true,
-            structured_output_schema: {},
+            structured_output_schema: [],
             selected_tools: [],
             max_tool_iterations: DEFAULT_TOOL_MAX_ITERATIONS,
             iteration_warning_message: DEFAULT_TOOL_LIMIT_WARNING
@@ -1104,6 +1170,431 @@ function initializeEditor() {
         wrapper.appendChild(inputRow);
     }
 
+    function renderOutputSchemaTable(def, node, wrapper) {
+        const TYPE_OPTIONS = [
+            'str', 'int', 'float', 'bool', 'Any',
+            'List[str]', 'List[int]', 'List[float]', 'List[dict]',
+            'Dict[str, str]', 'Dict[str, int]', 'Dict[str, Any]',
+            'Optional[str]', 'Optional[int]', 'Optional[dict]'
+        ];
+
+        const schemaArray = node.properties[def.key] || [];
+        
+        // Create table container
+        const tableContainer = document.createElement('div');
+        tableContainer.className = 'output-schema-table-container';
+        
+        // Create table
+        const table = document.createElement('table');
+        table.className = 'output-schema-table';
+        
+        // Table header
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+            <tr>
+                <th>Variable Name</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th style="width: 40px;"></th>
+            </tr>
+        `;
+        table.appendChild(thead);
+        
+        // Table body
+        const tbody = document.createElement('tbody');
+        tbody.className = 'output-schema-tbody';
+        table.appendChild(tbody);
+        
+        function validateUniqueNames() {
+            const names = [];
+            const rows = tbody.querySelectorAll('tr');
+            let hasDuplicates = false;
+            
+            rows.forEach(row => {
+                const nameInput = row.querySelector('.field-name-input');
+                if (nameInput) {
+                    const name = nameInput.value.trim();
+                    if (name) {
+                        const isDuplicate = names.includes(name);
+                        if (isDuplicate) {
+                            nameInput.classList.add('input-error');
+                            hasDuplicates = true;
+                        } else {
+                            nameInput.classList.remove('input-error');
+                            names.push(name);
+                        }
+                    }
+                }
+            });
+            
+            return !hasDuplicates;
+        }
+        
+        function updateNodeProperty() {
+            const rows = tbody.querySelectorAll('tr');
+            const newSchema = [];
+            
+            rows.forEach(row => {
+                const nameInput = row.querySelector('.field-name-input');
+                const typeSelect = row.querySelector('.field-type-select');
+                const descInput = row.querySelector('.field-desc-input');
+                
+                const name = nameInput.value.trim();
+                const type = typeSelect.value;
+                const description = descInput.value.trim();
+                
+                if (name && type && description) {
+                    newSchema.push({
+                        name: name,
+                        type: type,
+                        description: description
+                    });
+                }
+            });
+            
+            node.properties[def.key] = newSchema;
+            graph.setDirtyCanvas(true, true);
+            
+            // Validate empty schema
+            if (newSchema.length === 0) {
+                showToast("Output Schema cannot be empty", "error");
+            }
+        }
+        
+        function createRow(field = null) {
+            const tr = document.createElement('tr');
+            
+            // Variable Name column
+            const tdName = document.createElement('td');
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.className = 'field-name-input';
+            nameInput.value = field?.name || '';
+            nameInput.placeholder = 'field_name';
+            nameInput.addEventListener('input', () => {
+                validateUniqueNames();
+                updateNodeProperty();
+            });
+            nameInput.addEventListener('blur', () => {
+                validateUniqueNames();
+            });
+            tdName.appendChild(nameInput);
+            tr.appendChild(tdName);
+            
+            // Type column
+            const tdType = document.createElement('td');
+            const typeSelect = document.createElement('select');
+            typeSelect.className = 'field-type-select';
+            TYPE_OPTIONS.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                if (field && field.type === type) {
+                    option.selected = true;
+                }
+                typeSelect.appendChild(option);
+            });
+            typeSelect.addEventListener('change', updateNodeProperty);
+            tdType.appendChild(typeSelect);
+            tr.appendChild(tdType);
+            
+            // Description column
+            const tdDesc = document.createElement('td');
+            const descInput = document.createElement('input');
+            descInput.type = 'text';
+            descInput.className = 'field-desc-input';
+            descInput.value = field?.description || '';
+            descInput.placeholder = 'Description (required)';
+            descInput.addEventListener('input', updateNodeProperty);
+            tdDesc.appendChild(descInput);
+            tr.appendChild(tdDesc);
+            
+            // Delete button column
+            const tdAction = document.createElement('td');
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'btn-remove-field';
+            deleteBtn.textContent = '×';
+            deleteBtn.title = 'Remove field';
+            deleteBtn.addEventListener('click', () => {
+                tr.remove();
+                updateNodeProperty();
+                validateUniqueNames();
+                
+                // Uncheck global state checkbox if this field was from there
+                if (field?.name) {
+                    const checkboxes = document.querySelectorAll('.checkbox-item input[type="checkbox"]');
+                    checkboxes.forEach(cb => {
+                        if (cb.value === field.name) {
+                            cb.checked = false;
+                        }
+                    });
+                }
+            });
+            tdAction.appendChild(deleteBtn);
+            tr.appendChild(tdAction);
+            
+            return tr;
+        }
+        
+        function renderRows() {
+            tbody.innerHTML = '';
+            schemaArray.forEach(field => {
+                tbody.appendChild(createRow(field));
+            });
+        }
+        
+        // Add field button
+        const addFieldBtn = document.createElement('button');
+        addFieldBtn.type = 'button';
+        addFieldBtn.className = 'btn-add-field';
+        addFieldBtn.textContent = '+ Add Field';
+        addFieldBtn.addEventListener('click', () => {
+            const newRow = createRow();
+            tbody.appendChild(newRow);
+            // Focus on the name input
+            newRow.querySelector('.field-name-input').focus();
+        });
+        
+        // Expose addRow function for checkbox sync
+        tableContainer.addSchemaRow = function(fieldName, fieldType = 'str', fieldDesc = '') {
+            // Check if field already exists
+            const existingRows = tbody.querySelectorAll('tr');
+            for (let row of existingRows) {
+                const nameInput = row.querySelector('.field-name-input');
+                if (nameInput && nameInput.value === fieldName) {
+                    return; // Already exists, don't add
+                }
+            }
+            
+            const newRow = createRow({
+                name: fieldName,
+                type: fieldType,
+                description: fieldDesc
+            });
+            tbody.appendChild(newRow);
+            updateNodeProperty();
+            validateUniqueNames();
+        };
+        
+        // Expose removeRow function for checkbox sync
+        tableContainer.removeSchemaRow = function(fieldName) {
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach(row => {
+                const nameInput = row.querySelector('.field-name-input');
+                if (nameInput && nameInput.value === fieldName) {
+                    row.remove();
+                }
+            });
+            updateNodeProperty();
+            validateUniqueNames();
+        };
+        
+        // Initial render
+        renderRows();
+        validateUniqueNames();
+        
+        tableContainer.appendChild(table);
+        tableContainer.appendChild(addFieldBtn);
+        wrapper.appendChild(tableContainer);
+    }
+
+    function getConnectedNodesForRouter(node) {
+        /**
+         * Get list of nodes connected to this router's outputs
+         * Returns array of {id, name} objects
+         */
+        const connectedNodes = [];
+        if (!node.outputs) return connectedNodes;
+        
+        node.outputs.forEach(output => {
+            if (!output.links) return;
+            output.links.forEach(linkId => {
+                const link = graph.links[linkId];
+                if (!link) return;
+                const targetNode = graph._nodes_by_id[link.target_id];
+                if (targetNode && targetNode.properties && targetNode.properties.title) {
+                    // Check if not already added (avoid duplicates)
+                    if (!connectedNodes.find(n => n.id === targetNode.id)) {
+                        connectedNodes.push({
+                            id: targetNode.id,
+                            name: targetNode.properties.title
+                        });
+                    }
+                }
+            });
+        });
+        return connectedNodes;
+    }
+
+    function syncRouterValues(node) {
+        /**
+         * Sync router_values with currently connected nodes
+         * Preserves existing descriptions, removes disconnected nodes, adds new ones
+         */
+        if (node.type !== "asl/router") return;
+        
+        const connectedNodes = getConnectedNodesForRouter(node);
+        const existingValues = node.properties.router_values || [];
+        const newValues = [];
+        
+        // Keep values for nodes that are still connected
+        connectedNodes.forEach(connNode => {
+            const existing = existingValues.find(v => v.node === connNode.name);
+            if (existing) {
+                // Preserve existing description
+                newValues.push({
+                    node: connNode.name,
+                    description: existing.description
+                });
+            } else {
+                // New connection, add with empty description
+                newValues.push({
+                    node: connNode.name,
+                    description: ""
+                });
+            }
+        });
+        
+        node.properties.router_values = newValues;
+    }
+
+    function renderRouterValuesTable(def, node, wrapper) {
+        const routerValues = node.properties[def.key] || [];
+        
+        // Sync with current connections first
+        syncRouterValues(node);
+        const syncedValues = node.properties[def.key] || [];
+        
+        // Create table container
+        const tableContainer = document.createElement('div');
+        tableContainer.className = 'router-values-table-container';
+        
+        // Check if router has connections
+        const connectedNodes = getConnectedNodesForRouter(node);
+        
+        if (connectedNodes.length === 0) {
+            // Show helper message
+            const helperMsg = document.createElement('p');
+            helperMsg.className = 'router-values-helper';
+            helperMsg.textContent = "Connect nodes from this router's output to define routing options";
+            tableContainer.appendChild(helperMsg);
+            wrapper.appendChild(tableContainer);
+            return;
+        }
+        
+        // Create table
+        const table = document.createElement('table');
+        table.className = 'router-values-table';
+        
+        // Table header
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+            <tr>
+                <th style="width: 40%;">Node Name</th>
+                <th>Description</th>
+            </tr>
+        `;
+        table.appendChild(thead);
+        
+        // Table body
+        const tbody = document.createElement('tbody');
+        tbody.className = 'router-values-tbody';
+        table.appendChild(tbody);
+        
+        function validateDescriptions() {
+            const rows = tbody.querySelectorAll('tr');
+            let allValid = true;
+            
+            rows.forEach(row => {
+                const descInput = row.querySelector('.router-desc-input');
+                if (descInput) {
+                    const desc = descInput.value.trim();
+                    if (!desc) {
+                        descInput.classList.add('input-error');
+                        allValid = false;
+                    } else {
+                        descInput.classList.remove('input-error');
+                    }
+                }
+            });
+            
+            if (!allValid) {
+                showToast("All router values must have descriptions", "error");
+            }
+            
+            return allValid;
+        }
+        
+        function updateNodeProperty() {
+            const rows = tbody.querySelectorAll('tr');
+            const newValues = [];
+            
+            rows.forEach(row => {
+                const nodeNameSpan = row.querySelector('.router-node-name');
+                const descInput = row.querySelector('.router-desc-input');
+                
+                const nodeName = nodeNameSpan.textContent;
+                const description = descInput.value.trim();
+                
+                newValues.push({
+                    node: nodeName,
+                    description: description
+                });
+            });
+            
+            node.properties[def.key] = newValues;
+            graph.setDirtyCanvas(true, true);
+        }
+        
+        function createRow(value) {
+            const tr = document.createElement('tr');
+            
+            // Node Name column (read-only)
+            const tdName = document.createElement('td');
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'router-node-name';
+            nameSpan.textContent = value.node;
+            nameSpan.style.fontWeight = '600';
+            nameSpan.style.fontFamily = 'var(--font-mono)';
+            tdName.appendChild(nameSpan);
+            tr.appendChild(tdName);
+            
+            // Description column (editable)
+            const tdDesc = document.createElement('td');
+            const descInput = document.createElement('input');
+            descInput.type = 'text';
+            descInput.className = 'router-desc-input';
+            descInput.value = value.description || '';
+            descInput.placeholder = 'Description (required)';
+            descInput.addEventListener('input', () => {
+                updateNodeProperty();
+                if (descInput.value.trim()) {
+                    descInput.classList.remove('input-error');
+                }
+            });
+            descInput.addEventListener('blur', validateDescriptions);
+            tdDesc.appendChild(descInput);
+            tr.appendChild(tdDesc);
+            
+            return tr;
+        }
+        
+        function renderRows() {
+            tbody.innerHTML = '';
+            syncedValues.forEach(value => {
+                tbody.appendChild(createRow(value));
+            });
+        }
+        
+        // Initial render
+        renderRows();
+        validateDescriptions();
+        
+        tableContainer.appendChild(table);
+        wrapper.appendChild(tableContainer);
+    }
+
     function renderInspector(node) {
         if (!node) {
             renderEmptyInspector();
@@ -1166,6 +1657,20 @@ function initializeEditor() {
                 return;
             }
 
+            // Handle output_schema_table for LLM and Worker nodes
+            if (def.type === "output_schema_table") {
+                renderOutputSchemaTable(def, node, wrapper);
+                form.appendChild(wrapper);
+                return;
+            }
+
+            // Handle router_values_table for Router nodes
+            if (def.type === "router_values_table") {
+                renderRouterValuesTable(def, node, wrapper);
+                form.appendChild(wrapper);
+                return;
+            }
+
             // Handle state_checkboxes for LLM Node output selection
             if (def.type === "state_checkboxes") {
                 // Get current global schema (excluding count and messages)
@@ -1211,29 +1716,16 @@ function initializeEditor() {
                             // Also update output_key for backward compatibility (use first selected)
                             node.properties.output_key = updated[0] || "";
                             
-                            // Auto-update Output Schema with exact values from global state
-                            const newSchema = {};
-                            updated.forEach(key => {
-                                // Copy the exact value/type from global state
-                                if (appState.schema.hasOwnProperty(key)) {
-                                    newSchema[key] = appState.schema[key];
-                                }
-                            });
-                            
-                            // Update the node's structured_output_schema property
-                            node.properties.structured_output_schema = newSchema;
-
-                            // Update the Output Schema textarea in the inspector
-                            const textareas = document.querySelectorAll('textarea[data-is-json="true"]');
-                            for (const textarea of textareas) {
-                                const wrapper = textarea.closest('.control-group');
-                                if (!wrapper) continue;
-                                
-                                const label = wrapper.querySelector('label');
-                                if (label && label.textContent.includes('Output Schema')) {
-                                    textarea.value = JSON.stringify(newSchema, null, 2);
-                                    textarea.classList.remove('input-error');
-                                    break;
+                            // Sync with Output Schema Table
+                            const schemaTableContainer = document.querySelector('.output-schema-table-container');
+                            if (schemaTableContainer) {
+                                if (checkbox.checked) {
+                                    // Add row to table
+                                    const fieldType = inferTypeFromSchema(appState.schema[varName]) || 'str';
+                                    schemaTableContainer.addSchemaRow(varName, fieldType, '');
+                                } else {
+                                    // Remove row from table
+                                    schemaTableContainer.removeSchemaRow(varName);
                                 }
                             }
                             
@@ -1371,15 +1863,6 @@ function initializeEditor() {
                             }
                             // Update the textarea to show cleaned JSON
                             input.value = JSON.stringify(value, null, 2);
-                        }
-                        
-                        // Validate structured_output_schema is not empty
-                        if (def.key === "structured_output_schema") {
-                            if (Object.keys(value).length === 0) {
-                                input.classList.add("input-error");
-                                showToast("Output Schema cannot be empty. Define the output structure.", "error");
-                                return; // Don't save empty schema
-                            }
                         }
                         
                         input.classList.remove("input-error");
