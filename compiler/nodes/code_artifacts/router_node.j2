@@ -1,13 +1,14 @@
-#{ Template for router node - Always uses structured output with Command pattern #}
-def router_{{ node_id }}_node(global_state: GlobalState) -> Command:
+#{ Template for router node - Uses router_values with label mapping #}
+def {{ sanitized_label }}_{{ node_id }}_node(global_state: GlobalState) -> Command:
     """Router Node {{ node_id }}: {{ title }}
     
     Decides which node to route to based on LLM analysis with structured output.
+    Uses router_values to determine available options.
     """
     
-    # Define routing decision schema (always structured for routers)
+    # Define routing decision schema
     class RouterDecision(BaseModel):
-        next_node: str = Field(description="ID of next node to route to")
+        next_node: str = Field(description="Label of next node to route to")
         reason: str = Field(description="Reasoning for routing decision")
     
     # Build message list
@@ -21,33 +22,37 @@ def router_{{ node_id }}_node(global_state: GlobalState) -> Command:
     # Get conversation history from global state
     messages.extend(global_state.get("messages", []))
     
-    # Build human message with available routing options
-    routing_options = {
-{%- for node_func_name, node_info in outgoing_nodes.items() %}
-        {{ node_func_name|tojson }}: {{ node_info|tojson }},
-{%- endfor %}
-    }
+    # Build routing prompt with router_values
+    routing_prompt = "Based on the conversation so far, choose the most appropriate next node to handle the request.\n\nAvailable routing options:\n"
     
-    options_text = "Available routing options:\n"
-    for func_name, node_info in routing_options.items():
-        options_text += f"- {func_name}: {node_info.get('title', 'Unknown')}\n"
+    {%- for rv in router_values %}
+    routing_prompt += "- {{ rv.node }}: {{ rv.description }}\n"
+    {%- endfor %}
     
-    routing_prompt = f"""Based on the conversation so far, choose the most appropriate next node to handle the request.
-
-{options_text}
-
-Choose the node function name from the options above."""
+    routing_prompt += "\nChoose one of the node labels from the options above."
+    
+    {%- if input_state_keys %}
+    # Add input state keys section
+    routing_prompt += "\n\n## Input:\n"
+    {%- for key in input_state_keys %}
+    routing_prompt += f"\n### {{ key }}:\n{global_state.get('{{ key }}', 'Not available')}\n"
+    {%- endfor %}
+    {%- endif %}
     
     messages.append(HumanMessage(content=routing_prompt))
     
-    # Use structured output - no manual parsing needed!
+    # Use structured output
     router_model = model_router_{{ node_id }}.with_structured_output(RouterDecision)
     decision = router_model.invoke(messages)
     
-    # Validate the decision
-    if decision.next_node not in routing_options:
+    # Map label to function name
+    label_to_func = {{ label_to_function_map|tojson }}
+    
+    # Validate and get target function
+    target_func = label_to_func.get(decision.next_node)
+    if not target_func:
         # Fallback to first option if invalid
-        decision.next_node = list(routing_options.keys())[0]
+        target_func = list(label_to_func.values())[0] if label_to_func else "END"
     
     # Create AI message with routing decision
     routing_message = AIMessage(content=f"Routing to {decision.next_node}: {decision.reason}")
@@ -59,5 +64,6 @@ Choose the node function name from the options above."""
             "messages": [routing_message],
             "routing_reason": decision.reason
         },
-        goto=decision.next_node
+        goto=target_func
     )
+

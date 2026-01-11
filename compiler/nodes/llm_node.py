@@ -5,9 +5,9 @@ from jinja2 import Template
 from pathlib import Path
 
 try:
-    from ..utils import py_str
+    from ..utils import py_str, sanitize_label
 except ImportError:
-    from utils import py_str
+    from utils import py_str, sanitize_label
 
 
 def compile_node(
@@ -28,16 +28,20 @@ def compile_node(
     - Has its own local state (LLMState_{node_id})
     - Can have system_prompt and human_prompt
     - Can have tools bound to it
-    - Can have structured output enabled
+    - ALWAYS has structured output enabled
     - Tracks LLM calls and tool iterations in local state
     - Uses Command pattern for routing
     """
     title = config.get("title", label)
     system_prompt = config.get("system_prompt", "")
     human_prompt = config.get("human_prompt", "")
-    structured_output_enabled = config.get("structured_output_enabled", False)
-    structured_output_schema = config.get("structured_output_schema", {})
+    structured_output_schema = config.get("structured_output_schema", [])
     selected_tools = config.get("selected_tools", []) or []
+    input_state_keys = config.get("input_state_keys", []) or []
+    output_state_keys = config.get("output_state_keys", []) or []
+    
+    # Sanitize label for function naming
+    sanitized_label = sanitize_label(label)
     
     # Load the Jinja2 template
     template_path = Path(__file__).parent / "code_artifacts" / "llm_node.j2"
@@ -46,13 +50,12 @@ def compile_node(
     
     template = Template(template_str)
     
-    # Generate structured output schema class name if needed
-    structured_output_schema_class = ""
-    if structured_output_enabled and structured_output_schema:
-        structured_output_schema_class = f"OutputSchema_{node_id}"
+    # Always generate structured output schema class
+    structured_output_schema_class = f"OutputSchema_{node_id}"
     
     code = template.render(
         node_id=node_id,
+        sanitized_label=sanitized_label,
         title=title,
         system_prompt=system_prompt,
         human_prompt=human_prompt,
@@ -61,8 +64,10 @@ def compile_node(
         next_node=next_node,
         max_tool_iterations=max_tool_iterations,
         iteration_warning_message=iteration_warning_message,
-        structured_output_enabled=structured_output_enabled,
-        structured_output_schema_class=structured_output_schema_class
+        structured_output_schema=structured_output_schema,
+        structured_output_schema_class=structured_output_schema_class,
+        input_state_keys=input_state_keys,
+        output_state_keys=output_state_keys
     )
     
     return [code]

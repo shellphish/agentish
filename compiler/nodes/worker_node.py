@@ -1,11 +1,12 @@
 """
-Worker node compiler - Similar to LLM node but human message comes from previous LLM.
+Worker node compiler - Workers are tools bound to LLM nodes, not graph nodes.
 
 Worker nodes are similar to LLM nodes but:
-- Only has system_prompt in config (human message comes from calling LLM)
+- They are NOT added to the graph as nodes
+- They are bound as @tool decorated functions to LLMs
+- Only has system_prompt in config (task comes as argument)
 - Can have tools and tool iteration tracking
-- Has its own local state (WorkerState_{node_id})
-- Returns analysis output to the calling LLM node
+- Returns {"result": "...", "success": True/False}
 """
 
 from typing import Any, Dict, List
@@ -13,70 +14,59 @@ from jinja2 import Template
 from pathlib import Path
 
 try:
-    from ..utils import py_str
+    from ..utils import py_str, sanitize_label
 except ImportError:
-    from utils import py_str
+    from utils import py_str, sanitize_label
 
 
-def compile_node(
+def generate_worker_tool(
     node_id: str,
-    safe_id: str,
     config: Dict[str, Any],
     label: str,
-    return_node: str = "END",
-    has_tools: bool = False,
-    max_tool_iterations: int = 30,
-    iteration_warning_message: str = "",
     **kwargs,
-) -> List[str]:
+) -> str:
     """
-    Compile Worker Node.
+    Generate a worker as a @tool decorated function.
     
     Args:
         node_id: The worker node's ID
-        safe_id: Sanitized identifier
         config: Node configuration
         label: Node label
-        return_node: Function name to return to after completion
-        has_tools: Whether the worker has tools
-        max_tool_iterations: Maximum tool call iterations
-        iteration_warning_message: Warning message when close to limit
     
     Returns:
-        List containing the worker function code
+        String containing the @tool decorated worker function
     """
     title = config.get("title", label)
+    description = config.get("description", "Worker node")
     system_prompt = config.get("system_prompt", "")
-    structured_output_enabled = config.get("structured_output_enabled", False)
-    structured_output_schema = config.get("structured_output_schema", {})
     selected_tools = config.get("selected_tools", []) or []
+    max_tool_iterations = config.get("max_tool_iterations", 10)  # Default to 10
+    iteration_warning_message = config.get("iteration_warning_message", 
+                                          "You are close to the tool iteration limit. Wrap up soon without more tool calls.")
+    
+    # Sanitize label for function naming
+    sanitized_label = sanitize_label(label)
     
     # Load the Jinja2 template
-    template_path = Path(__file__).parent / "code_artifacts" / "worker_node.j2"
+    template_path = Path(__file__).parent / "code_artifacts" / "worker_tool.j2"
     with open(template_path, "r") as f:
         template_str = f.read()
     
     template = Template(template_str)
     
-    # Generate structured output schema class name if needed
-    structured_output_schema_class = ""
-    if structured_output_enabled and structured_output_schema:
-        structured_output_schema_class = f"WorkerOutputSchema_{node_id}"
-    
     code = template.render(
         node_id=node_id,
+        sanitized_label=sanitized_label,
         title=title,
+        description=description,
         system_prompt=system_prompt,
-        return_node=return_node,
-        has_tools=has_tools,
         selected_tools=selected_tools,
         max_tool_iterations=max_tool_iterations,
         iteration_warning_message=iteration_warning_message,
-        structured_output_enabled=structured_output_enabled,
-        structured_output_schema_class=structured_output_schema_class
+        has_tools=len(selected_tools) > 0
     )
     
-    return [code]
+    return code
 
 
 def generate_worker_model(node_id: str, selected_tools: List[str]) -> str:
@@ -84,7 +74,7 @@ def generate_worker_model(node_id: str, selected_tools: List[str]) -> str:
     Generate model initialization for a worker node.
     
     Returns code like:
-    model_worker_8 = init_chat_model(tools=[tool1, tool2])
+    model_worker_6 = init_chat_model(tools=[tool1, tool2])
     """
     if selected_tools:
         tools_str = "[" + ", ".join(selected_tools) + "]"
@@ -93,15 +83,24 @@ def generate_worker_model(node_id: str, selected_tools: List[str]) -> str:
         return f"model_worker_{node_id} = init_chat_model()"
 
 
+# Legacy function for backward compatibility (not used in new architecture)
+def compile_node(
+    node_id: str,
+    safe_id: str,
+    config: Dict[str, Any],
+    label: str,
+    **kwargs,
+) -> List[str]:
+    """
+    Legacy compile_node - workers are now tools, not nodes.
+    This returns empty list as workers are generated via generate_worker_tool().
+    """
+    return []
+
+
 def generate_worker_should_continue(node_id: str) -> str:
     """
     Generate should_continue function for worker nodes with tools.
-    
-    This function determines whether to continue to tool node or end.
+    Legacy function - not used in new tool-based architecture.
     """
-    template_path = Path(__file__).parent / "code_artifacts" / "should_continue_worker.j2"
-    with open(template_path, "r") as f:
-        template_str = f.read()
-    
-    template = Template(template_str)
-    return template.render(node_id=node_id)
+    return ""

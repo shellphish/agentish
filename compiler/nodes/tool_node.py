@@ -18,6 +18,7 @@ def compile_node(
     max_tool_iterations: int = 30,
     iteration_warning_message: str = "",
     llm_node_id: str = None,
+    llm_function_name: str = None,
     **kwargs,
 ) -> List[str]:
     """
@@ -42,13 +43,17 @@ def compile_node(
     # Use llm_node_id if provided, otherwise use node_id
     associated_llm_id = llm_node_id or node_id
     
+    # Determine LLM function name for routing back
+    if not llm_function_name:
+        llm_function_name = f"llm_{associated_llm_id}_node"
+    
     if not selected_tools:
         # No tools selected - shouldn't happen but handle gracefully
         lines = [
             f"# Tool Node for LLM {associated_llm_id}: {label} (no tools selected)",
             f"def tool_{associated_llm_id}_node(global_state: GlobalState, local_state: LLMState_{associated_llm_id}) -> Command:",
             "    \"\"\"Empty tool node - no tools configured.\"\"\"",
-            f"    return Command(update={{}}, goto=\"llm_{associated_llm_id}_node\")"
+            f"    return Command(update={{}}, goto=\"{llm_function_name}\")"
         ]
         return ["\n".join(lines)]
     
@@ -62,7 +67,8 @@ def compile_node(
     code = template.render(
         node_id=associated_llm_id,
         max_tool_iterations=max_tool_iterations,
-        iteration_warning_message=iteration_warning_message
+        iteration_warning_message=iteration_warning_message,
+        llm_function_name=llm_function_name
     )
     
     return [code]

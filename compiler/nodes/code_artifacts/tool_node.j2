@@ -4,11 +4,11 @@ def tool_{{ node_id }}_node(global_state: GlobalState) -> Command:
     
     messages = global_state.get("node_{{ node_id }}_messages", [])
     if not messages:
-        return Command(update={}, goto="llm_{{ node_id }}_node")
+        return Command(update={}, goto="{{ llm_function_name }}")
     
     last_message = messages[-1]
     if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
-        return Command(update={}, goto="llm_{{ node_id }}_node")
+        return Command(update={}, goto="{{ llm_function_name }}")
     
     # Get current iteration count and max from global state
     current_iteration = global_state.get("node_{{ node_id }}_tool_iteration_count", 0)
@@ -25,7 +25,7 @@ def tool_{{ node_id }}_node(global_state: GlobalState) -> Command:
                 "messages": [warning_msg],
                 "node_{{ node_id }}_messages": [warning_msg]
             },
-            goto="llm_{{ node_id }}_node"
+            goto="{{ llm_function_name }}"
         )
     
     remaining = max_iterations - current_iteration
@@ -57,5 +57,5 @@ def tool_{{ node_id }}_node(global_state: GlobalState) -> Command:
             "node_{{ node_id }}_messages": result,
             "node_{{ node_id }}_tool_iteration_count": current_iteration + 1
         },
-        goto="llm_{{ node_id }}_node"
+        goto="{{ llm_function_name }}"
     )

@@ -6,15 +6,9 @@ The node itself is an LLM agent.
 The LLM agent is given a system prompt (generic), and a human message. 
 Within the human message, we append all output nodes that can be chosen.
 
-Think of it as a switch condition. 
-For example, if we have 3 output nodes: A, B, C. The human message would be something like:
-"Based on the following options, choose the most appropriate one to handle the next step:
-1. A: [description of node A]
-2. B: [description of node B]
-3. C: [description of node C]
-
-The LLM must only output the name of the chosen node. 
-We then process it to handle the transfer.
+The router uses router_values from config to determine routing options.
+Each router_value has a node label and description.
+The LLM responds with the label, which is then mapped to the function name.
 """
 
 from typing import Any, Dict, List
@@ -22,9 +16,9 @@ from jinja2 import Template
 from pathlib import Path
 
 try:
-    from ..utils import py_str
+    from ..utils import py_str, sanitize_label
 except ImportError:
-    from utils import py_str
+    from utils import py_str, sanitize_label
 
 
 def compile_node(
@@ -32,7 +26,8 @@ def compile_node(
     safe_id: str,
     config: Dict[str, Any],
     label: str,
-    outgoing_nodes: Dict[str, Dict[str, str]] = None,
+    router_values: List[Dict[str, str]] = None,
+    label_to_function_map: Dict[str, str] = None,
     **kwargs,
 ) -> List[str]:
     """
@@ -43,14 +38,20 @@ def compile_node(
         safe_id: Sanitized identifier
         config: Node configuration with system_prompt
         label: Node label
-        outgoing_nodes: Dict mapping function_name -> {"title": "...", "type": "..."}
+        router_values: List of {"node": "Label", "description": "..."} from config
+        label_to_function_map: Dict mapping label -> function_name
     
     Returns:
         List containing the router function code
     """
     title = config.get("title", label)
     system_prompt = config.get("system_prompt", "")
-    outgoing_nodes = outgoing_nodes or {}
+    input_state_keys = config.get("input_state_keys", []) or []
+    router_values = router_values or config.get("router_values", [])
+    label_to_function_map = label_to_function_map or {}
+    
+    # Sanitize label for function naming
+    sanitized_label = sanitize_label(label)
     
     # Load the Jinja2 template
     template_path = Path(__file__).parent / "code_artifacts" / "router_node.j2"
@@ -61,9 +62,12 @@ def compile_node(
     
     code = template.render(
         node_id=node_id,
+        sanitized_label=sanitized_label,
         title=title,
         system_prompt=system_prompt,
-        outgoing_nodes=outgoing_nodes
+        input_state_keys=input_state_keys,
+        router_values=router_values,
+        label_to_function_map=label_to_function_map
     )
     
     return [code]

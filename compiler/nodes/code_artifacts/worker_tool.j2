@@ -1,0 +1,103 @@
+#{ Template for worker as @tool decorated function #}
+@tool
+def worker_{{ sanitized_label }}_{{ node_id }}_tool(task: str) -> dict:
+    """{{ description }}
+    
+    Args:
+        task: The task to perform (treated as HumanMessage)
+    
+    Returns:
+        dict: {"result": "...", "success": True/False}
+    """
+    # Build message list
+    messages = []
+    
+    # Add system prompt
+    system_prompt = {{ system_prompt|tojson }}
+    if system_prompt:
+        messages.append(SystemMessage(content=system_prompt))
+    
+    # Add task as human message
+    messages.append(HumanMessage(content=task))
+    
+    {% if has_tools %}
+    # Worker has tools - handle iteration limit
+    max_iterations = {{ max_tool_iterations }}
+    current_iteration = 0
+    
+    while current_iteration < max_iterations:
+        # Invoke the model
+        response = model_worker_{{ node_id }}.invoke(messages)
+        messages.append(response)
+        
+        # Check for tool calls
+        if hasattr(response, 'tool_calls') and response.tool_calls:
+            current_iteration += 1
+            
+            # Check if we're at the limit
+            if current_iteration >= max_iterations:
+                # Hit limit - add warning and get final response
+                warning_msg = HumanMessage(
+                    content="Tool iteration limit reached. Please provide a final response without using more tools."
+                )
+                messages.append(warning_msg)
+                final_response = model_worker_{{ node_id }}.invoke(messages)
+                return {
+                    "result": final_response.content if hasattr(final_response, 'content') else str(final_response),
+                    "success": True
+                }
+            
+            # Add warning if close to limit
+            remaining = max_iterations - current_iteration
+            if remaining <= 3:
+                warning_msg = HumanMessage(content={{ iteration_warning_message|tojson }})
+                messages.append(warning_msg)
+            
+            # Process tool calls
+            for tool_call in response.tool_calls:
+                # Get the tool by name
+                tool_name = tool_call["name"]
+                # Find tool in available tools for this worker
+                tool_func = None
+                {%- for tool in selected_tools %}
+                {% if loop.first %}if{% else %}elif{% endif %} tool_name == {{ tool|tojson }}:
+                    tool_func = {{ tool }}
+                {%- endfor %}
+                
+                if tool_func:
+                    try:
+                        observation = tool_func.invoke(tool_call["args"])
+                        messages.append(ToolMessage(
+                            content=str(observation),
+                            tool_call_id=tool_call["id"]
+                        ))
+                    except Exception as e:
+                        messages.append(ToolMessage(
+                            content=f"Error executing tool: {str(e)}",
+                            tool_call_id=tool_call["id"]
+                        ))
+                else:
+                    messages.append(ToolMessage(
+                        content=f"Tool '{tool_name}' not found",
+                        tool_call_id=tool_call["id"]
+                    ))
+        else:
+            # No tool calls - we have final response
+            return {
+                "result": response.content if hasattr(response, 'content') else str(response),
+                "success": True
+            }
+    
+    # Should not reach here, but return the last response
+    return {
+        "result": messages[-1].content if hasattr(messages[-1], 'content') else str(messages[-1]),
+        "success": True
+    }
+    {% else %}
+    # No tools - simple invocation
+    response = model_worker_{{ node_id }}.invoke(messages)
+    return {
+        "result": response.content if hasattr(response, 'content') else str(response),
+        "success": True
+    }
+    {% endif %}

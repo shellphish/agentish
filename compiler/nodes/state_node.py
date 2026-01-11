@@ -75,25 +75,11 @@ def compile_node(
     **kwargs,
 ) -> List[str]:
     """
-    Compile EntryPoint node to initialize state.
+    Compile EntryPoint node - simple pass-through.
     
-    The EntryPoint node:
-    - Initializes the global state
-    - Sets up initial values
+    The EntryPoint node just passes control to the next node.
+    State is initialized from the global schema, not initial_state.
     """
-    initial_state = config.get("initial_state", {})
-    
-    lines = [
-        f"def entry_{safe_id}(state: GlobalState) -> dict:",
-        f"    \"\"\"Entry Point: {label}\"\"\"",
-        "    return {",
-    ]
-    
-    # Add initial state values
-    for key, value in initial_state.items():
-        value_str = json.dumps(value, default=str)
-        lines.append(f"        {py_str(key)}: {value_str},")
-    
-    lines.append("    }")
-    
-    return ["\n".join(lines)]
+    # EntryPoint is a simple pass-through - no initialization needed
+    # State comes from global schema definition
+    return []  # Return empty - EntryPoint doesn't need a function

@@ -1,825 +1,370 @@
 """
-LangGraph compiler for the ASL visual editor.
+The main compiler module that takes in ASL as input, and produces 
+syntactically and semantically correct Python code as output.
 
-This module ingests an ASL JSON document and generates a runnable Python module
-that wires the flow into a LangGraph ``StateGraph``. It mirrors the block
-semantics implemented in the LiteGraph frontend (Start, LLM, Worker, Tool,
-Memory, Transform, Router, Output).
+This compiler follows a template-based approach using Jinja2 templates
+for consistent and maintainable code generation.
 """
 
-from __future__ import annotations
-
-import importlib
-import importlib.util
 import json
 import os
 import sys
-import tempfile
-import textwrap
-from collections import defaultdict
+import argparse
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Set, Tuple
-from env_loader import load_dotenv
+from typing import Any, Dict, List
+from jinja2 import Template
 
+# Import utilities and graph builder
 try:
-    from .nodes import NODE_COMPILERS, ROUTER_COMPILERS
-    from .utils import (
-        ensure_unique_identifier,
-        py_str,
-        sanitize_identifier,
-    )
+    from utils import sanitize_identifier
+    from graph_builder import build_and_generate_graph
 except ImportError:
-    # Fallback for when compiler is added to sys.path directly
-    from nodes import NODE_COMPILERS, ROUTER_COMPILERS
-    from utils import (
-        ensure_unique_identifier,
-        py_str,
-        sanitize_identifier,
-    )
+    from compiler.utils import sanitize_identifier
+    from compiler.graph_builder import build_and_generate_graph
 
 
-load_dotenv = load_dotenv()
+# ==========================================
+# ARGUMENT PARSING
+# ==========================================
+
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="ASL Compiler - Convert ASL JSON to Python code")
+    parser.add_argument("input_file", type=str, help="Path to the ASL input file")
+    parser.add_argument("output_file", type=str, help="Path to the output Python file")
+    parser.add_argument("--validate-only", action="store_true", 
+                       help="Only validate JSON without generating code")
+    return parser.parse_args()
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ENV_CANDIDATES = [
-    PROJECT_ROOT / ".env",
-    PROJECT_ROOT / "agentish/.env",
-    Path(__file__).resolve().parents[1] / ".env",
-]
+# ==========================================
+# JSON VALIDATION
+# ==========================================
 
-for candidate in ENV_CANDIDATES:
-    if candidate.exists():
-        load_dotenv(candidate)
-        break
-
-
-END_SENTINEL = object()
+def check_valid_json(input_str: str) -> bool:
+    """Check if the input string is valid JSON."""
+    try:
+        json.loads(input_str)
+        return True
+    except json.JSONDecodeError as e:
+        print(f"JSON Validation Error: {e}")
+        return False
 
 
-def generate_state_typing(schema: Dict[str, Any]) -> str:
-    """Generate AgentState TypedDict with messages append reducer."""
-    lines = [
-        "class AgentState(TypedDict):",
-        "    count: int",
-        "    messages: Annotated[List[BaseMessage], lambda x, y: x + y]"
-    ]
+def validate_asl_structure(asl_dict: Dict[str, Any]) -> bool:
+    """Validate that the ASL has required structure."""
+    if "graph" not in asl_dict:
+        print("Error: ASL must contain 'graph' key")
+        return False
     
-    # Add other user-defined fields
-    for field, hint in schema.items():
-        if field not in ['count', 'messages']:
-            type_hint = "Any"
-            comment = f"  # {hint}" if hint else ""
-            lines.append(f"    {field}: {type_hint}{comment}")
+    graph = asl_dict["graph"]
     
-    return "\n".join(lines) + "\n"
-
-
-def build_profile_registry(meta: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-    registry = {**DEFAULT_LLM_PROFILES}
-    for profile in meta.get("llm_profiles", []) or []:
-        profile_id = profile.get("id")
-        config = profile.get("config")
-        if profile_id and isinstance(config, dict):
-            registry[profile_id] = config
-    return registry
-
-
-def build_tool_registry(graph_data: Dict[str, Any]) -> Dict[str, Any]:
-    tools = graph_data.get("tools")
-    if isinstance(tools, dict):
-        return tools
-
-    registry: Dict[str, Any] = {}
-    for node in graph_data.get("nodes", []):
-        if node.get("type") != "ToolNode":
-            continue
-        config = node.get("config", {})
-        name = config.get("tool_name")
-        if not name:
-            continue
-        registry[name] = {
-            "description": config.get("description", ""),
-            "arguments": config.get("arguments", []),
-            "return_schema": config.get("return_schema", {}),
-            "pass_state_keys": config.get("pass_state_keys", []),
-        }
-    return registry
-
-
-def generate_custom_tool_implementations(tool_registry: Dict[str, Any]) -> str:
-    """Generate Python functions for custom tools."""
-    lines = [
-        "# ==========================================",
-        "# CUSTOM TOOL IMPLEMENTATIONS",
-        "# ==========================================",
-        ""
-    ]
+    if "entrypoint" not in graph:
+        print("Error: Graph must contain 'entrypoint'")
+        return False
     
-    has_custom_tools = False
-    for tool_name, tool_def in tool_registry.items():
-        if tool_def.get('type') != 'custom':
-            continue
-        
-        has_custom_tools = True
-        implementation = tool_def.get('implementation', '')
-        
-        if not implementation:
-            continue
-        
-        # Add the custom implementation code directly
-        lines.append(f"# Custom tool: {tool_name}")
-        lines.append(implementation)
-        lines.append("")
+    if "nodes" not in graph or not isinstance(graph["nodes"], list):
+        print("Error: Graph must contain 'nodes' list")
+        return False
     
-    if not has_custom_tools:
-        return ""
-    
-    return "\n".join(lines)
+    return True
 
 
-def generate_tool_decorators(tool_registry: Dict[str, Any]) -> str:
-    """Generate @tool decorated functions for LangChain."""
-    lines = [
-        "# ==========================================",
-        "# TOOL REGISTRY",
-        "# ==========================================",
-        ""
-    ]
-    
-    for tool_name, tool_def in tool_registry.items():
-        tool_type = tool_def.get('type', 'mcp')
-        description = tool_def.get('description', '')
-        args = tool_def.get('arguments', [])
-        metadata = tool_def.get('metadata', {}) or {}
-        mcp_method = tool_def.get('mcp_method', '')
-        base_url = tool_def.get('mcp_server') or metadata.get('server') or metadata.get('mcp_server') or ""
+# ==========================================
+# DATA EXTRACTION AND SORTING
+# ==========================================
 
-        method = metadata.get('method')
-        endpoint = metadata.get('endpoint')
-        if mcp_method:
-            parts = mcp_method.split()
-            if len(parts) >= 1:
-                method = method or parts[0]
-            if len(parts) >= 2:
-                endpoint = endpoint or " ".join(parts[1:])
-        method = (method or "GET").upper()
-        endpoint = endpoint or "/"
-
-        safe_name = sanitize_identifier(tool_name)
-
-        lines.append("@tool")
-        signature = []
-        for arg in args:
-            arg_name = arg["name"]
-            arg_type = arg.get("type", "Any")
-            required = arg.get("required", True)
-            if required:
-                signature.append(f"    {arg_name}: {arg_type}")
-            else:
-                signature.append(f"    {arg_name}: {arg_type} = None")
-        if signature:
-            lines.append(f"def {safe_name}(")
-            lines.append(",\n".join(signature))
-            lines.append(") -> dict:")
-        else:
-            lines.append(f"def {safe_name}() -> dict:")
-        lines.append(f'    """{description}"""')
-
-        if tool_type == "custom":
-            implementation = tool_def.get("implementation", "")
-            impl_name = "tool_implementation"
-            if implementation:
-                import re
-
-                match = re.search(r"def\\s+(\\w+)\\s*\\(", implementation)
-                if match:
-                    impl_name = match.group(1)
-            arg_names = [arg["name"] for arg in args]
-            arg_list = ", ".join([f"{name}={name}" for name in arg_names])
-            lines.append(f"    return {impl_name}({arg_list})")
-            lines.append("")
-            continue
-
-        lines.append(f"    base_url = {py_str(base_url)}")
-        lines.append(f"    endpoint = {py_str(endpoint)}")
-        lines.append("    if not base_url or not endpoint:")
-        lines.append("        return {")
-        lines.append(f'            "tool_name": "{tool_name}",')
-        lines.append('            "status": "error",')
-        lines.append('            "message": "MCP server or endpoint not configured"')
-        lines.append("        }")
-        lines.append("    if endpoint.startswith('http'):")
-        lines.append("        url = endpoint")
-        lines.append("    else:")
-        lines.append("        base = base_url.rstrip('/')")
-        lines.append("        url = base + (endpoint if endpoint.startswith('/') else '/' + endpoint)")
-
-        payload_lines = ", ".join([f'"{arg["name"]}": {arg["name"]}' for arg in args])
-        lines.append(f"    payload = {{{payload_lines}}}" if payload_lines else "    payload = {}")
-        lines.append("    payload = {k: v for k, v in payload.items() if v is not None}")
-        lines.append("    try:")
-        if method == "GET":
-            lines.append("        response = requests.get(url, params=payload or None, timeout=15)")
-        else:
-            lines.append(
-                f'        response = requests.request("{method}", url, json=payload or None, timeout=15)'
-            )
-        lines.append("        response.raise_for_status()")
-        lines.append("        content_type = response.headers.get('content-type', '').lower()")
-        lines.append("        if 'application/json' in content_type:")
-        lines.append("            return response.json()")
-        lines.append("        return {")
-        lines.append(f'            "tool_name": "{tool_name}",')
-        lines.append('            "status": "success",')
-        lines.append('            "data": response.text')
-        lines.append("        }")
-        lines.append("    except Exception as exc:")
-        lines.append("        return {")
-        lines.append(f'            "tool_name": "{tool_name}",')
-        lines.append('            "status": "error",')
-        lines.append('            "message": str(exc)')
-        lines.append("        }")
-        lines.append("")
-
-    lines.append("# Tool registry for LLM binding")
-    lines.append("TOOL_REGISTRY = {")
-    for tool_name in tool_registry.keys():
-        safe_name = sanitize_identifier(tool_name)
-        lines.append(f'    "{tool_name}": {safe_name},')
-    lines.append("}")
-    lines.append("")
-
-    return "\n".join(lines)
-
-
-def collect_edges(
-    edges: Iterable[Dict[str, Any]],
-    nodes: List[Dict[str, Any]],
-    node_lookup: Dict[str, Dict[str, Any]],
-) -> Tuple[Dict[str, List[str]], Dict[str, Dict[str, str]], Dict[str, str]]:
+def data_sorter(asl_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Collect and categorize edges from the ASL graph.
-    Also infers implicit tool node return paths.
+    Sort the ASL dict into different categories of nodes.
     
     Returns:
-        Tuple of (normal_edges, conditional_edges)
+        Dictionary with categorized data:
+        - global_state: Global state schema
+        - entry_node: Entry point node ID
+        - llm_nodes: List of LLM nodes
+        - router_nodes: List of router nodes
+        - worker_nodes: List of worker nodes
+        - edges: List of edges
+        - tools: Dictionary of tool definitions
     """
-    normal_edges: Dict[str, List[str]] = defaultdict(list)
-    conditional_edges: Dict[str, Dict[str, str]] = defaultdict(dict)
-    conditional_parents: Dict[str, str] = {}
-
-    for edge in edges:
-        source = str(edge.get("from"))
-        target = str(edge.get("to"))
-        edge_type = edge.get("type", "NormalEdge")
-        
-        # Skip implicit edges (they're auto-generated, we'll re-infer them)
-        if edge.get("implicit"):
-            continue
-            
-        if edge_type == "ConditionalEdge":
-            label = str(edge.get("condition") or "true")
-            conditional_edges[source][label] = target
-            continue
-
-        target_node = node_lookup.get(target)
-        if target_node and target_node.get("type") == "ConditionalBlock":
-            conditional_parents[target] = source
-            continue
-
-        normal_edges[source].append(target)
-
-    # Infer tool node return paths
-    # Pattern: Conditional --true--> ToolNode
-    # Infer: ToolNode --> LLM (that connects to the conditional)
-    _infer_tool_returns(node_lookup, normal_edges, conditional_edges, conditional_parents)
-
-    return normal_edges, conditional_edges, conditional_parents
-
-
-def _infer_tool_returns(
-    node_lookup: Dict[str, Dict[str, Any]],
-    normal_edges: Dict[str, List[str]],
-    conditional_edges: Dict[str, Dict[str, str]],
-    conditional_parents: Dict[str, str],
-) -> None:
-    """
-    Automatically infer and add tool node return paths.
+    graph = asl_dict["graph"]
+    nodes = graph.get("nodes", [])
     
-    When a Conditional Block's "true" branch points to a Tool Node,
-    we infer that the Tool Node should return to the LLM that feeds the Conditional.
-    """
-    tool_nodes = {nid for nid, node in node_lookup.items() if node.get("type") == "ToolNode"}
+    sorted_data = {
+        "global_state": graph.get("state", {}).get("schema", {}),
+        "entry_node": graph.get("entrypoint", None),
+        "llm_nodes": [node for node in nodes if node["type"] == "LLMNode"],
+        "router_nodes": [node for node in nodes if node["type"] == "RouterBlock"],
+        "worker_nodes": [node for node in nodes if node["type"] == "WorkerNode"],
+        "edges": graph.get("edges", []),
+        "tools": graph.get("tools", {}),
+    }
     
-    for tool_node_id in tool_nodes:
-        # Find which conditional leads to this tool node
-        conditional_id = next(
-            (cond_id for cond_id, mapping in conditional_edges.items() if mapping.get("true") == tool_node_id),
-            None,
-        )
-    
-        if not conditional_id:
-            # Tool node not connected via conditional, skip
-            continue
-
-        # Find which LLM connects to this conditional
-        llm_id = conditional_parents.get(conditional_id)
-        if llm_id:
-            # Add the return edge: ToolNode -> LLM
-            if tool_node_id not in normal_edges:
-                normal_edges[tool_node_id] = []
-            if llm_id not in normal_edges[tool_node_id]:
-                normal_edges[tool_node_id].append(llm_id)
-                print(f"  ✓ Inferred tool return: {tool_node_id} → {llm_id}")
+    return sorted_data
 
 
-def _map_llm_tool_bindings(
-    node_lookup: Dict[str, Dict[str, Any]],
-    conditional_edges: Dict[str, Dict[str, str]],
-    conditional_parents: Dict[str, str],
-) -> Dict[str, List[str]]:
-    """Map each LLM node to the tool functions available via downstream tool nodes."""
-    tool_nodes = {nid for nid, node in node_lookup.items() if node.get("type") == "ToolNode"}
-    bindings: Dict[str, List[str]] = defaultdict(list)
+# ==========================================
+# TOOL GENERATION
+# ==========================================
 
-    for tool_node_id in tool_nodes:
-        tool_config = node_lookup[tool_node_id].get("config", {})
-        selected_tools = [
-            sanitize_identifier(name)
-            for name in tool_config.get("selected_tools", []) or []
-            if name
-        ]
-        if not selected_tools:
-            continue
-
-        conditional_id = next(
-            (cond_id for cond_id, mapping in conditional_edges.items() if mapping.get("true") == tool_node_id),
-            None,
-        )
-        if not conditional_id:
-            continue
-
-        llm_id = conditional_parents.get(conditional_id)
-        if not llm_id or node_lookup.get(llm_id, {}).get("type") != "LLMNode":
-            continue
-
-        existing = set(bindings[llm_id])
-        for tool in selected_tools:
-            if tool not in existing:
-                bindings[llm_id].append(tool)
-                existing.add(tool)
-
-    return bindings
-
-
-def _map_tool_iteration_settings(
-    node_lookup: Dict[str, Dict[str, Any]],
-    conditional_edges: Dict[str, Dict[str, str]],
-) -> Dict[str, Dict[str, Any]]:
-    """Map conditional blocks to the iteration constraints configured on their tool nodes."""
-    settings: Dict[str, Dict[str, Any]] = {}
-
-    for conditional_id, mapping in conditional_edges.items():
-        tool_node_id = mapping.get("true")
-        if not tool_node_id:
-            continue
-        tool_node = node_lookup.get(tool_node_id)
-        if not tool_node or tool_node.get("type") != "ToolNode":
-            continue
-        tool_config = tool_node.get("config", {})
-        limit = tool_config.get("max_tool_iterations")
-        warning = tool_config.get("iteration_warning_message")
-        try:
-            limit_val = int(limit)
-        except (TypeError, ValueError):
-            continue
-        if limit_val <= 0:
-            continue
-        if not isinstance(warning, str):
-            warning = ""
-        settings[conditional_id] = {
-            "max_iterations": limit_val,
-            "warning_message": warning.strip(),
-        }
-
-    return settings
-
-
-def compile_asl(asl_file_path: str, output_dir: str = None) -> None:
+def generate_tool_functions(tools: Dict[str, Any]) -> str:
     """
-    Compile an ASL specification to Python code.
+    Generate @tool decorated functions for all custom tools.
     
     Args:
-        asl_file_path: Path to the ASL JSON file
-        output_dir: Optional output directory path. If not provided, defaults to 
-                   {asl_file_parent}/../output for regular files, or a temp dir for temp files.
+        tools: Dictionary of tool definitions from the ASL
+        
+    Returns:
+        String containing all tool function definitions
     """
-    with open(asl_file_path, "r", encoding="utf-8") as handle:
-        asl_data = json.load(handle)
-
-    meta = asl_data.get("meta", {})
-    graph_data = asl_data.get("graph", {})
-    entrypoint_id = graph_data.get("entrypoint")
-    nodes = graph_data.get("nodes", [])
-    edges = graph_data.get("edges", [])
-    state_schema = graph_data.get("state", {}).get("schema", {})
-
-    if entrypoint_id is None:
-        raise ValueError("ASL graph requires an entrypoint node.")
-
-    profile_registry = build_profile_registry(meta)
-    tool_registry = build_tool_registry(graph_data)
-
-    node_lookup: Dict[str, Dict[str, Any]] = {str(node["id"]): node for node in nodes}
-    normal_edges, conditional_edges, conditional_parents = collect_edges(edges, nodes, node_lookup)
-
-    used_identifiers: Set[str] = set()
-    safe_id_map: Dict[str, str] = {}
-    for raw_id in node_lookup.keys():
-        base = sanitize_identifier(raw_id)
-        safe_id_map[raw_id] = ensure_unique_identifier(base, used_identifiers)
-
-    state_typing = generate_state_typing(state_schema)
-
-    profile_registry_literal = json.dumps(profile_registry, indent=2)
+    if not tools:
+        return "# No custom tools defined\n"
     
-    header = textwrap.dedent(
-        f"""\
-# Auto-generated by the ASL compiler. Edit with care.
-
-
-load_dotenv()
-
-class _SafeFormat(dict):
-    def __missing__(self, key):
-        return "{{" + key + "}}"
-
-
-def render_template(template: str, state: Dict[str, Any]) -> str:
-    if not template:
-        return ""
-    try:
-        format_map = _SafeFormat({{**state, "state": state}})
-        return template.format_map(format_map)
-    except Exception:
-        return template
-"""
-    ).strip()
-
-    model_helper = textwrap.dedent(
-        """\
-MODEL_CONFIG_PATH = os.environ.get("MODEL_CONFIG_PATH", "model_config.yaml")
-
-
-def _load_model_config() -> Dict[str, Any]:
-    try:
-        if os.path.exists(MODEL_CONFIG_PATH):
-            with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as handle:
-                data = yaml.safe_load(handle) or {}
-                return data
-    except Exception:
-        pass
-    return {}
-
-
-MODEL_CONFIG = _load_model_config()
-
-LANGFUSE_SECTION = MODEL_CONFIG.get("langfuse") or {}
-USE_TRACING = bool(MODEL_CONFIG.get("use_tracing"))
-
-
-def _coerce_int(value: Any, default: int) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-DEFAULT_RECURSION_LIMIT = _coerce_int(MODEL_CONFIG.get("recursion_limit", 50), 50)
-
-
-def _generate_session_id() -> str:
-    return uuid.uuid4().hex
-
-
-def _create_langfuse_handler():
-    if not USE_TRACING or CallbackHandler is None:
-        return None
-    host = LANGFUSE_SECTION.get("host") or os.environ.get("LANGFUSE_HOST")
-    public_key = LANGFUSE_SECTION.get("public_key") or os.environ.get("LANGFUSE_PUBLIC_KEY")
-    secret_key = LANGFUSE_SECTION.get("secret_key") or os.environ.get("LANGFUSE_SECRET_KEY")
-
-    if not (host and public_key and secret_key):
-        return None
-
-    os.environ["LANGFUSE_HOST"] = host
-    os.environ["LANGFUSE_PUBLIC_KEY"] = public_key
-    os.environ["LANGFUSE_SECRET_KEY"] = secret_key
-
-    try:
-        return CallbackHandler()
-    except Exception:
-        return None
-
-
-def create_model_client():
-    provider = (MODEL_CONFIG.get("provider") or "ollama").lower()
-    model_name = MODEL_CONFIG.get("model") or "llama3.1:latest"
-    temperature = MODEL_CONFIG.get("temperature", 0.0)
-    endpoint = MODEL_CONFIG.get("litellm_endpoint")
-    api_key = MODEL_CONFIG.get("litellm_team_key") or os.environ.get("LITELLM_TEAM_KEY")
-
-    if provider == "openai":
-        return ChatOpenAI(
-            model=model_name,
-            temperature=temperature,
-            base_url=endpoint,
-            api_key=api_key,
-        )
-
-    if provider == "claude":
-        return ChatAnthropic(
-            model=model_name,
-            temperature=temperature,
-            api_key=api_key,
-        )
-
-    kwargs = {"model": model_name, "temperature": temperature}
-    if endpoint:
-        kwargs["base_url"] = endpoint
-    return ChatOllama(**kwargs)
-
-
-def create_model_instance(*tool_funcs):
-    client = create_model_client()
-    if tool_funcs:
-        return client.bind_tools(list(tool_funcs))
-    return client
-"""
-    ).strip()
-
-    node_functions: List[str] = []
-    router_functions: List[str] = []
-    model_instances: List[str] = []  # LLM model instances
-    tool_node_instances: List[str] = []  # Tool node instances
-    graph_setup: List[str] = ["workflow = StateGraph(AgentState)"]
-    exposed_outputs: List[str] = []
+    tool_functions = []
+    tool_functions.append("# ==========================================")
+    tool_functions.append("# TOOL FUNCTION DEFINITIONS")
+    tool_functions.append("# ==========================================\n")
     
-    # Collect tools that need to be bound to LLM nodes
-    llm_tool_bindings: Dict[str, List[str]] = _map_llm_tool_bindings(
-        node_lookup, conditional_edges, conditional_parents
-    )
-    tool_iteration_settings = _map_tool_iteration_settings(node_lookup, conditional_edges)
-
-    for node_id, node in node_lookup.items():
-        safe_id = safe_id_map[node_id]
-        node_type = node.get("type")
-        config = node.get("config", {})
-        label = node.get("label", node_type)
-
-        compiler_func = NODE_COMPILERS.get(node_type)
-        if not compiler_func:
-            raise ValueError(f"Unsupported node type: {node_type}")
-
-        # Special handling for LLM nodes - create model instance
-        if node_type == "LLMNode":
-            sanitized_tools = llm_tool_bindings.get(node_id, [])
-            if sanitized_tools:
-                tool_args = ", ".join(sanitized_tools)
-                model_instances.append(f"model_{safe_id} = create_model_instance({tool_args})")
-            else:
-                model_instances.append(f"model_{safe_id} = create_model_instance()")
+    for tool_name, tool_def in tools.items():
+        tool_type = tool_def.get("type", "custom")
         
-        # Special handling for Tool nodes - they become ToolNode instances
-        if node_type == "ToolNode":
-            tool_node_instances.extend(
-                compiler_func(
-                    node_id=node_id,
-                    safe_id=safe_id,
-                    config=config,
-                    label=label,
-                )
-            )
-        else:
-            node_functions.extend(
-                compiler_func(
-                    node_id=node_id,
-                    safe_id=safe_id,
-                    config=config,
-                    label=label,
-                )
-            )
-
-        router_compiler = ROUTER_COMPILERS.get(node_type)
-        if router_compiler:
-            router_functions.extend(
-                router_compiler(
-                    node_id=node_id,
-                    safe_id=safe_id,
-                    config=config,
-                    iteration_config=tool_iteration_settings.get(node_id),
-                )
-            )
-
-        # Add node to graph (special handling for Tool nodes)
-        if node_type == "ToolNode":
-            graph_setup.append(f"workflow.add_node({py_str(node_id)}, tool_node_{safe_id})")
-        elif node_type == "EntryPoint":
-            graph_setup.append(f"workflow.add_node({py_str(node_id)}, entry_{safe_id})")
-        elif node_type == "LLMNode":
-            graph_setup.append(f"workflow.add_node({py_str(node_id)}, call_model_{safe_id})")
-        # ConditionalBlock doesn't get added as a node
-
-    graph_setup.append(f"workflow.set_entry_point({py_str(str(entrypoint_id))})")
-
-    nodes_with_outgoing: Set[str] = set()
-
-    for source, targets in normal_edges.items():
-        for target in targets:
-            graph_setup.append(f"workflow.add_edge({py_str(source)}, {py_str(target)})")
-            nodes_with_outgoing.add(source)
-
-    for source, mapping in conditional_edges.items():
-        safe_id = safe_id_map.get(source)
-        if not safe_id:
+        if tool_type != "custom":
+            # Skip non-custom tools for now
             continue
-        parent_id = conditional_parents.get(source)
-        if not parent_id:
-            raise ValueError(f"Conditional block {source} is missing an upstream LLM node")
-
-        branch_map: Dict[str, Any] = dict(mapping)
-        cond_config = node_lookup.get(source, {}).get("config", {})
-        configured_false_label = (cond_config.get("false_label") or "false").strip()
-        if (
-            configured_false_label
-            and configured_false_label.lower() == "false"
-            and configured_false_label not in branch_map
-        ):
-            branch_map[configured_false_label] = END_SENTINEL
-
-        mapping_entries: List[str] = []
-        for label, dest in branch_map.items():
-            if dest is END_SENTINEL:
-                mapping_entries.append(f"{py_str(label)}: END")
-            else:
-                mapping_entries.append(f"{py_str(label)}: {py_str(dest)}")
-
-        mapping_literal = "{" + ", ".join(mapping_entries) + "}"
-        router_name = f"route_{safe_id}"
-
-        graph_setup.append(
-            f"workflow.add_conditional_edges({py_str(parent_id)}, {router_name}, {mapping_literal})"
-        )
-        nodes_with_outgoing.add(parent_id)
-
-    terminal_nodes = [
-        node_id
-        for node_id, node in node_lookup.items()
-        if node_id not in nodes_with_outgoing and node.get("type") != "ConditionalBlock"
-    ]
-    for node_id in terminal_nodes:
-        graph_setup.append(f"workflow.add_edge({py_str(node_id)}, END)")
-
-    graph_setup.append("return workflow.compile()")
-
-    runtime_helpers = []
-    if exposed_outputs:
-        exposed_literal = json.dumps(exposed_outputs)
-        runtime_helpers.append(
-            textwrap.dedent(
-                f"""
-                EXPOSED_OUTPUT_KEYS: List[str] = json.loads({py_str(exposed_literal)})
-
-
-                def extract_exposed_outputs(state: Dict[str, Any]) -> Dict[str, Any]:
-                    return {{key: state.get(key) for key in EXPOSED_OUTPUT_KEYS}}
-                """
-            )
-        )
-
-    runtime = textwrap.dedent(
-        """\
-def build_agent():
-    return create_workflow()
-
-
-def run(initial_state: Dict[str, Any] = None, session_id: Optional[str] = None) -> Dict[str, Any]:
-    \"\"\"Run the agent workflow.\"\"\"
-    agent = build_agent()
-    if initial_state is None:
-        initial_state = {}
-
-    config: Dict[str, Any] = {"recursion_limit": DEFAULT_RECURSION_LIMIT}
-
-    if USE_TRACING:
-        handler = _create_langfuse_handler()
-        if handler:
-            session_value = session_id or (initial_state.get("session_id") if isinstance(initial_state, dict) else None)
-            if not session_value:
-                session_value = _generate_session_id()
-            config["configurable"] = {"thread_id": session_value}
-            config["metadata"] = {"session_id": session_value}
-            config["callbacks"] = [handler]
-
-    final_state = agent.invoke(initial_state, config=config)
-    return final_state
-
-
-def main() -> None:
-    \"\"\"Example run - add HumanMessage to initial state.\"\"\"
-    import sys
-
-    if len(sys.argv) > 1:
-        user_input = " ".join(sys.argv[1:])
-    else:
-        user_input = input("You: ")
-
-    initial_state = {"messages": [HumanMessage(content=user_input)]}
-    final_state = run(initial_state)
-
-    print("\\n--- Conversation ---")
-    for msg in final_state.get("messages", []):
-        msg_type = type(msg).__name__
-        content = getattr(msg, "content", str(msg))
-        print(f"{msg_type}: {content}")
-
-    print(f"\\nFinal count: {final_state.get('count', 0)}")
-
-
-if __name__ == "__main__":
-    main()
-"""
-    )
-
-    create_workflow_fn = "def create_workflow() -> Any:\n" + textwrap.indent(
-        "\n\n".join(graph_setup), "    "
-    )
-
-    # Generate tool implementations and decorators
-    custom_tools = generate_custom_tool_implementations(tool_registry)
-    tool_decorators = generate_tool_decorators(tool_registry)
-
-    segments = [
-        header,
-        model_helper,
-        state_typing,
-        custom_tools,
-        tool_decorators,
-        "\n# ==========================================",
-        "# MODEL INSTANCES",
-        "# ==========================================\n",
-        "\n".join(model_instances) if model_instances else "# No models",
-        "\n# ==========================================",
-        "# TOOL NODE INSTANCES",
-        "# ==========================================\n",
-        "\n".join(tool_node_instances) if tool_node_instances else "# No tool nodes",
-        "\n# ==========================================",
-        "# NODE FUNCTIONS",
-        "# ==========================================\n",
-        "\n".join(node_functions),
-        "\n# ==========================================",
-        "# ROUTER FUNCTIONS",
-        "# ==========================================\n",
-        "\n".join(router_functions) if router_functions else "# No routers",
-        create_workflow_fn,
-        "\n".join(runtime_helpers),
-        runtime,
-    ]
-
-    # Determine output directory
-    if output_dir:
-        output_path = Path(output_dir)
-    else:
-        # Check if this is a temp file (in /tmp or system temp directory)
-        asl_path = Path(asl_file_path).resolve()
-        temp_dir = Path(tempfile.gettempdir()).resolve()
         
-        if str(asl_path).startswith(str(temp_dir)):
-            # For temp files, use the compiler's output directory
-            output_path = Path(__file__).resolve().parent.parent / "output"
+        description = tool_def.get("description", "")
+        implementation = tool_def.get("implementation", "")
+        
+        if not implementation:
+            # Create a placeholder implementation
+            safe_name = sanitize_identifier(tool_name)
+            tool_functions.append(f"@tool")
+            tool_functions.append(f"def {safe_name}(**kwargs) -> dict:")
+            tool_functions.append(f'    """{description}"""')
+            tool_functions.append(f'    return {{"error": "Tool not implemented"}}')
+            tool_functions.append("")
         else:
-            # For regular files, use parent.parent/output
-            output_path = asl_path.parent.parent / "output"
+            # Use the provided implementation
+            # Rename the function to match the tool name
+            import re
+            safe_name = sanitize_identifier(tool_name)
+            
+            # Find the function definition and replace with correct name
+            impl_lines = implementation.split('\n')
+            new_impl_lines = []
+            for line in impl_lines:
+                # Match function definition line
+                if re.match(r'\s*def\s+\w+\s*\(', line):
+                    # Replace function name
+                    line = re.sub(r'(def\s+)\w+(\s*\()', rf'\1{safe_name}\2', line)
+                new_impl_lines.append(line)
+            
+            implementation = '\n'.join(new_impl_lines)
+            
+            # Add @tool decorator if not present
+            if "@tool" not in implementation:
+                tool_functions.append("@tool")
+            tool_functions.append(implementation)
+            tool_functions.append("")
     
-    output_path.mkdir(exist_ok=True, parents=True)
-    (output_path / "__init__.py").touch()
-    module_name = Path(asl_file_path).stem
-    output_file = output_path / f"compiled_{module_name}.py"
-
-    with open(output_file, "w", encoding="utf-8") as handle:
-        handle.write("\n\n".join(filter(None, segments)))
-
-    print(f"Compiled {asl_file_path} to {output_file}")
+    return "\n".join(tool_functions)
 
 
-def main() -> None:
-    if len(sys.argv) < 2:
-        print("Usage: python compiler.py <path_to_asl_file.json>")
+def collect_tools_per_node(nodes: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """
+    Collect which tools are used by which nodes.
+    
+    Returns:
+        Dictionary mapping node_id -> list of sanitized tool names
+    """
+    tools_by_node = {}
+    
+    for node in nodes:
+        node_id = str(node["id"])
+        config = node.get("config", {})
+        selected_tools = config.get("selected_tools", []) or []
+        
+        if selected_tools:
+            sanitized_tools = [sanitize_identifier(tool) for tool in selected_tools]
+            tools_by_node[node_id] = sanitized_tools
+    
+    return tools_by_node
+
+
+# ==========================================
+# CODE GENERATION HELPERS
+# ==========================================
+
+def load_template(template_name: str) -> str:
+    """Load a Jinja2 template from code_artifacts."""
+    template_path = Path(__file__).parent / "nodes" / "code_artifacts" / template_name
+    with open(template_path, "r") as f:
+        return f.read()
+
+
+def generate_imports() -> str:
+    """Generate import statements."""
+    return load_template("imports.j2")
+
+
+def generate_helpers() -> str:
+    """Generate helper functions."""
+    return load_template("helper_functions.j2")
+
+
+def generate_model_init() -> str:
+    """Generate model initialization code."""
+    return load_template("model_init.j2")
+
+
+def assemble_final_code(sorted_data: Dict[str, Any]) -> str:
+    """
+    Assemble all generated code into final Python module.
+    
+    Structure:
+    1. Imports
+    2. Helper functions
+    3. Model initialization
+    4. State definitions (from graph_builder)
+    5. Pydantic schemas (from graph_builder)
+    6. Tool function definitions
+    7. Worker tools (from graph_builder)
+    8. Model instances (from graph_builder)
+    9. LLM/Router node functions (from graph_builder)
+    10. Graph construction (from graph_builder)
+    11. Main execution
+    """
+    sections = []
+    
+    # Step 1: Imports
+    sections.append(generate_imports())
+    sections.append("")
+    
+    # Step 2: Helpers
+    sections.append(generate_helpers())
+    sections.append("")
+    
+    # Step 3: Model init
+    sections.append(generate_model_init())
+    sections.append("")
+    
+    # Step 4: Tool function definitions (custom tools from ASL)
+    sections.append(generate_tool_functions(sorted_data["tools"]))
+    sections.append("")
+    
+    # Step 5: Everything else from graph_builder
+    # This includes: state, pydantic schemas, worker tools, models, nodes, graph
+    graph_code = build_and_generate_graph(sorted_data)
+    sections.append(graph_code)
+    sections.append("")
+    
+    # Step 6: Main execution
+    sections.append("# ==========================================")
+    sections.append("# MAIN EXECUTION")
+    sections.append("# ==========================================")
+    sections.append("")
+    sections.append("if __name__ == \"__main__\":")
+    sections.append("    print(\"Compiled ASL code - ready to execute\")")
+    sections.append("")
+    
+    return "\n".join(sections)
+
+
+# ==========================================
+# MAIN COMPILER FUNCTION
+# ==========================================
+
+def compile_asl(input_path: Path, output_path: Path, validate_only: bool = False) -> bool:
+    """
+    Main compiler function.
+    
+    Args:
+        input_path: Path to ASL JSON file
+        output_path: Path to output Python file
+        validate_only: If True, only validate without generating code
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    # Read input file
+    try:
+        with open(input_path, "r") as f:
+            asl_content = f.read()
+    except Exception as e:
+        print(f"Error reading input file: {e}")
+        return False
+    
+    # Validate JSON
+    if not check_valid_json(asl_content):
+        print(f"Error: The input file {input_path} is not a valid JSON file.")
+        return False
+    
+    # Parse JSON
+    asl_dict = json.loads(asl_content)
+    
+    # Validate ASL structure
+    if not validate_asl_structure(asl_dict):
+        return False
+    
+    print(f"✓ JSON validation passed")
+    
+    if validate_only:
+        print(f"✓ ASL structure validation passed")
+        return True
+    
+    # Sort and extract data
+    sorted_data = data_sorter(asl_dict)
+    print(f"✓ Extracted {len(sorted_data['llm_nodes'])} LLM nodes")
+    print(f"✓ Extracted {len(sorted_data['router_nodes'])} router nodes")
+    print(f"✓ Extracted {len(sorted_data['worker_nodes'])} worker nodes")
+    print(f"✓ Extracted {len(sorted_data['tools'])} tools")
+    
+    # Generate code
+    try:
+        final_code = assemble_final_code(sorted_data)
+    except Exception as e:
+        print(f"Error generating code: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    
+    # Write output
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w") as f:
+            f.write(final_code)
+        print(f"✓ Successfully compiled to {output_path}")
+        return True
+    except Exception as e:
+        print(f"Error writing output file: {e}")
+        return False
+
+
+def main():
+    """Main entry point."""
+    args = parse_arguments()
+    input_path = Path(args.input_file)
+    output_path = Path(args.output_file)
+    
+    if not input_path.exists():
+        print(f"Error: Input file {input_path} does not exist")
         sys.exit(1)
-    asl_file_path = sys.argv[1]
-    compile_asl(asl_file_path)
+    
+    success = compile_asl(input_path, output_path, args.validate_only)
+    sys.exit(0 if success else 1)
 
 
 if __name__ == "__main__":
     main()
+
+
+
+    
+
+
+    
+
+
+
+    
