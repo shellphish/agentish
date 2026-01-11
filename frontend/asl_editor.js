@@ -1703,7 +1703,7 @@ function initializeEditor() {
                         
                         checkbox.addEventListener("change", () => {
                             // Update selected keys array
-                            let updated = node.properties.output_state_keys || [];
+                            let updated = node.properties[def.key] || [];
                             if (checkbox.checked) {
                                 if (!updated.includes(varName)) {
                                     updated.push(varName);
@@ -1711,21 +1711,24 @@ function initializeEditor() {
                             } else {
                                 updated = updated.filter(k => k !== varName);
                             }
-                            node.properties.output_state_keys = updated;
+                            node.properties[def.key] = updated;
                             
-                            // Also update output_key for backward compatibility (use first selected)
-                            node.properties.output_key = updated[0] || "";
-                            
-                            // Sync with Output Schema Table
-                            const schemaTableContainer = document.querySelector('.output-schema-table-container');
-                            if (schemaTableContainer) {
-                                if (checkbox.checked) {
-                                    // Add row to table
-                                    const fieldType = inferTypeFromSchema(appState.schema[varName]) || 'str';
-                                    schemaTableContainer.addSchemaRow(varName, fieldType, '');
-                                } else {
-                                    // Remove row from table
-                                    schemaTableContainer.removeSchemaRow(varName);
+                            // Special handling for output_state_keys
+                            if (def.key === "output_state_keys") {
+                                // Also update output_key for backward compatibility (use first selected)
+                                node.properties.output_key = updated[0] || "";
+                                
+                                // Sync with Output Schema Table
+                                const schemaTableContainer = document.querySelector('.output-schema-table-container');
+                                if (schemaTableContainer) {
+                                    if (checkbox.checked) {
+                                        // Add row to table
+                                        const fieldType = inferTypeFromSchema(appState.schema[varName]) || 'str';
+                                        schemaTableContainer.addSchemaRow(varName, fieldType, '');
+                                    } else {
+                                        // Remove row from table
+                                        schemaTableContainer.removeSchemaRow(varName);
+                                    }
                                 }
                             }
                             
