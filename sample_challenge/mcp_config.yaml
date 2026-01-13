@@ -1,0 +1,91 @@
+# MCP Server Configuration
+# Configure Model Context Protocol servers that provide tools for agents
+# This section can be empty or omitted if no MCP servers are needed
+
+mcp_servers:
+  - name: "binary_analysis"
+    port: 8002
+    internal_host: "mcp_binary"  # Docker service name for internal communication
+    service_file: "artifacts/mcp_implementation/mcp_server.py"  # Path for reference only
+    enabled: true
+    routes:
+      - function: "list_functions"
+        endpoint: "/mcp/list_functions"
+        method: "GET"
+        description: "List all discovered functions from the challenge binary"
+        arguments: []
+        return_schema:
+          success: "bool"
+          functions: "list"
+
+      - function: "get_disassembly_by_function"
+        endpoint: "/mcp/get_disassembly_by_function"
+        method: "GET"
+        description: "Fetch the disassembly for a specific function name"
+        arguments:
+          - name: "function"
+            type: "str"
+            required: true
+            description: "Function name/signature"
+        return_schema:
+          success: "bool"
+          disassembly: "str"
+
+      - function: "get_caller_callee_mapping"
+        endpoint: "/mcp/get_caller_callee_mapping"
+        method: "GET"
+        description: "Return who a function calls within the binary"
+        arguments:
+          - name: "function_signature"
+            type: "str"
+            required: true
+            description: "Caller function name"
+        return_schema:
+          success: "bool"
+          caller_callee_mapping: "dict"
+
+      - function: "get_callee_caller_mapping"
+        endpoint: "/mcp/get_callee_caller_mapping"
+        method: "GET"
+        description: "Return which functions call the provided callee"
+        arguments:
+          - name: "function_signature"
+            type: "str"
+            required: true
+            description: "Callee function name"
+        return_schema:
+          success: "bool"
+          callee_caller_mapping: "dict"
+
+      - function: "run_challenge"
+        endpoint: "/mcp/run_challenge"
+        method: "POST"
+        description: "Execute the challenge binary with a candidate password"
+        arguments:
+          - name: "input"
+            type: "str"
+            required: true
+            description: "Password to test"
+        return_schema:
+          success: "bool"
+          flag: "str"
+          output: "str"
+
+      - function: "run_python"
+        endpoint: "/mcp/run_python"
+        method: "POST"
+        description: "Execute a Python snippet inside the challenge sandbox"
+        arguments:
+          - name: "code"
+            type: "str"
+            required: true
+            description: "Python source to execute"
+          - name: "stdin"
+            type: "str"
+            required: false
+            description: "Optional STDIN for the script"
+        return_schema:
+          success: "bool"
+          stdout: "str"
+          stderr: "str"
+          return_code: "int"
