@@ -6,7 +6,6 @@ from . import (
     state_node,
     tool_node,
     router,
-    worker_node,
 )
 
 NODE_COMPILERS = {
@@ -15,7 +14,7 @@ NODE_COMPILERS = {
     "ConditionalBlock": conditional_block.compile_node,
     "ToolNode": tool_node.compile_node,
     "RouterBlock": router.compile_node,
-    "WorkerNode": worker_node.compile_node,
+    # Note: WorkerNode is not compiled as a graph node; it's processed separately as a tool
 }
 
 ROUTER_COMPILERS = {
