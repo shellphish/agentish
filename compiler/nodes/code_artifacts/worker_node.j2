@@ -26,9 +26,15 @@ def worker_{{ node_id }}_node(global_state: GlobalState) -> Command:
     # Invoke the model
     {%- if structured_output_enabled %}
     model_with_output = model_{{ node_id }}.with_structured_output({{ structured_output_schema_class }})
-    response = model_with_output.invoke(messages)
+    if LANGFUSE_HANDLER:
+        response = model_with_output.invoke(messages, config={"callbacks": [LANGFUSE_HANDLER]})
+    else:
+        response = model_with_output.invoke(messages)
     {%- else %}
-    response = model_{{ node_id }}.invoke(messages)
+    if LANGFUSE_HANDLER:
+        response = model_{{ node_id }}.invoke(messages, config={"callbacks": [LANGFUSE_HANDLER]})
+    else:
+        response = model_{{ node_id }}.invoke(messages)
     {%- endif %}
     
     {% if has_tools %}

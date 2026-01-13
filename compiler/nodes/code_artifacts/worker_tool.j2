@@ -27,7 +27,10 @@ def worker_{{ sanitized_label }}_{{ node_id }}_tool(task: str) -> dict:
     
     while current_iteration < max_iterations:
         # Invoke the model
-        response = model_worker_{{ node_id }}.invoke(messages)
+        if LANGFUSE_HANDLER:
+            response = model_worker_{{ node_id }}.invoke(messages, config={"callbacks": [LANGFUSE_HANDLER]})
+        else:
+            response = model_worker_{{ node_id }}.invoke(messages)
         messages.append(response)
         
         # Check for tool calls
@@ -41,7 +44,10 @@ def worker_{{ sanitized_label }}_{{ node_id }}_tool(task: str) -> dict:
                     content="Tool iteration limit reached. Please provide a final response without using more tools."
                 )
                 messages.append(warning_msg)
-                final_response = model_worker_{{ node_id }}.invoke(messages)
+                if LANGFUSE_HANDLER:
+                    final_response = model_worker_{{ node_id }}.invoke(messages, config={"callbacks": [LANGFUSE_HANDLER]})
+                else:
+                    final_response = model_worker_{{ node_id }}.invoke(messages)
                 return {
                     "result": final_response.content if hasattr(final_response, 'content') else str(final_response),
                     "success": True
@@ -95,7 +101,10 @@ def worker_{{ sanitized_label }}_{{ node_id }}_tool(task: str) -> dict:
     }
     {% else %}
     # No tools - simple invocation
-    response = model_worker_{{ node_id }}.invoke(messages)
+    if LANGFUSE_HANDLER:
+        response = model_worker_{{ node_id }}.invoke(messages, config={"callbacks": [LANGFUSE_HANDLER]})
+    else:
+        response = model_worker_{{ node_id }}.invoke(messages)
     return {
         "result": response.content if hasattr(response, 'content') else str(response),
         "success": True

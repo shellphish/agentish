@@ -43,7 +43,10 @@ def {{ sanitized_label }}_{{ node_id }}_node(global_state: GlobalState) -> Comma
     
     # Use structured output
     router_model = model_router_{{ node_id }}.with_structured_output(RouterDecision)
-    decision = router_model.invoke(messages)
+    if LANGFUSE_HANDLER:
+        decision = router_model.invoke(messages, config={"callbacks": [LANGFUSE_HANDLER]})
+    else:
+        decision = router_model.invoke(messages)
     
     # Map label to function name
     label_to_func = {{ label_to_function_map|tojson }}
