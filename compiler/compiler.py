@@ -19,9 +19,14 @@ from datetime import datetime
 try:
     from utils import sanitize_identifier
     from graph_builder import build_and_generate_graph
+    from config_parser import ConfigParser
+    from config_validator import ConfigValidator
 except ImportError:
     from compiler.utils import sanitize_identifier
     from compiler.graph_builder import build_and_generate_graph
+    from compiler.config_parser import ConfigParser
+    from compiler.config_validator import ConfigValidator
+
 
 
 # ==========================================
@@ -109,66 +114,124 @@ def data_sorter(asl_dict: Dict[str, Any]) -> Dict[str, Any]:
 # TOOL GENERATION
 # ==========================================
 
+def generate_mcp_tool(tool_name: str, tool_def: Dict[str, Any]) -> str:
+    """
+    Generate an MCP tool as a @tool decorated function using Jinja2 template.
+
+    Args:
+        tool_name: Name of the tool
+        tool_def: Tool definition from ASL
+
+    Returns:
+        String containing the @tool decorated function code
+    """
+    safe_name = sanitize_identifier(tool_name)
+    description = tool_def.get("description", "")
+    arguments = tool_def.get("arguments", [])
+    mcp_server = tool_def.get("mcp_server", "")
+    mcp_method = tool_def.get("mcp_method", "GET /")
+
+    # Parse method and endpoint from mcp_method
+    method_parts = mcp_method.split(maxsplit=1)
+    method = method_parts[0].upper() if method_parts else "GET"
+    endpoint = method_parts[1] if len(method_parts) > 1 else "/"
+
+    # Process arguments to add required field
+    processed_args = []
+    for arg in arguments:
+        processed_args.append({
+            "name": arg.get("name", "arg"),
+            "type": arg.get("type", "Any"),
+            "required": arg.get("required", True)
+        })
+
+    # Load the Jinja2 template
+    template_path = Path(__file__).parent / "nodes" / "code_artifacts" / "mcp_tool.j2"
+    with open(template_path, "r") as f:
+        template_str = f.read()
+
+    template = Template(template_str)
+    return template.render(
+        safe_name=safe_name,
+        description=description,
+        arguments=processed_args,
+        base_url=mcp_server,
+        endpoint=endpoint,
+        method=method
+    )
+
+
 def generate_tool_functions(tools: Dict[str, Any]) -> str:
     """
-    Generate @tool decorated functions for all custom tools.
-    
+    Generate @tool decorated functions for all tools (custom and MCP).
+
     Args:
         tools: Dictionary of tool definitions from the ASL
-        
+
     Returns:
         String containing all tool function definitions
     """
     if not tools:
-        return "# No custom tools defined\n"
-    
+        return "# No tools defined\n"
+
     tool_functions = []
     tool_functions.append("# ==========================================")
     tool_functions.append("# TOOL FUNCTION DEFINITIONS")
     tool_functions.append("# ==========================================\n")
-    
+
+    has_any_tools = False
+
     for tool_name, tool_def in tools.items():
         tool_type = tool_def.get("type", "custom")
-        
-        if tool_type != "custom":
-            # Skip non-custom tools for now
-            continue
-        
-        description = tool_def.get("description", "")
-        implementation = tool_def.get("implementation", "")
-        
-        if not implementation:
-            # Create a placeholder implementation
-            safe_name = sanitize_identifier(tool_name)
-            tool_functions.append(f"@tool")
-            tool_functions.append(f"def {safe_name}(**kwargs) -> dict:")
-            tool_functions.append(f'    """{description}"""')
-            tool_functions.append(f'    return {{"error": "Tool not implemented"}}')
+
+        if tool_type == "mcp":
+            # Generate MCP tool
+            has_any_tools = True
+            mcp_tool_code = generate_mcp_tool(tool_name, tool_def)
+            tool_functions.append(mcp_tool_code)
             tool_functions.append("")
-        else:
-            # Use the provided implementation
-            # Rename the function to match the tool name
-            import re
-            safe_name = sanitize_identifier(tool_name)
-            
-            # Find the function definition and replace with correct name
-            impl_lines = implementation.split('\n')
-            new_impl_lines = []
-            for line in impl_lines:
-                # Match function definition line
-                if re.match(r'\s*def\s+\w+\s*\(', line):
-                    # Replace function name
-                    line = re.sub(r'(def\s+)\w+(\s*\()', rf'\1{safe_name}\2', line)
-                new_impl_lines.append(line)
-            
-            implementation = '\n'.join(new_impl_lines)
-            
-            # Add @tool decorator if not present
-            if "@tool" not in implementation:
-                tool_functions.append("@tool")
-            tool_functions.append(implementation)
-            tool_functions.append("")
-    
+
+        elif tool_type == "custom":
+            # Generate custom tool
+            has_any_tools = True
+            description = tool_def.get("description", "")
+            implementation = tool_def.get("implementation", "")
+
+            if not implementation:
+                # Create a placeholder implementation
+                safe_name = sanitize_identifier(tool_name)
+                tool_functions.append(f"@tool")
+                tool_functions.append(f"def {safe_name}(**kwargs) -> dict:")
+                tool_functions.append(f'    """{description}"""')
+                tool_functions.append(f'    return {{"error": "Tool not implemented"}}')
+                tool_functions.append("")
+            else:
+                # Use the provided implementation
+                # Rename the function to match the tool name
+                import re
+                safe_name = sanitize_identifier(tool_name)
+
+                # Find the function definition and replace with correct name
+                impl_lines = implementation.split('\n')
+                new_impl_lines = []
+                for line in impl_lines:
+                    # Match function definition line
+                    if re.match(r'\s*def\s+\w+\s*\(', line):
+                        # Replace function name
+                        line = re.sub(r'(def\s+)\w+(\s*\()', rf'\1{safe_name}\2', line)
+                    new_impl_lines.append(line)
+
+                implementation = '\n'.join(new_impl_lines)
+
+                # Add @tool decorator if not present
+                if "@tool" not in implementation:
+                    tool_functions.append("@tool")
+                tool_functions.append(implementation)
+                tool_functions.append("")
+
+    if not has_any_tools:
+        return "# No tools defined\n"
+
     return "\n".join(tool_functions)
 
 
@@ -298,6 +361,16 @@ def compile_asl(input_path: Path, output_dir: Optional[Path] = None, validate_on
     if isinstance(output_dir, str):
         output_dir = Path(output_dir)
     
+    # Load configuration (optional - gracefully handle missing config)
+    config_parser = None
+    try:
+        config_path = os.environ.get("MODEL_CONFIG_PATH", "model_config.yaml")
+        config_parser = ConfigParser(config_path)
+        print(f"✓ Loaded configuration from {config_path}")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not load configuration: {e}")
+        print(f"   Compilation will continue without config integration")
+    
     # Read input file
     try:
         with open(input_path, "r") as f:
@@ -326,6 +399,34 @@ def compile_asl(input_path: Path, output_dir: Optional[Path] = None, validate_on
     
     # Sort and extract data
     sorted_data = data_sorter(asl_dict)
+    
+    # Inject configuration into sorted_data for template rendering
+    if config_parser:
+        provider_config = config_parser.get_provider_config()
+        provider_type = provider_config['provider_type']
+
+        # Get provider-specific configuration
+        provider_specific = {}
+        try:
+            if provider_type == 'llamacpp':
+                provider_specific = config_parser.get_llamacpp_config()
+            elif provider_type == 'litellm':
+                provider_specific = config_parser.get_litellm_config()
+            elif provider_type == 'openai':
+                provider_specific = config_parser.get_openai_config()
+        except ValueError:
+            pass  # Provider config might be invalid, will be caught by validator
+
+        sorted_data['config'] = {
+            'provider': provider_config,
+            'provider_type': provider_type,
+            'provider_specific': provider_specific,
+            'langfuse': config_parser.get_langfuse_config(),
+            'mcp_servers': config_parser.get_mcp_servers(),
+        }
+    else:
+        sorted_data['config'] = None
+    
     print(f"✓ Extracted {len(sorted_data['llm_nodes'])} LLM nodes")
     print(f"✓ Extracted {len(sorted_data['router_nodes'])} router nodes")
     print(f"✓ Extracted {len(sorted_data['worker_nodes'])} worker nodes")
