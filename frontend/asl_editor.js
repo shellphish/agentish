@@ -1685,22 +1685,19 @@ function initializeEditor() {
                 } else {
                     const checkboxContainer = document.createElement("div");
                     checkboxContainer.className = "checkbox-group";
-                    
-                    // Get currently selected keys (backward compatibility with output_key)
+
+                    // Get currently selected keys
                     let selectedKeys = node.properties?.[def.key] || [];
-                    if (!Array.isArray(selectedKeys)) {
-                        selectedKeys = node.properties?.output_key ? [node.properties.output_key] : [];
-                    }
-                    
+
                     stateVars.forEach(varName => {
                         const checkboxWrapper = document.createElement("label");
                         checkboxWrapper.className = "checkbox-item";
-                        
+
                         const checkbox = document.createElement("input");
                         checkbox.type = "checkbox";
                         checkbox.value = varName;
                         checkbox.checked = selectedKeys.includes(varName);
-                        
+
                         checkbox.addEventListener("change", () => {
                             // Update selected keys array
                             let updated = node.properties[def.key] || [];
@@ -1712,12 +1709,9 @@ function initializeEditor() {
                                 updated = updated.filter(k => k !== varName);
                             }
                             node.properties[def.key] = updated;
-                            
+
                             // Special handling for output_state_keys
                             if (def.key === "output_state_keys") {
-                                // Also update output_key for backward compatibility (use first selected)
-                                node.properties.output_key = updated[0] || "";
-                                
                                 // Sync with Output Schema Table
                                 const schemaTableContainer = document.querySelector('.output-schema-table-container');
                                 if (schemaTableContainer) {
@@ -2241,7 +2235,7 @@ function initializeEditor() {
                 if (outputIndex < 0) outputIndex = 0;
             }
             
-            // Use target_slot from edge data, fallback to 0 for backward compatibility
+            // Use target_slot from edge data
             const targetSlot = edge.target_slot !== undefined ? edge.target_slot : 0;
             console.log(`Connecting: ${fromNode.title}[${outputIndex}] → ${toNode.title}[${targetSlot}]`);
             fromNode.connect(outputIndex, toNode, targetSlot);
@@ -2543,6 +2537,18 @@ function initializeEditor() {
                 console.warn('[MCP] Tool endpoint error:', toolData.error);
                 return;
             }
+            
+            // Check server status for any errors
+            const serverStatus = toolData.server_status || {};
+            const failedServers = Object.entries(serverStatus)
+                .filter(([name, status]) => status.status === 'error')
+                .map(([name, status]) => `${name}: ${status.error}`);
+            
+            if (failedServers.length > 0) {
+                console.warn('[MCP] Some servers unavailable:', failedServers);
+                showToast(`⚠️ Some MCP servers unavailable`, 'warning');
+            }
+            
             let imported = 0;
             (toolData.tools || []).forEach((tool) => {
                 if (!tool?.name) return;
@@ -2555,7 +2561,10 @@ function initializeEditor() {
             });
             if (imported) {
                 renderFunctionCatalog();
-                showToast(`Loaded ${imported} MCP tool${imported === 1 ? '' : 's'}`, 'success');
+                const statusMsg = failedServers.length > 0 
+                    ? `Loaded ${imported} MCP tool${imported === 1 ? '' : 's'} (some servers unavailable)`
+                    : `Loaded ${imported} MCP tool${imported === 1 ? '' : 's'}`;
+                showToast(statusMsg, failedServers.length > 0 ? 'warning' : 'success');
             }
         } catch (err) {
             console.warn('[MCP] Failed to hydrate tools:', err);
