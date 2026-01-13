@@ -349,9 +349,14 @@ def generate_llm_and_router_nodes(
     nodes_by_id: Dict[str, Dict[str, Any]]
 ) -> str:
     """Generate LLM, Tool, and Router node function code."""
-    from nodes.llm_node import compile_node as compile_llm_node
-    from nodes.router import compile_node as compile_router_node
-    from nodes.tool_node import compile_node as compile_tool_node
+    try:
+        from nodes.llm_node import compile_node as compile_llm_node
+        from nodes.router import compile_node as compile_router_node
+        from nodes.tool_node import compile_node as compile_tool_node
+    except ImportError:
+        from compiler.nodes.llm_node import compile_node as compile_llm_node
+        from compiler.nodes.router import compile_node as compile_router_node
+        from compiler.nodes.tool_node import compile_node as compile_tool_node
     
     sections = []
     edges = sorted_data["edges"]

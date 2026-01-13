@@ -6,7 +6,11 @@ Validates model_config.yaml structure and tests connectivity to required service
 import sys
 import requests
 from typing import List, Tuple, Dict, Any
-from config_parser import ConfigParser
+
+try:
+    from config_parser import ConfigParser
+except ImportError:
+    from compiler.config_parser import ConfigParser
 
 
 class ValidationError(Exception):
