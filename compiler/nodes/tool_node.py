@@ -51,7 +51,7 @@ def compile_node(
         # No tools selected - shouldn't happen but handle gracefully
         lines = [
             f"# Tool Node for LLM {associated_llm_id}: {label} (no tools selected)",
-            f"def tool_{associated_llm_id}_node(global_state: GlobalState, local_state: LLMState_{associated_llm_id}) -> Command:",
+            f"def tool_{associated_llm_id}_node(global_state: GlobalState) -> Command:",
             "    \"\"\"Empty tool node - no tools configured.\"\"\"",
             f"    return Command(update={{}}, goto=\"{llm_function_name}\")"
         ]

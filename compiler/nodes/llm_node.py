@@ -87,15 +87,3 @@ def generate_model_instance(node_id: str, selected_tools: List[str]) -> str:
         return f"model_{node_id} = init_chat_model()"
 
 
-def generate_should_continue(node_id: str) -> str:
-    """
-    Generate should_continue function for nodes with tools.
-    
-    This function determines whether to continue to tool node or end.
-    """
-    template_path = Path(__file__).parent / "code_artifacts" / "should_continue.j2"
-    with open(template_path, "r") as f:
-        template_str = f.read()
-    
-    template = Template(template_str)
-    return template.render(node_id=node_id)
