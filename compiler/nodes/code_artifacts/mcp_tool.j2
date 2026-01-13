@@ -1,0 +1,69 @@
+{# Template for generating MCP tool as @tool decorated function #}
+@tool
+{% if arguments %}
+def {{ safe_name }}(
+{%- for arg in arguments %}
+    {{ arg.name }}: {{ arg.type }}{% if not arg.required %} = None{% endif %}{% if not loop.last %},{% endif %}
+{%- endfor %}
+) -> dict:
+{% else %}
+def {{ safe_name }}() -> dict:
+{% endif %}
+    """{{ description }}"""
+    base_url = {{ base_url|tojson }}
+    endpoint = {{ endpoint|tojson }}
+    url = f"{base_url}{endpoint}"
+
+{% if method == "GET" %}
+{% if arguments %}
+    params = {}
+{%- for arg in arguments %}
+{% if arg.required %}
+    params[{{ arg.name|tojson }}] = {{ arg.name }}
+{%- else %}
+    if {{ arg.name }} is not None:
+        params[{{ arg.name|tojson }}] = {{ arg.name }}
+{%- endif %}
+{%- endfor %}
+
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return {"error": str(e), "success": False}
+{%- else %}
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return {"error": str(e), "success": False}
+{%- endif %}
+{% elif method == "POST" %}
+{% if arguments %}
+    payload = {}
+{%- for arg in arguments %}
+{% if arg.required %}
+    payload[{{ arg.name|tojson }}] = {{ arg.name }}
+{%- else %}
+    if {{ arg.name }} is not None:
+        payload[{{ arg.name|tojson }}] = {{ arg.name }}
+{%- endif %}
+{%- endfor %}
+
+    try:
+        response = requests.post(url, json=payload, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return {"error": str(e), "success": False}
+{%- else %}
+    try:
+        response = requests.post(url, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return {"error": str(e), "success": False}
+{%- endif %}
+{% endif %}
