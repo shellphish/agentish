@@ -83,24 +83,3 @@ def generate_worker_model(node_id: str, selected_tools: List[str]) -> str:
         return f"model_worker_{node_id} = init_chat_model()"
 
 
-# Legacy function for backward compatibility (not used in new architecture)
-def compile_node(
-    node_id: str,
-    safe_id: str,
-    config: Dict[str, Any],
-    label: str,
-    **kwargs,
-) -> List[str]:
-    """
-    Legacy compile_node - workers are now tools, not nodes.
-    This returns empty list as workers are generated via generate_worker_tool().
-    """
-    return []
-
-
-def generate_worker_should_continue(node_id: str) -> str:
-    """
-    Generate should_continue function for worker nodes with tools.
-    Legacy function - not used in new tool-based architecture.
-    """
-    return ""

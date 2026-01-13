@@ -44,27 +44,6 @@ def create_global_state(state_schema: Dict[str, str], llm_node_ids: List[str] = 
     )
 
 
-def create_local_state(node_id: str, max_tool_iterations: int = 30, custom_state_fields: Dict[str, str] = None, state_prefix: str = "LLMState") -> str:
-    """
-    DEPRECATED: Local states are no longer used in single global state architecture.
-    This function now returns an empty string for backward compatibility.
-    
-    Args:
-        node_id: Node identifier (unused)
-        max_tool_iterations: Maximum tool iterations (unused)
-        custom_state_fields: Custom fields to add (unused)
-        state_prefix: Prefix for state class name (unused)
-    """
-    # Return empty string - local states no longer needed
-    return ""
-
-
-def create_state_node(state_schema: Dict[str, str]) -> str:
-    """
-    Legacy function for backward compatibility.
-    Use create_global_state instead.
-    """
-    return create_global_state(state_schema)
 
 
 def compile_node(
