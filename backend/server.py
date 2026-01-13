@@ -116,6 +116,7 @@ except Exception as e:
 SUBMISSION_JOBS: Dict[str, Dict[str, Any]] = {}
 JOBS_LOCK = threading.Lock()
 SUBMISSION_LOG_DIR = os.environ.get("SUBMISSION_LOG_DIR")
+SUBMISSION_OUTPUT_DIR = os.environ.get("SUBMISSION_OUTPUT_DIR", "/workspace/submissions")
 
 SANDBOX_RUNNER_SCRIPT = """\
 import importlib.util
@@ -234,11 +235,24 @@ def _ensure_log_dir() -> Path:
     return path
 
 
-def _artifact_path(job_id: str, suffix: str) -> Path:
-    log_dir = _ensure_log_dir()
-    if not log_dir:
+def _ensure_submission_dir() -> Path:
+    if not SUBMISSION_OUTPUT_DIR:
         return None
-    return log_dir / f"{job_id}.{suffix}"
+    path = Path(SUBMISSION_OUTPUT_DIR)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _artifact_path(job_id: str, suffix: str) -> Path:
+    # Route to appropriate directory based on file type
+    if suffix == "log":
+        base_dir = _ensure_log_dir()
+    else:  # For .asl.json, .py, and other artifacts
+        base_dir = _ensure_submission_dir()
+    
+    if not base_dir:
+        return None
+    return base_dir / f"{job_id}.{suffix}"
 
 
 def _write_artifact(job_id: str, suffix: str, contents: str) -> Optional[Path]:
