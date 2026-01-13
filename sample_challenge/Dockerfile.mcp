@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+# Install system dependencies for challenge building
+RUN apt-get update && apt-get install -y \
+    gcc g++ binutils file curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python requirements for MCP server
+RUN pip install --no-cache-dir flask requests pyyaml
+
+# Copy all artifacts
+COPY . /app/
+
+# Build challenge if build script exists
+RUN if [ -f "build.sh" ]; then chmod +x build.sh && ./build.sh; fi
+
+# MCP server configuration
+ARG MCP_SERVER_FILE=mcp_server.py
+ENV MCP_SERVER_FILE=${MCP_SERVER_FILE}
+ENV MCP_PORT=8002
+
+EXPOSE ${MCP_PORT}
+
+CMD python3 ${MCP_SERVER_FILE}
