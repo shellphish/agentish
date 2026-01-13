@@ -115,7 +115,7 @@ const NODE_FORMS = {
             label: "Description",
             type: "textarea",
             rows: 2,
-            description: "Brief description of this worker's purpose"
+            description: "Brief description of this worker's purpose. Workers return a fixed format: {result: str, success: bool}"
         },
         {
             key: "system_prompt",
@@ -123,12 +123,6 @@ const NODE_FORMS = {
             type: "textarea",
             rows: 4,
             description: "System instruction for this worker node."
-        },
-        {
-            key: "structured_output_schema",
-            label: "JSON Schema",
-            type: "output_schema_table",
-            description: "Define the structure for LLM output"
         },
         {
             key: "selected_tools",
@@ -576,7 +570,7 @@ function initializeEditor() {
         if (node.type === "asl/entry") {
             delete node.properties.system_prompt;
         }
-        if (node.type === "asl/llm" || node.type === "asl/worker") {
+        if (node.type === "asl/llm") {
             delete node.properties.model;
             delete node.properties.temperature;
             delete node.properties.tools;
@@ -593,6 +587,32 @@ function initializeEditor() {
             }
             if (!node.properties.structured_output_schema) {
                 node.properties.structured_output_schema = [];
+            }
+            // Initialize tool properties
+            if (!Array.isArray(node.properties.selected_tools)) {
+                node.properties.selected_tools = [];
+            }
+            // Only set tool iteration properties if tools are present
+            if (node.properties.selected_tools.length > 0) {
+                const limit = Number(node.properties.max_tool_iterations);
+                if (!Number.isFinite(limit) || limit <= 0) {
+                    node.properties.max_tool_iterations = DEFAULT_TOOL_MAX_ITERATIONS;
+                } else {
+                    node.properties.max_tool_iterations = Math.trunc(limit);
+                }
+                if (typeof node.properties.iteration_warning_message !== "string" || !node.properties.iteration_warning_message.trim()) {
+                    node.properties.iteration_warning_message = DEFAULT_TOOL_LIMIT_WARNING;
+                }
+            }
+        }
+        if (node.type === "asl/worker") {
+            delete node.properties.model;
+            delete node.properties.temperature;
+            delete node.properties.tools;
+            delete node.properties.structured_output_schema;  // Workers have fixed output format
+            delete node.properties.structured_output_enabled;
+            if (typeof node.properties.system_prompt !== "string") {
+                node.properties.system_prompt = "";
             }
             // Initialize tool properties
             if (!Array.isArray(node.properties.selected_tools)) {
@@ -3064,12 +3084,11 @@ Generated: ${new Date().toISOString()}
                 }
             }
 
-            // Check structured_output_schema for Worker and LLM nodes
-            if (node.type === "asl/worker" || node.type === "asl/llm") {
+            // Check structured_output_schema for LLM nodes only (workers have fixed output format)
+            if (node.type === "asl/llm") {
                 const schema = node.properties?.structured_output_schema;
                 if (!schema || Object.keys(schema).length === 0) {
-                    const nodeTypeName = node.type === "asl/worker" ? "Worker Node" : "LLM Node";
-                    errors.push(`${nodeTypeName} "${nodeTitle}": Output Schema cannot be empty`);
+                    errors.push(`LLM Node "${nodeTitle}": Output Schema cannot be empty`);
                 }
             }
         });
