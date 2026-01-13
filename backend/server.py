@@ -81,67 +81,37 @@ LANGFUSE_ENABLED = all([LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY]
 # Add compiler to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'compiler'))
 from compiler import compile_asl
+from config_parser import ConfigParser
+from config_validator import ConfigValidator
+
+# Import MCP manager
+from mcp_manager import MCPManager
 
 app = Flask(__name__, static_folder='../frontend')
 CORS(app)
 
-MCP_BASE_URL = os.environ.get("MCP_BASE_URL", "").rstrip("/")
+# Initialize configuration
+try:
+    CONFIG_PARSER = ConfigParser(MODEL_CONFIG_PATH)
+    CONFIG_VALIDATOR = ConfigValidator(CONFIG_PARSER)
 
-MCP_TOOL_TEMPLATES: Dict[str, Dict[str, Any]] = {
-    "list_functions": {
-        "description": "List all discovered functions from the challenge binary",
-        "method": "GET",
-        "endpoint": "/mcp/list_functions",
-        "arguments": [],
-        "return_schema": {"success": "bool", "functions": "list"}
-    },
-    "get_disassembly_by_function": {
-        "description": "Fetch the disassembly for a specific function name",
-        "method": "GET",
-        "endpoint": "/mcp/get_disassembly_by_function",
-        "arguments": [
-            {"name": "function", "type": "str", "required": True, "description": "Function name/signature"}
-        ],
-        "return_schema": {"success": "bool", "disassembly": "str"}
-    },
-    "get_caller_callee_mapping": {
-        "description": "Return who a function calls within the binary",
-        "method": "GET",
-        "endpoint": "/mcp/get_caller_callee_mapping",
-        "arguments": [
-            {"name": "function_signature", "type": "str", "required": True, "description": "Caller function name"}
-        ],
-        "return_schema": {"success": "bool", "caller_callee_mapping": "dict"}
-    },
-    "get_callee_caller_mapping": {
-        "description": "Return which functions call the provided callee",
-        "method": "GET",
-        "endpoint": "/mcp/get_callee_caller_mapping",
-        "arguments": [
-            {"name": "function_signature", "type": "str", "required": True, "description": "Callee function name"}
-        ],
-        "return_schema": {"success": "bool", "callee_caller_mapping": "dict"}
-    },
-    "run_challenge": {
-        "description": "Execute the challenge binary with a candidate password",
-        "method": "POST",
-        "endpoint": "/mcp/run_challenge",
-        "arguments": [
-            {"name": "input", "type": "str", "required": True, "description": "Password to test"}
-        ],
-        "return_schema": {"success": "bool", "flag": "str", "output": "str"}
-    },
-    "run_python": {
-        "description": "Execute a Python snippet inside the challenge sandbox",
-        "method": "POST",
-        "endpoint": "/mcp/run_python",
-        "arguments": [
-            {"name": "code", "type": "str", "required": True, "description": "Python source to execute"},
-            {"name": "stdin", "type": "str", "required": False, "description": "Optional STDIN for the script"}
-        ],
-        "return_schema": {"success": "bool", "stdout": "str", "stderr": "str", "return_code": "int"}
-    },
-}
+    # Validate configuration at startup (without connectivity check for now)
+    # Connectivity will be checked when MCP tools are requested
+    CONFIG_VALIDATOR.validate_all(check_connectivity=False)
+    print("✅ Configuration loaded successfully")
+
+    # Initialize MCP Manager
+    MCP_MANAGER = MCPManager(CONFIG_PARSER)
+    if MCP_MANAGER.has_servers():
+        print(f"✅ MCP Manager initialized with {len(MCP_MANAGER.servers)} server(s)")
+    else:
+        print("ℹ️  No MCP servers configured")
+
+except Exception as e:
+    print(f"⚠️  Configuration warning: {e}")
+    print("   Some features may not be available")
+    CONFIG_PARSER = None
+    MCP_MANAGER = None
 
 SUBMISSION_JOBS: Dict[str, Dict[str, Any]] = {}
 JOBS_LOCK = threading.Lock()
@@ -178,57 +148,41 @@ def serve_static(path):
 @app.route('/config.json', methods=['GET'])
 def frontend_config():
     """Expose runtime configuration flags to the frontend."""
+    mcp_enabled = MCP_MANAGER and MCP_MANAGER.has_servers()
+
     return jsonify({
-        'mcp_enabled': bool(MCP_BASE_URL),
-        'mcp_tools_endpoint': '/api/mcp/tools' if MCP_BASE_URL else None
+        'mcp_enabled': mcp_enabled,
+        'mcp_tools_endpoint': '/api/mcp/tools' if mcp_enabled else None
     })
-
-
-def _build_mcp_tool_payload(name: str) -> Dict[str, Any]:
-    template = MCP_TOOL_TEMPLATES.get(name, {})
-    endpoint = template.get("endpoint", f"/mcp/{name}")
-    method = template.get("method", "GET").upper()
-
-    return {
-        "name": name,
-        "type": "mcp",
-        "description": template.get("description", f"MCP tool '{name}'"),
-        "arguments": template.get("arguments", []),
-        "return_schema": template.get("return_schema", {"success": "bool"}),
-        "mcp_server": MCP_BASE_URL,
-        "mcp_method": f"{method} {endpoint}",
-        "metadata": {
-            "endpoint": endpoint,
-            "method": method
-        }
-    }
 
 
 @app.route('/api/mcp/tools', methods=['GET'])
 def list_mcp_tools():
-    """Return MCP tool definitions when an MCP server is configured."""
-    if not MCP_BASE_URL:
+    """Return MCP tool definitions from configured MCP servers."""
+
+    if not MCP_MANAGER or not MCP_MANAGER.has_servers():
         return jsonify({
             'success': False,
             'error': 'MCP integration is not configured'
         }), 404
 
     try:
-        status_resp = requests.get(f"{MCP_BASE_URL}/mcp/status", timeout=5)
-        status_resp.raise_for_status()
-        status_data = status_resp.json()
-        available_tools: List[str] = status_data.get('available_tools', [])
-    except Exception as exc:  # pragma: no cover - relies on MCP server
+        result = MCP_MANAGER.get_tools_with_health()
+
+        return jsonify({
+            'success': True,
+            'tools': result['tools'],
+            'server_status': result['server_status'],
+            'mcp_manager_enabled': True
+        })
+
+    except Exception as exc:
         return jsonify({
             'success': False,
-            'error': f'Failed to query MCP server: {exc}'
-        }), 502
+            'error': f'Failed to load MCP tools: {exc}',
+            'server_status': {}
+        }), 500
 
-    tools = [_build_mcp_tool_payload(name) for name in available_tools]
-    return jsonify({
-        'success': True,
-        'tools': tools
-    })
 
 
 class SandboxExecutionError(RuntimeError):
