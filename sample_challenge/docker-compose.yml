@@ -1,0 +1,63 @@
+version: '3.8'
+
+networks:
+  agentish_internal:
+    driver: bridge
+
+volumes:
+  agentish_output:
+  agentish_logs:
+
+services:
+  # Agentish UI/Backend/Compiler service
+  agentish:
+    build:
+      context: ..
+      dockerfile: sample_challenge/Dockerfile.agentish
+    container_name: agentish_ui
+    ports:
+      - "${AGENTISH_PORT:-8000}:8000"
+    environment:
+      - MODEL_CONFIG_PATH=/config/model_config.yaml
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./model_config.yaml:/config/model_config.yaml:ro
+      - ./mcp_config.yaml:/config/mcp_config.yaml:ro
+      - agentish_output:/workspace/output
+      - agentish_logs:/workspace/logs
+    depends_on:
+      mcp_binary:
+        condition: service_healthy
+    networks:
+      - agentish_internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # MCP Binary Analysis Server
+  mcp_binary:
+    build:
+      context: ./artifacts
+      dockerfile: ../Dockerfile.mcp
+      args:
+        - MCP_SERVER_FILE=mcp_implementation/mcp_server.py
+    container_name: mcp_binary
+    environment:
+      - MCP_PORT=8002
+      - PYTHONUNBUFFERED=1
+    expose:
+      - "8002"
+    networks:
+      - agentish_internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
