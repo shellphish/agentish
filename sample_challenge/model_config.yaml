@@ -8,6 +8,8 @@ model: "Qwen3-14B-Q8_0"
 temperature: 0.0
 recursion_limit: 500
 use_tracing: true
+context_window: 131072
+max_output_tokens: 16384
 
 # Provider Type Configuration (REQUIRED)
 # Specifies which LLM backend infrastructure to use
@@ -38,6 +40,8 @@ openai:
 # Langfuse Configuration (REQUIRED)
 # Langfuse provides observability and tracing for LLM calls
 langfuse:
-  host: "http://192.35.222.19:3000"
+  host: "http://192.35.222.19.nip.io:3000"
   public_key: "pk-lf-a0ff2b74-a0c8-4ce1-90c1-cf90771c95f4"
   secret_key: "sk-lf-a2ee69ee-f7d5-4a42-a8d5-bfbdb37a517b"
+
+enable_tracing: true

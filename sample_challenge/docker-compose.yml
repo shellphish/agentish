@@ -20,11 +20,14 @@ services:
     environment:
       - MODEL_CONFIG_PATH=/config/model_config.yaml
       - PYTHONUNBUFFERED=1
+      - SUBMISSION_LOG_DIR=/workspace/logs
+      - SUBMISSION_OUTPUT_DIR=/workspace/submissions
     volumes:
       - ./model_config.yaml:/config/model_config.yaml:ro
       - ./mcp_config.yaml:/config/mcp_config.yaml:ro
+      - ./local_shared/submissions:/workspace/submissions
+      - ./local_shared/logs:/workspace/logs
       - agentish_output:/workspace/output
-      - agentish_logs:/workspace/logs
     depends_on:
       mcp_binary:
         condition: service_healthy
