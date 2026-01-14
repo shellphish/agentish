@@ -28,8 +28,6 @@ def tool_{{ node_id }}_node(global_state: GlobalState) -> Command:
             goto="{{ llm_function_name }}"
         )
     
-    remaining = max_iterations - current_iteration
-    
     # Process tool calls
     result = []
     for tool_call in last_message.tool_calls:
@@ -42,14 +40,10 @@ def tool_{{ node_id }}_node(global_state: GlobalState) -> Command:
                 content=f"Error: Tool '{tool_call['name']}' not found",
                 tool_call_id=tool_call["id"]
             ))
-    
-    # Add warning if we're close to the limit
-    if remaining <= 5 and remaining > 0:
-        warning_msg = HumanMessage(
-            content="{{ iteration_warning_message }}"
-        )
-        result.append(warning_msg)
-    
+
+    # WARNING: Do NOT append HumanMessage warnings here - they break AIMessage->ToolMessage sequence
+    # Warnings are now handled in the LLM node BEFORE the next model invocation
+
     # Return Command routing back to LLM node - update both global and node-specific messages
     return Command(
         update={
