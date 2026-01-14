@@ -415,14 +415,26 @@ def generate_llm_and_router_nodes(
                 sections.append("# TOOL NODE FUNCTIONS")
                 sections.append("# ==========================================\n")
                 tool_nodes_generated = True
-            
+
             # Get the LLM function name for routing back
             llm_function_name = function_name_mapping.get(node_id, f"llm_{node_id}_node")
-            
+
+            # BUILD COMBINED TOOL LIST (regular + workers)
+            combined_tools = list(selected_tools)  # Copy original tools
+            for worker_id in worker_ids:
+                worker_node = nodes_by_id[worker_id]
+                worker_label = worker_node.get("label", "workernode")
+                worker_tool_name = f"worker_{sanitize_label(worker_label)}_{worker_id}_tool"
+                combined_tools.append(worker_tool_name)
+
+            # Create modified config with combined tools
+            tool_node_config = dict(config)  # Shallow copy
+            tool_node_config['selected_tools'] = combined_tools
+
             tool_code = compile_tool_node(
                 node_id=node_id,
                 safe_id=node_id,
-                config=config,
+                config=tool_node_config,  # Use modified config with combined tools
                 label=label,
                 max_tool_iterations=config.get("max_tool_iterations", 30),
                 iteration_warning_message=config.get("iteration_warning_message", ""),
