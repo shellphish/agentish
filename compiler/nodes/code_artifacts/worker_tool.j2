@@ -24,19 +24,25 @@ def worker_{{ sanitized_label }}_{{ node_id }}_tool(task: str) -> dict:
     # Worker has tools - handle iteration limit
     max_iterations = {{ max_tool_iterations }}
     current_iteration = 0
-    
+
     while current_iteration < max_iterations:
+        # ADD WARNING BEFORE MODEL INVOCATION (if approaching limit)
+        remaining = max_iterations - current_iteration
+        if remaining <= 3 and remaining > 0:
+            warning_msg = HumanMessage(content={{ iteration_warning_message|tojson }})
+            messages.append(warning_msg)
+
         # Invoke the model
         if LANGFUSE_HANDLER:
             response = model_worker_{{ node_id }}.invoke(messages, config={"callbacks": [LANGFUSE_HANDLER]})
         else:
             response = model_worker_{{ node_id }}.invoke(messages)
         messages.append(response)
-        
+
         # Check for tool calls
         if hasattr(response, 'tool_calls') and response.tool_calls:
             current_iteration += 1
-            
+
             # Check if we're at the limit
             if current_iteration >= max_iterations:
                 # Hit limit - add warning and get final response
@@ -52,12 +58,6 @@ def worker_{{ sanitized_label }}_{{ node_id }}_tool(task: str) -> dict:
                     "result": final_response.content if hasattr(final_response, 'content') else str(final_response),
                     "success": True
                 }
-            
-            # Add warning if close to limit
-            remaining = max_iterations - current_iteration
-            if remaining <= 3:
-                warning_msg = HumanMessage(content={{ iteration_warning_message|tojson }})
-                messages.append(warning_msg)
             
             # Process tool calls
             for tool_call in response.tool_calls:
