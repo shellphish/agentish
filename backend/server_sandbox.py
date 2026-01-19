@@ -135,8 +135,52 @@ def _init_job(job_id: str) -> Dict[str, Any]:
             "final_state": None
         },
         "code": None,
-        "error": None
+        "error": None,
+        "langfuse_url": None
     }
+
+
+def _get_langfuse_project_url() -> Optional[str]:
+    """
+    Get the Langfuse project URL by querying the Langfuse API.
+    
+    Returns the full URL like: http://host/project/project-id/
+    Returns None if Langfuse is not configured or if the request fails.
+    """
+    if not LANGFUSE_ENABLED:
+        return None
+    
+    try:
+        import requests
+        
+        # Check health endpoint
+        health_url = f"{LANGFUSE_HOST}/api/public/health"
+        health_response = requests.get(health_url, timeout=5)
+        if not health_response.ok:
+            print(f"Langfuse health check failed: {health_response.status_code}")
+            return None
+        
+        # Get projects
+        projects_url = f"{LANGFUSE_HOST}/api/public/projects"
+        auth = (LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY)
+        projects_response = requests.get(projects_url, auth=auth, timeout=5)
+        
+        if not projects_response.ok:
+            print(f"Langfuse projects API failed: {projects_response.status_code}")
+            return None
+        
+        projects_data = projects_response.json()
+        if not projects_data.get('data') or len(projects_data['data']) == 0:
+            print("No Langfuse projects found")
+            return None
+        
+        # Get the first project ID
+        project_id = projects_data['data'][0]['id']
+        return f"{LANGFUSE_HOST}/project/{project_id}/"
+        
+    except Exception as e:
+        print(f"Failed to get Langfuse project URL: {e}")
+        return None
 
 
 def _update_job(job_id: str, updates: Dict[str, Any]) -> None:
@@ -220,6 +264,8 @@ def _execute_in_sandbox(job_id: str, code: str, initial_state: Dict[str, Any]) -
             env.setdefault("PYTHONUNBUFFERED", "1")
             env["SANDBOX_CONFIG_PATH"] = str(tmp_path / "sandbox.yml")
             env["CHALLENGISH_CONFIG_PATH"] = str(tmp_path / "challengish.yml")
+            # Also set MODEL_CONFIG_PATH for backward compatibility with compiled code
+            env["MODEL_CONFIG_PATH"] = str(tmp_path / "sandbox.yml")
 
             # Run agent
             process = subprocess.run(
@@ -423,6 +469,11 @@ def upload_bundle():
     job_id = str(uuid4())
     job = _init_job(job_id)
     job['asl_filename'] = asl_file
+    
+    # Get Langfuse project URL if available
+    langfuse_url = _get_langfuse_project_url()
+    if langfuse_url:
+        job['langfuse_url'] = langfuse_url
 
     with JOBS_LOCK:
         JOBS[job_id] = job
