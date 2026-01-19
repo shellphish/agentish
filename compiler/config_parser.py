@@ -1,6 +1,6 @@
 """
 Configuration Parser for Agentish
-Loads and parses model_config.yaml and mcp_config.yaml to extract runtime configuration.
+Loads sandbox.yml for model/LLM config and challengish.yml for MCP server definitions.
 """
 
 import os
@@ -10,30 +10,27 @@ from typing import Dict, List, Any, Optional
 
 
 class ConfigParser:
-    """Parse and provide access to model_config.yaml and mcp_config.yaml settings"""
+    """Parse and provide access to sandbox.yml (model config) and challengish.yml (MCP config)"""
 
-    def __init__(self, config_path: Optional[str] = None, mcp_config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, challengish_config_path: Optional[str] = None):
         """
         Initialize config parser
 
         Args:
-            config_path: Path to model_config.yaml. If None, uses MODEL_CONFIG_PATH env var
-            mcp_config_path: Path to mcp_config.yaml. If None, looks in same directory as model_config.yaml
+            config_path: Path to sandbox.yml (model/LLM config). If None, uses SANDBOX_CONFIG_PATH env var
+            challengish_config_path: Path to challengish.yml (MCP servers). If None, uses CHALLENGISH_CONFIG_PATH env var
         """
         if config_path is None:
-            config_path = os.environ.get("MODEL_CONFIG_PATH", "model_config.yaml")
+            config_path = os.environ.get("SANDBOX_CONFIG_PATH", "sandbox.yml")
+
+        if challengish_config_path is None:
+            challengish_config_path = os.environ.get("CHALLENGISH_CONFIG_PATH", "challengish.yml")
 
         self.config_path = config_path
+        self.challengish_config_path = challengish_config_path
+
         self.config = self._load_config(self.config_path)
-
-        # Determine MCP config path
-        if mcp_config_path is None:
-            # Look for mcp_config.yaml in same directory as model_config.yaml
-            config_dir = Path(config_path).parent
-            mcp_config_path = config_dir / "mcp_config.yaml"
-
-        self.mcp_config_path = str(mcp_config_path)
-        self.mcp_config = self._load_mcp_config()
+        self.challengish_config = self._load_config(self.challengish_config_path)
     
     def _load_config(self, path: str) -> Dict[str, Any]:
         """Load YAML configuration file"""
@@ -47,17 +44,8 @@ class ConfigParser:
             raise ValueError(f"Invalid YAML in configuration file: {e}")
 
     def _load_mcp_config(self) -> Dict[str, Any]:
-        """Load MCP configuration file (optional)"""
-        try:
-            if os.path.exists(self.mcp_config_path):
-                with open(self.mcp_config_path, 'r', encoding='utf-8') as f:
-                    config = yaml.safe_load(f)
-                    return config if config else {}
-            else:
-                # MCP config is optional
-                return {}
-        except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML in MCP configuration file: {e}")
+        """Load MCP configuration from challengish.yml"""
+        return self.challengish_config
     
     def get_provider_type(self) -> str:
         """
@@ -72,7 +60,7 @@ class ConfigParser:
         provider_type = self.config.get('provider_type', '')
 
         if not provider_type:
-            raise ValueError("provider_type is required but not specified in model_config.yaml")
+            raise ValueError("provider_type is required but not specified in sandbox.yml")
 
         valid_types = ['llamacpp', 'litellm', 'openai']
         if provider_type not in valid_types:
@@ -213,13 +201,13 @@ class ConfigParser:
     
     def get_mcp_servers(self) -> List[Dict[str, Any]]:
         """
-        Get MCP server configurations from mcp_config.yaml
+        Get MCP server configurations from challengish.yml
 
         Returns:
             List of enabled MCP server configurations with routes.
             Returns empty list if mcp_servers section is missing or empty.
         """
-        mcp_servers = self.mcp_config.get('mcp_servers', [])
+        mcp_servers = self.challengish_config.get('mcp_servers', [])
 
         # Handle missing or None
         if not mcp_servers:
@@ -227,7 +215,7 @@ class ConfigParser:
 
         # Validate it's a list
         if not isinstance(mcp_servers, list):
-            raise ValueError("mcp_servers must be a list in mcp_config.yaml")
+            raise ValueError("mcp_servers must be a list in challengish.yml")
 
         # Filter and return only enabled servers
         enabled_servers = []
@@ -330,4 +318,4 @@ class ConfigParser:
         return len(self.get_mcp_servers()) > 0
 
     def __repr__(self):
-        return f"ConfigParser(config_path='{self.config_path}', mcp_config_path='{self.mcp_config_path}')"
+        return f"ConfigParser(config_path='{self.config_path}', challengish_config_path='{self.challengish_config_path}')"
