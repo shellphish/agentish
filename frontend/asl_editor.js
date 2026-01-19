@@ -3021,12 +3021,10 @@ Generated: ${new Date().toISOString()}
     // - download-btn (now in Download menu)
     // - view-code-btn (now in View menu)
 
-    const submitModal = document.getElementById('submit-status-modal');
-    const closeSubmitModalBtn = document.getElementById('close-submit-modal');
-    const traceLinkWrapper = document.getElementById('trace-link-wrapper');
-    const traceLink = document.getElementById('trace-link');
-    let submissionJobId = null;
-    let submissionPollTimer = null;
+    // Bundle Download Modal
+    const bundleModal = document.getElementById('bundle-status-modal');
+    const closeBundleModalBtn = document.getElementById('close-bundle-modal');
+    const bundleInfo = document.getElementById('bundle-info');
 
     function setBadgeStatus(target, status) {
         if (!target) return;
@@ -3073,12 +3071,12 @@ Generated: ${new Date().toISOString()}
         // Check all Worker, LLM, and Router nodes
         nodes.forEach(node => {
             const nodeTitle = node.properties?.title || node.title || `Node ${node.id}`;
-            
+
             // Check system_prompt for Worker, LLM, and Router nodes
             if (node.type === "asl/worker" || node.type === "asl/llm" || node.type === "asl/router") {
                 const systemPrompt = node.properties?.system_prompt;
                 if (!systemPrompt || systemPrompt.trim() === '') {
-                    const nodeTypeName = node.type === "asl/worker" ? "Worker Node" : 
+                    const nodeTypeName = node.type === "asl/worker" ? "Worker Node" :
                                        node.type === "asl/llm" ? "LLM Node" : "Router Node";
                     errors.push(`${nodeTypeName} "${nodeTitle}": System Message cannot be empty`);
                 }
@@ -3099,170 +3097,138 @@ Generated: ${new Date().toISOString()}
         };
     }
 
-    function resetSubmitModal() {
-        submissionJobId = null;
-        if (submissionPollTimer) {
-            clearInterval(submissionPollTimer);
-            submissionPollTimer = null;
-        }
-        submitModal.querySelectorAll('.submit-step').forEach(step => {
-            setBadgeStatus(step, 'pending');
-            const details = step.querySelector('.submit-step-details');
-            if (details) details.textContent = '';
-        });
-        submitModal.querySelectorAll('.submit-substep').forEach(sub => {
-            setBadgeStatus(sub, 'pending');
-        });
-        traceLinkWrapper.classList.add('hidden');
-        traceLink.href = '#';
-    }
-
-    function openSubmitModal() {
-        if (submitModal) {
-            submitModal.classList.remove('hidden');
+    function resetBundleModal() {
+        if (bundleModal) {
+            bundleModal.querySelectorAll('.submit-step').forEach(step => {
+                setBadgeStatus(step, 'pending');
+                const details = step.querySelector('.submit-step-details');
+                if (details) details.textContent = '';
+            });
+            if (bundleInfo) bundleInfo.classList.add('hidden');
         }
     }
 
-    function closeSubmitModal() {
-        if (submitModal) {
-            submitModal.classList.add('hidden');
-            resetSubmitModal();
+    function openBundleModal() {
+        if (bundleModal) {
+            resetBundleModal();
+            bundleModal.classList.remove('hidden');
         }
     }
 
-    closeSubmitModalBtn?.addEventListener('click', closeSubmitModal);
-    submitModal?.addEventListener('click', (event) => {
-        if (event.target === submitModal) {
-            closeSubmitModal();
+    function closeBundleModal() {
+        if (bundleModal) {
+            bundleModal.classList.add('hidden');
+            resetBundleModal();
+        }
+    }
+
+    closeBundleModalBtn?.addEventListener('click', closeBundleModal);
+    bundleModal?.addEventListener('click', (event) => {
+        if (event.target === bundleModal) {
+            closeBundleModal();
         }
     });
 
-    function applyStepUpdate(stepKey, stepData) {
-        if (!stepData) return;
-        const stepEl = submitModal.querySelector(`.submit-step[data-step="${stepKey}"]`);
+    function updateBundleStep(stepKey, status, details) {
+        if (!bundleModal) return;
+        const stepEl = bundleModal.querySelector(`.submit-step[data-step="${stepKey}"]`);
         if (stepEl) {
-            setBadgeStatus(stepEl, stepData.status);
-            const detailsEl = stepKey === 'execution'
-                ? submitModal.querySelector('[data-field="execution-details"]')
-                : stepEl.querySelector('.submit-step-details');
-            if (detailsEl && stepData.details) {
-                detailsEl.textContent = stepData.details;
+            setBadgeStatus(stepEl, status);
+            const detailsEl = stepEl.querySelector('.submit-step-details');
+            if (detailsEl && details) {
+                detailsEl.textContent = details;
             }
         }
     }
 
-    function applySubstepUpdate(subKey, subData) {
-        if (!subData) return;
-        const subEl = submitModal.querySelector(`.submit-substep[data-substep="${subKey}"]`);
-        if (subEl) {
-            setBadgeStatus(subEl, subData.status);
-            if (subData.details) {
-                const badge = subEl.querySelector('.status-badge');
-                badge.setAttribute('title', subData.details);
-            }
-        }
-    }
-
-    function renderSubmitStatus(job) {
-        if (!job || !job.steps) return;
-        applyStepUpdate('compile', job.steps.compile);
-        applyStepUpdate('syntax', job.steps.syntax);
-        applyStepUpdate('execution', job.steps.execution);
-
-        if (job.steps.execution?.substeps) {
-            const subs = job.steps.execution.substeps;
-            applySubstepUpdate('prepare', subs.prepare);
-            applySubstepUpdate('run', subs.run);
-            applySubstepUpdate('langfuse', subs.langfuse);
-        }
-
-        if (job.steps.execution?.trace_url) {
-            traceLinkWrapper.classList.remove('hidden');
-            traceLink.href = job.steps.execution.trace_url;
-        }
-
-        if (job.status && (job.status === 'success' || job.status === 'error')) {
-            if (submissionPollTimer) {
-                clearInterval(submissionPollTimer);
-                submissionPollTimer = null;
-            }
-            showToast(job.status === 'success' ? 'Sandbox execution succeeded' : 'Sandbox execution failed', job.status === 'success' ? 'success' : 'error');
-        }
-    }
-
-    async function pollSubmission(jobId) {
-        try {
-            const resp = await fetch(`/submit/status/${jobId}`);
-            if (!resp.ok) {
-                throw new Error(`HTTP ${resp.status}`);
-            }
-            const data = await resp.json();
-            renderSubmitStatus(data);
-            if (data.status === 'success' || data.status === 'error') {
-                if (submissionPollTimer) {
-                    clearInterval(submissionPollTimer);
-                    submissionPollTimer = null;
-                }
-            }
-        } catch (err) {
-            console.warn('Failed to poll submission status:', err);
-        }
-    }
-
+    // Submit button now downloads bundle instead of executing
     document.getElementById("submit-btn").addEventListener("click", async () => {
         try {
-            // First, perform ASL validation
+            // Open the bundle modal
+            openBundleModal();
+
+            // Step 1: Validate ASL
+            updateBundleStep('validate', 'in_progress', 'Checking ASL specification...');
             const validation = validateASLBeforeSubmit();
-            
-            // Open the submit modal to show validation status
-            openSubmitModal();
-            
-            const aslCheckStep = submitModal.querySelector('.submit-step[data-step="asl_check"]');
-            
+
             if (!validation.valid) {
-                // Validation failed - show errors
-                setBadgeStatus(aslCheckStep, 'error');
-                const detailsEl = aslCheckStep.querySelector('.submit-step-details');
-                if (detailsEl) {
-                    detailsEl.textContent = validation.errors.join(' • ');
-                }
+                updateBundleStep('validate', 'error', validation.errors.join(' • '));
                 showToast('ASL Validation failed. Please fix the errors.', 'error');
-                return; // Stop submission
+                return;
             }
-            
-            // Validation passed
-            setBadgeStatus(aslCheckStep, 'success');
-            const detailsEl = aslCheckStep.querySelector('.submit-step-details');
-            if (detailsEl) {
-                detailsEl.textContent = 'All validations passed';
-            }
-            
-            // Continue with normal submission
+            updateBundleStep('validate', 'success', 'All validations passed');
+
+            // Step 2: Verify compilation
+            updateBundleStep('compile', 'in_progress', 'Verifying code generation...');
             const asl = serializeToASL();
-            const response = await fetch('/submit', {
+
+            const compileResponse = await fetch('/compile', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(asl)
             });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+
+            if (!compileResponse.ok) {
+                const errorData = await compileResponse.json().catch(() => ({}));
+                throw new Error(errorData.error || `Compilation failed: HTTP ${compileResponse.status}`);
             }
-            const data = await response.json();
-            submissionJobId = data.job_id;
-            renderSubmitStatus(data.job);
-            showToast('Submission started', 'success');
-            if (submissionPollTimer) {
-                clearInterval(submissionPollTimer);
+
+            const compileResult = await compileResponse.json();
+            if (!compileResult.success || !compileResult.code) {
+                throw new Error(compileResult.error || 'Compilation failed');
             }
-            submissionPollTimer = setInterval(() => {
-                if (submissionJobId) {
-                    pollSubmission(submissionJobId);
-                }
-            }, 1500);
+            updateBundleStep('compile', 'success', `Generated ${compileResult.code.split('\n').length} lines of code`);
+
+            // Step 3: Download bundle
+            updateBundleStep('download', 'in_progress', 'Creating bundle...');
+
+            const bundleResponse = await fetch('/api/bundle/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(asl)
+            });
+
+            if (!bundleResponse.ok) {
+                const errorData = await bundleResponse.json().catch(() => ({}));
+                throw new Error(errorData.error || `Bundle creation failed: HTTP ${bundleResponse.status}`);
+            }
+
+            // Download the blob
+            const blob = await bundleResponse.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+
+            // Extract filename from content-disposition header if available
+            const contentDisposition = bundleResponse.headers.get('content-disposition');
+            let filename = 'bundle.zip';
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename="?([^"]+)"?/);
+                if (match) filename = match[1];
+            }
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            updateBundleStep('download', 'success', 'Bundle downloaded');
+            if (bundleInfo) bundleInfo.classList.remove('hidden');
+            showToast('Bundle downloaded successfully!', 'success');
+
         } catch (err) {
-            closeSubmitModal();
-            showToast(`Submission failed: ${err.message}`, 'error');
-            console.error('Submission error:', err);
+            // Find the step that's in progress and mark it as error
+            if (bundleModal) {
+                const inProgressStep = bundleModal.querySelector('.submit-step .status-badge.in-progress');
+                if (inProgressStep) {
+                    const step = inProgressStep.closest('.submit-step');
+                    setBadgeStatus(step, 'error');
+                    const details = step.querySelector('.submit-step-details');
+                    if (details) details.textContent = err.message;
+                }
+            }
+            showToast(`Bundle creation failed: ${err.message}`, 'error');
+            console.error('Bundle error:', err);
         }
     });
     

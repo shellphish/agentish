@@ -65,7 +65,7 @@
                         </div>
                     </div>
                     
-                    <button class="btn btn-primary" id="submit-btn">Submit</button>
+                    <button class="btn btn-primary" id="submit-btn">Download Bundle</button>
                 </div>
             </header>
 
@@ -181,16 +181,16 @@
             </main>
         </div>
 
-        <!-- Submission Status Modal -->
-        <div id="submit-status-modal" class="modal-overlay hidden">
+        <!-- Bundle Download Status Modal -->
+        <div id="bundle-status-modal" class="modal-overlay hidden">
             <div class="modal-panel">
-                <button id="close-submit-modal" class="modal-close" aria-label="Close submission progress">&times;</button>
-                <h2>Submission Progress</h2>
-                <p class="modal-subtitle">Follow the job from compilation through sandbox execution.</p>
+                <button id="close-bundle-modal" class="modal-close" aria-label="Close">&times;</button>
+                <h2>Bundle Download</h2>
+                <p class="modal-subtitle">Validating and creating your agent bundle...</p>
 
-                <div class="submit-step" data-step="asl_check">
+                <div class="submit-step" data-step="validate">
                     <div class="submit-step-header">
-                        <span>0. ASL Validation</span>
+                        <span>1. Validating ASL specification</span>
                         <span class="status-badge">Pending</span>
                     </div>
                     <div class="submit-step-details"></div>
@@ -198,44 +198,24 @@
 
                 <div class="submit-step" data-step="compile">
                     <div class="submit-step-header">
-                        <span>1. Generate LangGraph code</span>
+                        <span>2. Verifying compilation</span>
                         <span class="status-badge">Pending</span>
                     </div>
                     <div class="submit-step-details"></div>
                 </div>
 
-                <div class="submit-step" data-step="syntax">
+                <div class="submit-step" data-step="download">
                     <div class="submit-step-header">
-                        <span>2. Syntax compliance check</span>
+                        <span>3. Creating bundle</span>
                         <span class="status-badge">Pending</span>
                     </div>
                     <div class="submit-step-details"></div>
                 </div>
 
-                <div class="submit-step" data-step="execution">
-                    <div class="submit-step-header">
-                        <span>3. Sandbox execution</span>
-                        <span class="status-badge">Pending</span>
-                    </div>
-                    <div class="submit-step-details" data-field="execution-details"></div>
-                    <div class="submit-substeps">
-                        <div class="submit-substep" data-substep="prepare">
-                            <span>Prepare sandbox</span>
-                            <span class="status-badge">Pending</span>
-                        </div>
-                        <div class="submit-substep" data-substep="run">
-                            <span>Execute agent</span>
-                            <span class="status-badge">Pending</span>
-                        </div>
-                        <div class="submit-substep" data-substep="langfuse">
-                            <span>Langfuse trace</span>
-                            <span class="status-badge">Pending</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="trace-link-wrapper" class="hidden">
-                    <a id="trace-link" href="#" target="_blank" rel="noopener">Open Langfuse trace</a>
+                <div id="bundle-info" class="hidden" style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; border: 1px solid #0ea5e9;">
+                    <p style="margin: 0; color: #0369a1; font-size: 14px;">
+                        <strong>Bundle ready!</strong> Upload to the sandbox at <a href="http://localhost:8001" target="_blank" style="color: #0284c7;">http://localhost:8001</a> to execute.
+                    </p>
                 </div>
             </div>
         </div>

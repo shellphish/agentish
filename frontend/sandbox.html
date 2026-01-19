@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Agentish Sandbox - Execute Agent Bundles</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Chivo:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="styles.css" />
+        <style>
+            /* Sandbox-specific styles */
+            .sandbox-container {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                min-height: 100vh;
+                padding: 0;
+            }
+
+            .sandbox-header {
+                background: var(--bg-panel);
+                border-bottom: 1px solid var(--border);
+                padding: 20px 40px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            .sandbox-header h1 {
+                font-size: 1.5rem;
+                font-weight: 600;
+                color: var(--text-primary);
+            }
+
+            .sandbox-header .subtitle {
+                color: var(--text-muted);
+                font-size: 0.9rem;
+                margin-top: 4px;
+            }
+
+            .sandbox-main {
+                flex: 1;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 24px;
+                padding: 24px 40px;
+                max-width: 1600px;
+                margin: 0 auto;
+                width: 100%;
+            }
+
+            .sandbox-panel {
+                background: var(--bg-panel);
+                border-radius: var(--radius-lg);
+                border: 1px solid var(--border);
+                padding: 24px;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .sandbox-panel h2 {
+                font-size: 1.1rem;
+                margin-bottom: 16px;
+                color: var(--text-primary);
+            }
+
+            .upload-zone {
+                border: 2px dashed var(--border-strong);
+                border-radius: var(--radius-md);
+                padding: 40px;
+                text-align: center;
+                cursor: pointer;
+                transition: all 0.2s;
+                background: var(--bg-accent);
+            }
+
+            .upload-zone:hover,
+            .upload-zone.dragover {
+                border-color: var(--accent);
+                background: rgba(59, 130, 246, 0.1);
+            }
+
+            .upload-zone.has-file {
+                border-color: var(--success);
+                background: rgba(16, 185, 129, 0.1);
+            }
+
+            .upload-zone .icon {
+                font-size: 48px;
+                margin-bottom: 16px;
+            }
+
+            .upload-zone p {
+                color: var(--text-secondary);
+                margin: 8px 0;
+            }
+
+            .upload-zone .filename {
+                font-family: var(--font-mono);
+                color: var(--success);
+                font-weight: 600;
+                margin-top: 12px;
+            }
+
+            .btn {
+                padding: 10px 20px;
+                border-radius: var(--radius-md);
+                border: none;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+
+            .btn-primary {
+                background: var(--accent);
+                color: white;
+            }
+
+            .btn-primary:hover:not(:disabled) {
+                background: var(--accent-strong);
+            }
+
+            .btn-primary:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+            .btn-secondary {
+                background: var(--bg-panel-elevated);
+                color: var(--text-primary);
+                border: 1px solid var(--border-strong);
+            }
+
+            .btn-secondary:hover:not(:disabled) {
+                background: var(--bg-accent-strong);
+            }
+
+            .btn-secondary:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+            .action-bar {
+                display: flex;
+                gap: 12px;
+                margin-top: 20px;
+            }
+
+            .status-section {
+                margin-top: 24px;
+            }
+
+            .status-card {
+                background: var(--bg-accent);
+                border-radius: var(--radius-md);
+                padding: 16px;
+                margin-bottom: 12px;
+            }
+
+            .status-card .label {
+                font-size: 0.85rem;
+                color: var(--text-muted);
+                margin-bottom: 4px;
+            }
+
+            .status-card .value {
+                font-size: 1rem;
+                color: var(--text-primary);
+                font-weight: 600;
+            }
+
+            .status-card .value.pending { color: var(--text-muted); }
+            .status-card .value.running { color: var(--warning); }
+            .status-card .value.success { color: var(--success); }
+            .status-card .value.error { color: var(--danger); }
+
+            .log-output {
+                flex: 1;
+                background: #0a0f1a;
+                border-radius: var(--radius-md);
+                padding: 16px;
+                font-family: var(--font-mono);
+                font-size: 13px;
+                color: var(--text-secondary);
+                overflow: auto;
+                white-space: pre-wrap;
+                word-break: break-all;
+                min-height: 300px;
+                max-height: 500px;
+            }
+
+            .log-output .stdout { color: #a5f3fc; }
+            .log-output .stderr { color: #fca5a5; }
+            .log-output .info { color: #94a3b8; }
+
+            .download-section {
+                display: flex;
+                gap: 12px;
+                margin-top: 20px;
+                flex-wrap: wrap;
+            }
+
+            .spinner {
+                display: inline-block;
+                width: 16px;
+                height: 16px;
+                border: 2px solid rgba(255,255,255,0.3);
+                border-radius: 50%;
+                border-top-color: white;
+                animation: spin 1s linear infinite;
+                margin-right: 8px;
+            }
+
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+
+            .hidden {
+                display: none !important;
+            }
+
+            /* Toast notification */
+            .toast {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: var(--radius-md);
+                color: white;
+                font-weight: 500;
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+            }
+
+            .toast.success { background: var(--success); }
+            .toast.error { background: var(--danger); }
+            .toast.info { background: var(--accent); }
+
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+
+            /* Responsive */
+            @media (max-width: 1024px) {
+                .sandbox-main {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="sandbox-container">
+            <header class="sandbox-header">
+                <div>
+                    <h1>Agentish Sandbox</h1>
+                    <p class="subtitle">Upload an agent bundle to compile and execute</p>
+                </div>
+                <div>
+                    <a href="http://localhost:8000" target="_blank" class="btn btn-secondary">Open Editor</a>
+                </div>
+            </header>
+
+            <main class="sandbox-main">
+                <!-- Left Panel: Upload & Execute -->
+                <div class="sandbox-panel">
+                    <h2>Upload Bundle</h2>
+
+                    <div class="upload-zone" id="upload-zone">
+                        <div class="icon">📦</div>
+                        <p><strong>Drop your bundle.zip here</strong></p>
+                        <p>or click to browse</p>
+                        <div class="filename hidden" id="filename"></div>
+                    </div>
+
+                    <input type="file" id="file-input" accept=".zip,application/zip" hidden />
+
+                    <div class="action-bar">
+                        <button class="btn btn-primary" id="execute-btn" disabled>
+                            Execute Agent
+                        </button>
+                        <button class="btn btn-secondary" id="clear-btn" disabled>
+                            Clear
+                        </button>
+                    </div>
+
+                    <div class="status-section">
+                        <div class="status-card">
+                            <div class="label">Status</div>
+                            <div class="value pending" id="status-value">No bundle loaded</div>
+                        </div>
+
+                        <div class="status-card hidden" id="compile-status">
+                            <div class="label">Compilation</div>
+                            <div class="value" id="compile-value">Pending</div>
+                        </div>
+
+                        <div class="status-card hidden" id="syntax-status">
+                            <div class="label">Syntax Check</div>
+                            <div class="value" id="syntax-value">Pending</div>
+                        </div>
+
+                        <div class="status-card hidden" id="execution-status">
+                            <div class="label">Execution</div>
+                            <div class="value" id="execution-value">Pending</div>
+                        </div>
+                    </div>
+
+                    <div class="download-section hidden" id="download-section">
+                        <button class="btn btn-secondary" id="download-code-btn">
+                            Download Code
+                        </button>
+                        <button class="btn btn-secondary" id="download-state-btn">
+                            Download Final State
+                        </button>
+                        <button class="btn btn-secondary" id="download-logs-btn">
+                            Download Logs
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Logs -->
+                <div class="sandbox-panel">
+                    <h2>Execution Output</h2>
+                    <div class="log-output" id="log-output">
+                        <span class="info">Upload a bundle and click Execute to see output here...</span>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <script src="sandbox.js"></script>
+    </body>
+</html>
