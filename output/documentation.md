@@ -94,10 +94,10 @@ An agent that uses a Language Model to process input and generate responses. Can
 A decision-making node that analyzes conversation history and routes to the appropriate next node using structured LLM output.
 
 ### 4. Worker Node
-Similar to LLM nodes but designed for subtask execution. Routes back to the calling LLM node after completion.
+A specialized tool-based agent that performs subtasks delegated by LLM nodes. Workers are compiled as `@tool` decorated functions (not graph nodes) and have a fixed output format: `{"result": str, "success": bool}`. The result is returned to the calling LLM node as a ToolMessage, allowing the LLM to decide how to use the information. Workers do NOT update global state directly.
 
 ### 5. Tool Node
-Executes function calls requested by LLM/Worker nodes, with iteration tracking and limits.
+Executes function calls requested by LLM nodes, with iteration tracking and limits.
 
 ### 6. Edges
 Define the flow between nodes:
