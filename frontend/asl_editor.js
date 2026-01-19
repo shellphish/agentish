@@ -3158,29 +3158,9 @@ Generated: ${new Date().toISOString()}
             }
             updateBundleStep('validate', 'success', 'All validations passed');
 
-            // Step 2: Verify compilation
-            updateBundleStep('compile', 'in_progress', 'Verifying code generation...');
-            const asl = serializeToASL();
-
-            const compileResponse = await fetch('/compile', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(asl)
-            });
-
-            if (!compileResponse.ok) {
-                const errorData = await compileResponse.json().catch(() => ({}));
-                throw new Error(errorData.error || `Compilation failed: HTTP ${compileResponse.status}`);
-            }
-
-            const compileResult = await compileResponse.json();
-            if (!compileResult.success || !compileResult.code) {
-                throw new Error(compileResult.error || 'Compilation failed');
-            }
-            updateBundleStep('compile', 'success', `Generated ${compileResult.code.split('\n').length} lines of code`);
-
-            // Step 3: Download bundle
+            // Step 2: Download bundle (compilation verification removed)
             updateBundleStep('download', 'in_progress', 'Creating bundle...');
+            const asl = serializeToASL();
 
             const bundleResponse = await fetch('/api/bundle/download', {
                 method: 'POST',
