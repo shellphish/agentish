@@ -23,6 +23,8 @@
     const downloadCodeBtn = document.getElementById('download-code-btn');
     const downloadStateBtn = document.getElementById('download-state-btn');
     const downloadLogsBtn = document.getElementById('download-logs-btn');
+    const langfuseSection = document.getElementById('langfuse-section');
+    const langfuseLink = document.getElementById('langfuse-link');
     const logOutput = document.getElementById('log-output');
 
     // State
@@ -71,6 +73,7 @@
         syntaxStatus.classList.add('hidden');
         executionStatus.classList.add('hidden');
         downloadSection.classList.add('hidden');
+        langfuseSection.classList.add('hidden');
 
         logOutput.innerHTML = '<span class="info">Upload a bundle and click Execute to see output here...</span>';
     }
@@ -97,6 +100,7 @@
         syntaxStatus.classList.add('hidden');
         executionStatus.classList.add('hidden');
         downloadSection.classList.add('hidden');
+        langfuseSection.classList.add('hidden');
 
         showToast(`Bundle "${file.name}" loaded`, 'success');
     }
@@ -223,6 +227,13 @@
 
                 if (job.status === 'success') {
                     downloadSection.classList.remove('hidden');
+                    
+                    // Show Langfuse section if URL is available
+                    if (job.langfuse_url) {
+                        langfuseSection.classList.remove('hidden');
+                        langfuseLink.href = job.langfuse_url;
+                    }
+                    
                     showToast('Execution completed successfully!', 'success');
                 } else {
                     showToast('Execution failed', 'error');
