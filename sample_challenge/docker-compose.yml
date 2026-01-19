@@ -5,32 +5,25 @@ networks:
     driver: bridge
 
 volumes:
-  agentish_output:
-  agentish_logs:
+  sandbox_submissions:
+  sandbox_logs:
 
 services:
-  # Agentish UI/Backend/Compiler service
-  agentish:
+  # Agentish UI Container (public - workflow editor)
+  agentish_ui:
     build:
       context: ..
-      dockerfile: sample_challenge/Dockerfile.agentish
+      dockerfile: sample_challenge/Dockerfile.ui
     container_name: agentish_ui
     ports:
-      - "${AGENTISH_PORT:-8000}:8000"
+      - "${UI_PORT:-8000}:8000"
     environment:
-      - MODEL_CONFIG_PATH=/config/model_config.yaml
+      - SANDBOX_CONFIG_PATH=/config/sandbox.yml
+      - CHALLENGISH_CONFIG_PATH=/config/challengish.yml
       - PYTHONUNBUFFERED=1
-      - SUBMISSION_LOG_DIR=/workspace/logs
-      - SUBMISSION_OUTPUT_DIR=/workspace/submissions
     volumes:
-      - ./model_config.yaml:/config/model_config.yaml:ro
-      - ./mcp_config.yaml:/config/mcp_config.yaml:ro
-      - ./local_shared/submissions:/workspace/submissions
-      - ./local_shared/logs:/workspace/logs
-      - agentish_output:/workspace/output
-    depends_on:
-      mcp_binary:
-        condition: service_healthy
+      - ./sandbox.yml:/config/sandbox.yml:ro
+      - ./challengish.yml:/config/challengish.yml:ro
     networks:
       - agentish_internal
     healthcheck:
@@ -38,10 +31,42 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Agentish Sandbox Container (public - execution environment)
+  agentish_sandbox:
+    build:
+      context: ..
+      dockerfile: sample_challenge/Dockerfile.sandbox
+    container_name: agentish_sandbox
+    ports:
+      - "${SANDBOX_PORT:-8001}:8001"
+    environment:
+      - SANDBOX_CONFIG_PATH=/config/sandbox.yml
+      - CHALLENGISH_CONFIG_PATH=/config/challengish.yml
+      - PYTHONUNBUFFERED=1
+      - SUBMISSION_LOG_DIR=/workspace/logs
+      - SUBMISSION_OUTPUT_DIR=/workspace/submissions
+    volumes:
+      - ./sandbox.yml:/config/sandbox.yml:ro
+      - ./challengish.yml:/config/challengish.yml:ro
+      - sandbox_submissions:/workspace/submissions
+      - sandbox_logs:/workspace/logs
+    depends_on:
+      mcp_binary:
+        condition: service_healthy
+    networks:
+      - agentish_internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
       start_period: 20s
     restart: unless-stopped
 
-  # MCP Binary Analysis Server
+  # MCP Binary Analysis Server (internal only)
   mcp_binary:
     build:
       context: ./artifacts
@@ -63,4 +88,3 @@ services:
       retries: 3
       start_period: 15s
     restart: unless-stopped
-

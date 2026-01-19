@@ -1,0 +1,42 @@
+# Sandbox Configuration
+# This file contains model/LLM configuration for the sandbox execution environment
+# MCP server definitions are in challengish.yml
+
+# =============================================================================
+# MODEL CONFIGURATION
+# =============================================================================
+
+# LLM Provider Configuration
+provider: openai
+model: "Qwen3-14B-Q8_0"
+temperature: 0.0
+recursion_limit: 500
+use_tracing: true
+context_window: 131072
+max_output_tokens: 16384
+
+# Provider Type: "llamacpp", "litellm", or "openai"
+provider_type: "llamacpp"
+
+# LlamaCpp Configuration (when provider_type is "llamacpp")
+llamacpp:
+  endpoint: "http://128.111.49.59:4000/v1"
+  api_key: "local_llm_is_da_best"
+
+# LiteLLM Configuration (when provider_type is "litellm")
+litellm:
+  endpoint: "http://192.35.222.19:4000"
+  api_key: "local_llm_is_da_best"
+
+# OpenAI Configuration (when provider_type is "openai")
+openai:
+  api_key: ""
+  endpoint: ""
+
+# Langfuse Configuration (observability and tracing)
+langfuse:
+  host: "http://192.35.222.19.nip.io:3000"
+  public_key: "pk-lf-a0ff2b74-a0c8-4ce1-90c1-cf90771c95f4"
+  secret_key: "sk-lf-a2ee69ee-f7d5-4a42-a8d5-bfbdb37a517b"
+
+enable_tracing: true

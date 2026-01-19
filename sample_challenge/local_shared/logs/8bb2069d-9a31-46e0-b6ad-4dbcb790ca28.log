@@ -1,0 +1,11 @@
+timestamp: 2026-01-14T01:11:44.340465Z
+job_id: 8bb2069d-9a31-46e0-b6ad-4dbcb790ca28
+status: timeout
+error: Agent execution timed out
+langfuse_status: callback_only
+langfuse_details: Langfuse tracing delegated to agent CallbackHandler
+stdout:
+
+stderr:
+
+--- end ---

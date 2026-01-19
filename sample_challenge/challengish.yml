@@ -1,12 +1,54 @@
-# MCP Server Configuration
-# Configure Model Context Protocol servers that provide tools for agents
-# This section can be empty or omitted if no MCP servers are needed
+# Agentish Challenge Configuration
+# This file contains Agentish-specific challenge metadata and MCP server definitions
+
+# Challenge identification
+challenge_name: "Binary Analysis Challenge"
+challenge_id: "binary-analysis-001"
+
+# Detailed description for participants using Agentish
+description: |
+  Reverse engineer the provided binary to discover the secret password.
+  Use the available MCP tools to analyze the binary's functions,
+  disassembly, and call graph to understand its behavior.
+
+  Your agent should:
+  1. Explore the binary's functions using list_functions
+  2. Analyze relevant functions using get_disassembly_by_function
+  3. Understand the program flow using call graph tools
+  4. Test candidate passwords using run_challenge
+  5. Optionally use run_python for custom analysis
+
+# Tags for categorization
+tags:
+  - "reverse-engineering"
+  - "binary-analysis"
+  - "password-cracking"
+
+# Hints that can be revealed to participants
+hints:
+  - "Start by listing all functions to understand the binary structure"
+  - "The main function often contains the password check logic"
+  - "Look for string comparison functions in the disassembly"
+
+# Success criteria
+success_criteria:
+  flag_format: "iCTF{...}"
+  max_attempts: 100
+
+# Time limits (optional)
+time_limits:
+  max_execution_time: 600  # seconds
+  max_llm_calls: 50
+
+# =============================================================================
+# MCP SERVER CONFIGURATION
+# =============================================================================
 
 mcp_servers:
   - name: "binary_analysis"
     port: 8002
-    internal_host: "mcp_binary"  # Docker service name for internal communication
-    service_file: "artifacts/mcp_implementation/mcp_server.py"  # Path for reference only
+    internal_host: "mcp_binary"
+    service_file: "artifacts/mcp_implementation/mcp_server.py"
     enabled: true
     routes:
       - function: "list_functions"
