@@ -297,36 +297,9 @@ def download_bundle():
     Returns:
         ZIP file download
     """
-    from compiler import compile_asl
-
     spec = request.json
     if not spec:
         return jsonify({'error': 'No specification provided'}), 400
-
-    # Validate the spec by attempting compilation
-    try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump(spec, f)
-            temp_path = Path(f.name)
-
-        try:
-            output_dir = Path(__file__).resolve().parents[1] / "output"
-            success, code = compile_asl(str(temp_path), output_dir=str(output_dir))
-
-            if not success:
-                return jsonify({'error': 'ASL validation failed: compilation error'}), 400
-
-            # Validate generated code syntax
-            compile(code, "<submitted_agent>", "exec")
-
-        finally:
-            if temp_path.exists():
-                temp_path.unlink()
-
-    except SyntaxError as exc:
-        return jsonify({'error': f"ASL validation failed: syntax error in generated code - {exc}"}), 400
-    except Exception as exc:
-        return jsonify({'error': f"ASL validation failed: {exc}"}), 400
 
     # Create bundle
     bundle_uuid = str(uuid4())
