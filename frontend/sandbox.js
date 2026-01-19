@@ -185,6 +185,12 @@
             setStatus(statusValue, 'Executing...', 'running');
             executeBtn.innerHTML = '<span class="spinner"></span>Executing...';
 
+            // Show Langfuse section immediately if URL is available
+            if (data.langfuse_url) {
+                langfuseSection.classList.remove('hidden');
+                langfuseLink.href = data.langfuse_url;
+            }
+
             // Start polling for status
             pollStatus();
             pollInterval = setInterval(pollStatus, 2000);

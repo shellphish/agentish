@@ -490,10 +490,16 @@ def upload_bundle():
     worker = threading.Thread(target=_run_job, args=(job_id, spec, initial_state), daemon=True)
     worker.start()
 
-    return jsonify({
+    response_data = {
         'success': True,
         'job_id': job_id
-    })
+    }
+    
+    # Include Langfuse URL if available
+    if langfuse_url:
+        response_data['langfuse_url'] = langfuse_url
+    
+    return jsonify(response_data)
 
 
 @app.route('/api/status/<job_id>', methods=['GET'])
