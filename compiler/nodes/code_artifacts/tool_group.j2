@@ -1,4 +1,0 @@
-#{ Template for generating tool groups for a specific node #}
-# Tool group for node {{ node_id }}
-tools_for_node_{{ node_id }} = [{{ tool_names|join(', ') }}]
-tools_by_name_for_node_{{ node_id }} = {tool.name: tool for tool in tools_for_node_{{ node_id }}}
