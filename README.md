@@ -1,57 +1,121 @@
 # Agentish
 
-A visual agent builder and execution environment for creating LangGraph agents through an intuitive UI.
+A visual workflow editor for creating LangGraph agents through an intuitive drag-and-drop UI.
+
+## Overview
+
+Agentish is the frontend UI for building AI agent workflows. It provides:
+
+- **Visual Graph Editor** - Drag-and-drop interface for creating agent workflows
+- **Node Types** - LLM nodes, Router nodes, Worker nodes, Entry points
+- **MCP Tool Integration** - Load available tools from `challengish.yml`
+- **Bundle Export** - Download your workflow as a bundle (ZIP with asl.json + layout.json)
+
+## Components
+
+### Frontend
+- `frontend/index.html` - Main visual editor UI
+- `frontend/asl_editor.js` - Editor logic and graph manipulation
+- `frontend/styles.css` - Styling
+- `frontend/litegraph.css` + `litegraph.min.js` - Graph visualization library
+
+### Backend (Minimal)
+- `backend/server_agentish.py` - Serves frontend and MCP tool catalog
+
+## Usage
+
+### Prerequisites
+- Python 3.11+
+- Flask, Flask-CORS, PyYAML
+
+### Quick Start
+
+1. Install dependencies:
+   ```bash
+   pip install flask flask-cors pyyaml
+   ```
+
+2. (Optional) Create a `challengish.yml` to define MCP tools:
+   ```yaml
+   mcp_servers:
+     - name: "my_server"
+       port: 8002
+       internal_host: "mcp_server"
+       routes:
+         - function: "my_tool"
+           endpoint: "/mcp/my_tool"
+           method: "GET"
+           description: "My tool description"
+   ```
+
+3. Run the server:
+   ```bash
+   CHALLENGISH_CONFIG_PATH=challengish.yml python backend/server_agentish.py --port 8000
+   ```
+
+4. Open http://localhost:8000 in your browser
+
+### Building Workflows
+
+1. **Add Nodes** - Right-click on the canvas to add nodes
+2. **Connect Nodes** - Drag from output to input slots
+3. **Configure Nodes** - Click on a node to edit its properties
+4. **Export Bundle** - Click "Download Bundle" to get a ZIP file
+
+### Bundle Format
+
+The exported bundle contains:
+- `asl.json` - The ASL (Agent Specification Language) workflow definition
+- `layout.json` - Visual layout information for the graph
+
+## Execution
+
+**Agentish does NOT execute agents.** It only creates workflow definitions.
+
+To execute your agent, use the [agentish-ctf](../agentish-ctf) execution environment:
+1. Export your bundle from Agentish
+2. Upload the bundle to agentish-ctf sandbox
+3. The sandbox compiles and executes your agent with access to MCP tools
+
+## API Endpoints
+
+- `GET /` - Serve the visual editor UI
+- `GET /config.json` - Frontend configuration
+- `GET /api/mcp/tools` - List available MCP tools from challengish.yml
+- `POST /api/bundle/download` - Create and download a bundle ZIP
+- `GET /health` - Health check
 
 ## Configuration
 
-Agentish uses two YAML configuration files:
+### Environment Variables
 
-### 1. model_config.yaml - LLM Provider Configuration
+- `CHALLENGISH_CONFIG_PATH` - Path to challengish.yml (default: `challengish.yml`)
 
-Configures the language model provider and observability:
+### challengish.yml
 
-- **provider_type**: The LLM infrastructure type (`llamacpp`, `litellm`, or `openai`)
-- **model**: Model name to use
-- **temperature**: Model temperature (0.0 - 1.0)
-- **Provider-specific settings**: Endpoint and API key for the chosen provider
-- **Langfuse**: Observability and tracing configuration
+Defines available MCP tools that will be shown in the editor:
 
-### 2. mcp_config.yaml - MCP Server Configuration
-
-Configures Model Context Protocol servers that provide tools to agents:
-
-- **mcp_servers**: List of MCP server definitions with routes and tool descriptions
-
-## Supported LLM Providers
-
-### LlamaCpp
-Use local or remote LlamaCpp servers with OpenAI-compatible API:
 ```yaml
-provider_type: "llamacpp"
-llamacpp:
-  endpoint: "http://your-server:4000/v1"
-  api_key: "your_api_key"
+challenge_name: "My Challenge"
+challenge_id: "my-challenge-001"
+
+mcp_servers:
+  - name: "binary_analysis"
+    port: 8002
+    internal_host: "mcp_binary"
+    enabled: true
+    routes:
+      - function: "list_functions"
+        endpoint: "/mcp/list_functions"
+        method: "GET"
+        description: "List all functions in the binary"
+        arguments: []
+        return_schema:
+          success: "bool"
+          functions: "list"
 ```
 
-### LiteLLM
-Use LiteLLM as a gateway to access different LLM providers:
-```yaml
-provider_type: "litellm"
-litellm:
-  endpoint: "http://your-litellm:4000"
-  api_key: "your_api_key"
-```
+## Related Projects
 
-### OpenAI
-Use OpenAI API or compatible services (Azure OpenAI, etc.):
-```yaml
-provider_type: "openai"
-openai:
-  api_key: "your_openai_key"
-  endpoint: ""  # Optional: for Azure OpenAI or custom endpoints
-```
-
-## Core Dependencies
-
-- **LLM Provider**: LlamaCpp, LiteLLM, or OpenAI (configured via provider_type)
-- **LangFuse**: Observability and tracing for LLM calls 
+- **agentish-ctf** - Execution environment for compiling and running agent bundles
+- **agentish-challenges** - CTF challenges using the Agentish framework
