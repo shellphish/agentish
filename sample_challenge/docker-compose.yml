@@ -1,0 +1,23 @@
+# =============================================================================
+# docker-compose.yml — Run Agentish UI
+# =============================================================================
+#
+# Usage:
+#   cd sample_challenge/
+#   docker compose up --build
+#
+# Opens the visual workflow editor at http://localhost:8000
+# Tools from challengish.yml appear in the Function Catalog sidebar.
+# =============================================================================
+
+services:
+  agentish:
+    build:
+      context: ..
+      dockerfile: sample_challenge/Dockerfile.agentish
+    environment:
+      CHALLENGISH_CONFIG_PATH: /app/challengish.yml
+    volumes:
+      - ./challengish.yml:/app/challengish.yml:ro
+    ports:
+      - "8000:8000"
