@@ -13,4 +13,4 @@ if ! python3 -c "import flask" 2>/dev/null; then
 fi
 
 # Start the backend server
-python3 backend/server.py
+python3 backend/server_agentish.py
