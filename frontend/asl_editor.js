@@ -42,10 +42,9 @@ const NODE_FORMS = {
         { key: "title", label: "Display name", type: "text", placeholder: "Entry Node" },
         {
             key: "initial_state",
-            label: "Initial state (JSON)",
-            type: "json",
-            rows: 4,
-            description: "Additional state fields to initialize (count and messages are automatic)."
+            label: "Initial State Variables",
+            type: "initial_state_table",
+            description: "Define additional state variables (count and messages are automatic)."
         }
     ],
     "asl/llm": [
@@ -387,6 +386,29 @@ function patchNodeRendering() {
     proto._aslNodePatched = true;
 }
 
+function patchContextMenu() {
+    if (!window.LGraphCanvas || window.LGraphCanvas.prototype._aslContextMenuPatched) {
+        return;
+    }
+    
+    const proto = LGraphCanvas.prototype;
+    
+    // Store the original getCanvasMenuOptions method
+    const originalGetCanvasMenuOptions = proto.getCanvasMenuOptions;
+    
+    // Override to return null (no context menu on empty canvas)
+    proto.getCanvasMenuOptions = function() {
+        // Disable context menu on empty canvas
+        // This removes "Add Node" and "Add Group" options
+        return null;
+    };
+    
+    // Note: Right-click on nodes still works because LiteGraph handles 
+    // node context menus separately via getNodeMenuOptions
+    
+    proto._aslContextMenuPatched = true;
+}
+
 function initializeEditor() {
     console.log("=== Initializing Editor ===");
     console.log("LiteGraph available:", typeof LiteGraph !== 'undefined');
@@ -401,6 +423,7 @@ function initializeEditor() {
 
     patchConnectionArrows();
     patchNodeRendering();
+    patchContextMenu();
     
     try {
         console.log("Creating LGraph...");
@@ -509,8 +532,7 @@ function initializeEditor() {
     // LiteGraph handles this natively when allow_dragcanvas = true
 
     const nodePropertiesContainer = document.getElementById("node-properties");
-    const stateSchemaTextarea = document.getElementById("state-schema");
-    const applyStateBtn = document.getElementById("apply-state");
+    const stateSchemaDisplay = document.getElementById("state-schema-display");
     const fileInput = document.getElementById("file-input");
     const summaryEl = document.getElementById("graph-summary");
 
@@ -531,7 +553,7 @@ function initializeEditor() {
         // Example MCP tool (can be pre-populated)
     };
 
-    stateSchemaTextarea.value = appState.schemaRaw;
+    renderStateSchemaDisplay();
 
     function showToast(message, variant = "info") {
         const tag = variant.toUpperCase();
@@ -648,6 +670,61 @@ function initializeEditor() {
         summaryEl.querySelectorAll("dd")[0].textContent = nodeCount.toString();
         summaryEl.querySelectorAll("dd")[1].textContent = edgeCount.toString();
         summaryEl.querySelectorAll("dd")[2].textContent = entryDesc;
+    }
+
+    function renderStateSchemaDisplay() {
+        const displayContainer = document.getElementById('state-schema-display');
+        if (!displayContainer) return;
+        
+        displayContainer.innerHTML = '';
+        
+        const schema = appState.schema || {};
+        const entries = Object.entries(schema);
+        
+        if (entries.length === 0) {
+            displayContainer.innerHTML = '<p style="color: #94a3b8; font-size: 0.9em; padding: 10px;">No state variables defined</p>';
+            return;
+        }
+        
+        // Create table
+        const table = document.createElement('table');
+        table.className = 'state-schema-table';
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+        
+        // Table header
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+            <tr>
+                <th style="text-align: left; padding: 8px; border-bottom: 2px solid #334155; color: #e2e8f0; font-weight: 600;">Variable Name</th>
+                <th style="text-align: left; padding: 8px; border-bottom: 2px solid #334155; color: #e2e8f0; font-weight: 600;">Type</th>
+            </tr>
+        `;
+        table.appendChild(thead);
+        
+        // Table body
+        const tbody = document.createElement('tbody');
+        entries.forEach(([varName, varType]) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="padding: 6px 8px; border-bottom: 1px solid #1e293b; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; font-size: 0.75em; word-break: break-word; white-space: normal; line-height: 1.4;">${varName.toLowerCase()}</td>
+                <td style="padding: 6px 8px; border-bottom: 1px solid #1e293b; color: #94a3b8; font-family: 'JetBrains Mono', monospace; font-size: 0.75em; word-break: break-word; white-space: normal; line-height: 1.4;">${varType}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        
+        displayContainer.appendChild(table);
+    }
+
+    // Helper function to normalize schema keys to lowercase
+    function normalizeSchemaToLowercase(schema) {
+        if (!schema || typeof schema !== 'object') return {};
+        const normalized = {};
+        for (const [key, value] of Object.entries(schema)) {
+            normalized[key.toLowerCase()] = value;
+        }
+        return normalized;
     }
 
     // ---------------------- Node Definitions ----------------------
@@ -1419,6 +1496,230 @@ function initializeEditor() {
         wrapper.appendChild(tableContainer);
     }
 
+    function renderInitialStateTable(def, node, wrapper) {
+        // Get current initial_state from node properties
+        const initialState = node.properties[def.key] || {};
+        
+        // Create table container
+        const tableContainer = document.createElement('div');
+        tableContainer.className = 'initial-state-table-container';
+        
+        // Create table
+        const table = document.createElement('table');
+        table.className = 'initial-state-table';
+        
+        // Table header
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+            <tr>
+                <th>Variable Name</th>
+                <th>Type</th>
+                <th style="width: 40px;"></th>
+            </tr>
+        `;
+        table.appendChild(thead);
+        
+        // Table body
+        const tbody = document.createElement('tbody');
+        tbody.className = 'initial-state-tbody';
+        table.appendChild(tbody);
+        
+        const TYPE_OPTIONS = [
+            'int', 'str', 'float', 'bool',
+            'List[str]', 'List[int]', 'List[float]', 'List[dict]',
+            'Dict[str, str]', 'Dict[str, int]', 'Dict[str, Any]',
+            'Optional[str]', 'Optional[int]', 'Optional[dict]',
+            'Any'
+        ];
+        
+        function validateUniqueNames() {
+            const names = [];
+            const rows = tbody.querySelectorAll('tr');
+            let hasDuplicates = false;
+            
+            rows.forEach(row => {
+                const nameInput = row.querySelector('.var-name-input');
+                if (nameInput) {
+                    const name = nameInput.value.trim();
+                    if (name) {
+                        // Check for spaces
+                        if (name.includes(' ')) {
+                            nameInput.classList.add('input-error');
+                            nameInput.title = 'Variable name cannot contain spaces';
+                            hasDuplicates = true;
+                            return;
+                        }
+                        
+                        // Check for invalid characters (only allow a-z, 0-9, _)
+                        const validPattern = /^[a-z0-9_]+$/;
+                        if (!validPattern.test(name)) {
+                            nameInput.classList.add('input-error');
+                            nameInput.title = 'Only lowercase letters (a-z), numbers (0-9), and underscore (_) allowed';
+                            hasDuplicates = true;
+                            return;
+                        }
+                        
+                        // Convert to lowercase for comparison (enforce lowercase)
+                        const lowerName = name.toLowerCase();
+                        
+                        // Check for reserved names
+                        if (lowerName === 'count' || lowerName === 'messages') {
+                            nameInput.classList.add('input-error');
+                            nameInput.title = 'Reserved variable name (count and messages are automatic)';
+                            hasDuplicates = true;
+                            return;
+                        }
+                        
+                        const isDuplicate = names.includes(lowerName);
+                        if (isDuplicate) {
+                            nameInput.classList.add('input-error');
+                            nameInput.title = 'Duplicate variable name';
+                            hasDuplicates = true;
+                        } else {
+                            nameInput.classList.remove('input-error');
+                            nameInput.title = '';
+                            names.push(lowerName);
+                        }
+                    }
+                }
+            });
+            
+            return !hasDuplicates;
+        }
+        
+        function updateNodeProperty() {
+            const rows = tbody.querySelectorAll('tr');
+            const newInitialState = {};
+            
+            rows.forEach(row => {
+                const nameInput = row.querySelector('.var-name-input');
+                const typeSelect = row.querySelector('.var-type-select');
+                
+                const name = nameInput.value.trim();
+                const type = typeSelect.value;
+                
+                if (name && type) {
+                    // Enforce lowercase for variable names
+                    const lowerName = name.toLowerCase();
+                    newInitialState[lowerName] = type;
+                    
+                    // Update the input to show lowercase
+                    if (nameInput.value !== lowerName) {
+                        nameInput.value = lowerName;
+                    }
+                }
+            });
+            
+            node.properties[def.key] = newInitialState;
+            
+            // Update global state schema (merge with default schema)
+            const mergedSchema = { ...DEFAULT_SCHEMA, ...newInitialState };
+            appState.schema = mergedSchema;
+            appState.schemaRaw = JSON.stringify(mergedSchema, null, 2);
+            renderStateSchemaDisplay();
+            
+            graph.setDirtyCanvas(true, true);
+        }
+        
+        function createRow(varName = '', varType = 'str') {
+            const tr = document.createElement('tr');
+            
+            // Variable Name column
+            const tdName = document.createElement('td');
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.className = 'var-name-input';
+            nameInput.value = varName;
+            nameInput.placeholder = 'variable_name';
+            nameInput.addEventListener('input', (e) => {
+                const currentValue = e.target.value;
+                
+                // Check for spaces
+                if (currentValue.includes(' ')) {
+                    showToast("Variable name cannot contain spaces", "error");
+                }
+                
+                // Check for invalid characters
+                const validPattern = /^[a-z0-9_]*$/;
+                if (currentValue && !validPattern.test(currentValue)) {
+                    showToast("Only lowercase letters (a-z), numbers (0-9), and underscore (_) allowed", "error");
+                }
+                
+                validateUniqueNames();
+                updateNodeProperty();
+            });
+            nameInput.addEventListener('blur', () => {
+                validateUniqueNames();
+            });
+            tdName.appendChild(nameInput);
+            tr.appendChild(tdName);
+            
+            // Type column
+            const tdType = document.createElement('td');
+            const typeSelect = document.createElement('select');
+            typeSelect.className = 'var-type-select';
+            TYPE_OPTIONS.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                if (varType === type) {
+                    option.selected = true;
+                }
+                typeSelect.appendChild(option);
+            });
+            typeSelect.addEventListener('change', updateNodeProperty);
+            tdType.appendChild(typeSelect);
+            tr.appendChild(tdType);
+            
+            // Delete button column
+            const tdAction = document.createElement('td');
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'btn-remove-field';
+            deleteBtn.textContent = '×';
+            deleteBtn.title = 'Remove variable';
+            deleteBtn.addEventListener('click', () => {
+                tr.remove();
+                updateNodeProperty();
+                validateUniqueNames();
+            });
+            tdAction.appendChild(deleteBtn);
+            tr.appendChild(tdAction);
+            
+            return tr;
+        }
+        
+        function renderRows() {
+            tbody.innerHTML = '';
+            // Convert initialState object to rows
+            for (const [varName, varType] of Object.entries(initialState)) {
+                // Skip default schema variables
+                if (varName === 'count' || varName === 'messages') continue;
+                tbody.appendChild(createRow(varName, varType));
+            }
+        }
+        
+        // Add variable button
+        const addVarBtn = document.createElement('button');
+        addVarBtn.type = 'button';
+        addVarBtn.className = 'btn-add-field';
+        addVarBtn.textContent = '+ Add Variable';
+        addVarBtn.addEventListener('click', () => {
+            const newRow = createRow();
+            tbody.appendChild(newRow);
+            // Focus on the name input
+            newRow.querySelector('.var-name-input').focus();
+        });
+        
+        // Initial render
+        renderRows();
+        validateUniqueNames();
+        
+        tableContainer.appendChild(table);
+        tableContainer.appendChild(addVarBtn);
+        wrapper.appendChild(tableContainer);
+    }
+
     function getConnectedNodesForRouter(node) {
         /**
          * Get list of nodes connected to this router's outputs
@@ -1684,6 +1985,13 @@ function initializeEditor() {
                 return;
             }
 
+            // Handle initial_state_table for Entry node
+            if (def.type === "initial_state_table") {
+                renderInitialStateTable(def, node, wrapper);
+                form.appendChild(wrapper);
+                return;
+            }
+
             // Handle router_values_table for Router nodes
             if (def.type === "router_values_table") {
                 renderRouterValuesTable(def, node, wrapper);
@@ -1694,7 +2002,9 @@ function initializeEditor() {
             // Handle state_checkboxes for LLM Node output selection
             if (def.type === "state_checkboxes") {
                 // Get current global schema (excluding count and messages)
+                // Convert all to lowercase for consistency
                 const stateVars = Object.keys(appState.schema || {})
+                    .map(key => key.toLowerCase())
                     .filter(key => key !== "count" && key !== "messages");
                 
                 if (stateVars.length === 0) {
@@ -1706,8 +2016,8 @@ function initializeEditor() {
                     const checkboxContainer = document.createElement("div");
                     checkboxContainer.className = "checkbox-group";
 
-                    // Get currently selected keys
-                    let selectedKeys = node.properties?.[def.key] || [];
+                    // Get currently selected keys (normalize to lowercase)
+                    let selectedKeys = (node.properties?.[def.key] || []).map(k => k.toLowerCase());
 
                     stateVars.forEach(varName => {
                         const checkboxWrapper = document.createElement("label");
@@ -1715,18 +2025,19 @@ function initializeEditor() {
 
                         const checkbox = document.createElement("input");
                         checkbox.type = "checkbox";
-                        checkbox.value = varName;
-                        checkbox.checked = selectedKeys.includes(varName);
+                        checkbox.value = varName.toLowerCase();
+                        checkbox.checked = selectedKeys.includes(varName.toLowerCase());
 
                         checkbox.addEventListener("change", () => {
-                            // Update selected keys array
-                            let updated = node.properties[def.key] || [];
+                            // Update selected keys array (all lowercase)
+                            let updated = (node.properties[def.key] || []).map(k => k.toLowerCase());
+                            const lowerVarName = varName.toLowerCase();
                             if (checkbox.checked) {
-                                if (!updated.includes(varName)) {
-                                    updated.push(varName);
+                                if (!updated.includes(lowerVarName)) {
+                                    updated.push(lowerVarName);
                                 }
                             } else {
-                                updated = updated.filter(k => k !== varName);
+                                updated = updated.filter(k => k !== lowerVarName);
                             }
                             node.properties[def.key] = updated;
 
@@ -1738,10 +2049,10 @@ function initializeEditor() {
                                     if (checkbox.checked) {
                                         // Add row to table
                                         const fieldType = inferTypeFromSchema(appState.schema[varName]) || 'str';
-                                        schemaTableContainer.addSchemaRow(varName, fieldType, '');
+                                        schemaTableContainer.addSchemaRow(varName.toLowerCase(), fieldType, '');
                                     } else {
                                         // Remove row from table
-                                        schemaTableContainer.removeSchemaRow(varName);
+                                        schemaTableContainer.removeSchemaRow(varName.toLowerCase());
                                     }
                                 }
                             }
@@ -1750,7 +2061,7 @@ function initializeEditor() {
                         });
                         
                         const labelText = document.createElement("span");
-                        labelText.textContent = varName;
+                        labelText.textContent = varName.toLowerCase();
                         
                         checkboxWrapper.appendChild(checkbox);
                         checkboxWrapper.appendChild(labelText);
@@ -1868,20 +2179,6 @@ function initializeEditor() {
                     try {
                         value = value ? JSON.parse(value) : def.type === "json" && def.key === "arguments" ? [] : {};
                         
-                        // Special validation for Entry Node initial_state
-                        if (node.type === "asl/entry" && def.key === "initial_state") {
-                            if (value.hasOwnProperty("count")) {
-                                delete value.count;
-                                showToast("'count' is a reserved state variable and cannot be overridden", "error");
-                            }
-                            if (value.hasOwnProperty("messages")) {
-                                delete value.messages;
-                                showToast("'messages' is a reserved state variable and cannot be overridden", "error");
-                            }
-                            // Update the textarea to show cleaned JSON
-                            input.value = JSON.stringify(value, null, 2);
-                        }
-                        
                         input.classList.remove("input-error");
                     } catch (err) {
                         input.classList.add("input-error");
@@ -1890,27 +2187,6 @@ function initializeEditor() {
                     }
                 }
                 node.properties[def.key] = value;
-
-                // Special handling for Entry Node initial_state - auto-update global state schema
-                if (node.type === "asl/entry" && def.key === "initial_state") {
-                    // Merge initial_state with default schema
-                    const mergedSchema = {
-                        count: "int",
-                        messages: "Annotated[List[BaseMessage], lambda x, y: x + y]",
-                        ...value  // Spread additional state fields
-                    };
-                    
-                    // Update global state schema
-                    appState.schema = mergedSchema;
-                    appState.schemaRaw = JSON.stringify(mergedSchema, null, 2);
-                    stateSchemaTextarea.value = appState.schemaRaw;
-                    
-                    // Update graph extra
-                    graph.extra = graph.extra || {};
-                    graph.extra.stateSchema = mergedSchema;
-                    
-                    showToast("Global state schema updated", "success");
-                }
 
                 // Update node title in UI when title property changes
                 if (def.key === "title") {
@@ -2008,18 +2284,8 @@ function initializeEditor() {
     }
 
     // ---------------------- State Schema ----------------------
-    applyStateBtn.addEventListener("click", () => {
-        try {
-            const parsed = JSON.parse(stateSchemaTextarea.value || "{}");
-            appState.schema = parsed;
-            appState.schemaRaw = stateSchemaTextarea.value;
-            graph.extra = graph.extra || {};
-            graph.extra.stateSchema = parsed;
-            showToast("State schema updated", "success");
-        } catch (err) {
-            showToast("State schema must be valid JSON", "error");
-        }
-    });
+    // State schema is now read-only and auto-updated from Entry node
+    // No manual editing allowed
 
     // ---------------------- Canvas controls (removed from UI) ----------------------
     /*
@@ -2185,9 +2451,10 @@ function initializeEditor() {
     function configureFromASL(asl) {
         graph.clear();
         const { graph: graphData } = asl;
-        appState.schema = graphData?.state?.schema || {};
+        // Normalize schema keys to lowercase
+        appState.schema = normalizeSchemaToLowercase(graphData?.state?.schema || {});
         appState.schemaRaw = JSON.stringify(appState.schema, null, 2);
-        stateSchemaTextarea.value = appState.schemaRaw;
+        renderStateSchemaDisplay();
         appState.entrypointId = null;
 
         // Load tools from graph
@@ -2649,49 +2916,6 @@ function initializeEditor() {
         }
     }
 
-    async function downloadCode() {
-        try {
-            const asl = serializeToASL();
-            const response = await fetch('/submission/download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(asl)
-            });
-            const contentType = response.headers.get('content-type') || '';
-            if (!response.ok) {
-                if (contentType.includes('application/json')) {
-                    const data = await response.json().catch(() => null);
-                    throw new Error(data?.error || `HTTP ${response.status}`);
-                }
-                const text = await response.text().catch(() => '');
-                throw new Error(text || `HTTP ${response.status}`);
-            }
-            if (contentType.includes('application/json')) {
-                const data = await response.json().catch(() => null);
-                throw new Error(data?.error || 'Server returned JSON instead of a downloadable file');
-            }
-            const blob = await response.blob();
-            const disposition = response.headers.get('content-disposition') || '';
-            let filename = 'asl_submission.py';
-            const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
-            if (match && match[1]) {
-                filename = match[1];
-            }
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showToast("Code downloaded", "success");
-        } catch (err) {
-            console.error("Download failed:", err);
-            showToast(`Download failed: ${err.message}`, "error");
-        }
-    }
-
     async function downloadBundle() {
         try {
             if (typeof JSZip === 'undefined') {
@@ -2781,53 +3005,6 @@ Generated: ${new Date().toISOString()}
         }
     }
 
-    async function viewCode() {
-        try {
-            const asl = serializeToASL();
-            const response = await fetch('/compile', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(asl)
-            });
-
-            if (!response.ok) {
-                const contentType = response.headers.get('content-type') || '';
-                let errorMsg = `HTTP ${response.status}`;
-
-                if (contentType.includes('application/json')) {
-                    const errorData = await response.json().catch(() => null);
-                    if (errorData && errorData.error) errorMsg = errorData.error;
-                } else {
-                    const text = await response.text().catch(() => '');
-                    if (text) {
-                        const snippet = text.replace(/\s+/g, ' ').slice(0, 400);
-                        errorMsg += `: ${snippet}`;
-                    }
-                }
-
-                if (response.status === 501) {
-                    errorMsg += ' — Start the Flask backend with `python3 backend/server.py`';
-                }
-
-                document.getElementById('generated-code').textContent = `Compiler error:\n\n${errorMsg}`;
-                document.getElementById('code-modal').style.display = 'flex';
-                throw new Error(errorMsg);
-            }
-
-            const result = await response.json();
-
-            if (result.code) {
-                document.getElementById('generated-code').textContent = result.code;
-                document.getElementById('code-modal').style.display = 'flex';
-            } else {
-                throw new Error('No code returned from compiler');
-            }
-        } catch (err) {
-            showToast(`Failed to generate code: ${err.message}`, "error");
-            console.error("Code generation error:", err);
-        }
-    }
-
     // ---------------------- Dropdown Menu Items ----------------------
     document.querySelectorAll('.dropdown-item').forEach(item => {
         item.addEventListener('click', async (e) => {
@@ -2858,18 +3035,12 @@ Generated: ${new Date().toISOString()}
                 case 'download-layout':
                     downloadLayout();
                     break;
-                case 'download-code':
-                    await downloadCode();
-                    break;
                 case 'download-bundle':
                     await downloadBundle();
                     break;
                 // View actions
                 case 'view-asl':
                     viewASL();
-                    break;
-                case 'view-code':
-                    await viewCode();
                     break;
             }
         });
@@ -2890,9 +3061,10 @@ Generated: ${new Date().toISOString()}
                 } else {
                     graph.configure(data);
                     if (data.extra?.stateSchema) {
-                        appState.schema = data.extra.stateSchema;
+                        // Normalize schema keys to lowercase
+                        appState.schema = normalizeSchemaToLowercase(data.extra.stateSchema);
                         appState.schemaRaw = JSON.stringify(appState.schema, null, 2);
-                        stateSchemaTextarea.value = appState.schemaRaw;
+                        renderStateSchemaDisplay();
                     }
                     updateSummary();
                     showToast("Layout loaded", "success");
@@ -2942,14 +3114,16 @@ Generated: ${new Date().toISOString()}
                 }
                 graph.configure(data);
                 if (data.extra?.stateSchema) {
-                    appState.schema = data.extra.stateSchema;
+                    // Normalize schema keys to lowercase
+                    appState.schema = normalizeSchemaToLowercase(data.extra.stateSchema);
                     appState.schemaRaw = JSON.stringify(appState.schema, null, 2);
-                    stateSchemaTextarea.value = appState.schemaRaw;
+                    renderStateSchemaDisplay();
                 }
                 if (data.config?.state_schema) {
-                    appState.schema = data.config.state_schema;
+                    // Normalize schema keys to lowercase
+                    appState.schema = normalizeSchemaToLowercase(data.config.state_schema);
                     appState.schemaRaw = JSON.stringify(appState.schema, null, 2);
-                    stateSchemaTextarea.value = appState.schemaRaw;
+                    renderStateSchemaDisplay();
                 }
                 updateSummary();
                 showToast("Layout loaded", "success");
@@ -2993,9 +3167,10 @@ Generated: ${new Date().toISOString()}
                     const data = JSON.parse(layoutContent);
                     graph.configure(data);
                     if (data.extra?.stateSchema || data.config?.state_schema) {
-                        appState.schema = data.extra?.stateSchema || data.config?.state_schema;
+                        // Normalize schema keys to lowercase
+                        appState.schema = normalizeSchemaToLowercase(data.extra?.stateSchema || data.config?.state_schema);
                         appState.schemaRaw = JSON.stringify(appState.schema, null, 2);
-                        stateSchemaTextarea.value = appState.schemaRaw;
+                        renderStateSchemaDisplay();
                     }
                     updateSummary();
                     showToast("Bundle imported (Layout)", "success");

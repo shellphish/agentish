@@ -50,7 +50,6 @@
                         <div class="dropdown-menu">
                             <button class="dropdown-item" data-action="download-asl">ASL Specification</button>
                             <button class="dropdown-item" data-action="download-layout">Layout</button>
-                            <button class="dropdown-item" data-action="download-code">Code (Validated)</button>
                             <button class="dropdown-item" data-action="download-bundle">Bundle (Complete)</button>
                         </div>
                     </div>
@@ -61,7 +60,6 @@
                         </button>
                         <div class="dropdown-menu">
                             <button class="dropdown-item" data-action="view-asl">ASL</button>
-                            <button class="dropdown-item" data-action="view-code">Code</button>
                         </div>
                     </div>
                     
@@ -141,9 +139,8 @@
                             <h2>State schema</h2>
                             <p>Shared memory signature available to every node.</p>
                         </header>
-                        <textarea id="state-schema" spellcheck="false"></textarea>
-                        <div class="panel-actions">
-                            <button class="btn btn-outline" id="apply-state">Apply schema</button>
+                        <div id="state-schema-display" class="state-schema-table-wrapper">
+                            <!-- State schema table will be rendered here -->
                         </div>
                     </section>
 
