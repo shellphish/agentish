@@ -15,7 +15,17 @@ Agentish is the frontend UI for building AI agent workflows. It provides:
 
 ### Frontend
 - `frontend/index.html` - Main visual editor UI
-- `frontend/asl_editor.js` - Editor logic and graph manipulation
+- `frontend/js/` - Modular editor logic (ES modules)
+  - `main.js` - Entry point & editor bootstrap
+  - `constants.js` - Configuration, node forms, type maps
+  - `state.js` - Shared mutable state (graph, canvas, tools)
+  - `utils.js` - Toast notifications, schema helpers, graph summary
+  - `nodes.js` - Node type definitions & registration
+  - `inspector.js` - Property inspector panel rendering
+  - `serialization.js` - ASL import/export & layout I/O
+  - `tools.js` - Tool registry, function catalog, MCP hydration
+  - `ui.js` - Event bindings (keyboard, menus, modals, imports)
+  - `litegraph-patches.js` - Custom rendering patches for LiteGraph
 - `frontend/styles.css` - Styling
 - `frontend/litegraph.css` + `litegraph.min.js` - Graph visualization library
 
