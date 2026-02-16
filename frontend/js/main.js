@@ -9,7 +9,7 @@
 import { ASL_DEBUG } from './constants.js';
 import { state } from './state.js';
 import { renderStateSchemaDisplay, updateSummary } from './utils.js';
-import { patchConnectionArrows, patchNodeRendering, patchContextMenu } from './litegraph-patches.js';
+import { patchConnectionArrows, patchNodeRendering, patchContextMenu, patchCanvasGrid } from './litegraph-patches.js';
 import { registerNodeTypes, ensureSingleEntry } from './nodes.js';
 import { renderEmptyInspector, renderInspector } from './inspector.js';
 import { renderToolList, renderFunctionCatalog, hydrateMcpTools } from './tools.js';
@@ -30,6 +30,7 @@ function initializeEditor() {
     patchConnectionArrows();
     patchNodeRendering();
     patchContextMenu();
+    patchCanvasGrid();
 
     try {
         // ---- Create graph & canvas ----

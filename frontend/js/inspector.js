@@ -95,6 +95,52 @@ function renderListField(def, node, wrapper) {
     wrapper.appendChild(inputRow);
 }
 
+// ---------------------- Tool Drop List (drag-only, no text input) ----------------------
+
+function renderToolDropList(def, node, wrapper) {
+    const list = Array.isArray(node.properties?.[def.key])
+        ? [...node.properties[def.key]]
+        : [];
+
+    const pillContainer = document.createElement("div");
+    pillContainer.className = "list-pill-container";
+
+    function commit(newList) {
+        node.properties[def.key] = newList;
+        state.graph.setDirtyCanvas(true, true);
+        renderInspector(node);
+    }
+
+    function renderPills(values) {
+        pillContainer.innerHTML = "";
+        values.forEach((value, index) => {
+            const pill = document.createElement("span");
+            pill.className = "list-pill";
+            pill.textContent = value;
+            const removeBtn = document.createElement("button");
+            removeBtn.type = "button";
+            removeBtn.textContent = "\u00d7";
+            removeBtn.title = "Remove";
+            removeBtn.addEventListener("click", () => {
+                const updated = values.filter((_, i) => i !== index);
+                commit(updated);
+            });
+            pill.appendChild(removeBtn);
+            pillContainer.appendChild(pill);
+        });
+    }
+
+    renderPills(list);
+    wrapper.appendChild(pillContainer);
+
+    if (list.length === 0) {
+        const hint = document.createElement("small");
+        hint.className = "tool-drop-hint";
+        hint.textContent = "Drag tools from the Function Catalog onto the node to add them.";
+        wrapper.appendChild(hint);
+    }
+}
+
 // ---------------------- Output Schema Table ----------------------
 
 function renderOutputSchemaTable(def, node, wrapper) {
@@ -622,6 +668,7 @@ export function renderInspector(node) {
         let input;
 
         // Delegate to specialised renderers
+        if (def.type === "tool_drop_list") { renderToolDropList(def, node, wrapper); form.appendChild(wrapper); return; }
         if (def.type === "list") { renderListField(def, node, wrapper); form.appendChild(wrapper); return; }
         if (def.type === "output_schema_table") { renderOutputSchemaTable(def, node, wrapper); form.appendChild(wrapper); return; }
         if (def.type === "initial_state_table") { renderInitialStateTable(def, node, wrapper); form.appendChild(wrapper); return; }

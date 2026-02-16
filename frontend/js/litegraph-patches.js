@@ -185,9 +185,73 @@ export function patchContextMenu() {
     }
 
     const proto = LGraphCanvas.prototype;
+
+    // Disable canvas (background) right-click menu
     proto.getCanvasMenuOptions = function () {
         return null;
     };
 
+    // Strip unwanted items from the node right-click menu
+    const _hiddenItems = new Set(["Mode", "Pin", "Colors", "Shapes"]);
+    const originalGetNodeMenuOptions = proto.getNodeMenuOptions;
+    proto.getNodeMenuOptions = function (node) {
+        const options = originalGetNodeMenuOptions.call(this, node);
+        if (!Array.isArray(options)) return options;
+        return options.filter(opt => {
+            if (opt === null) return true;               // separators
+            return !_hiddenItems.has(opt.content);
+        });
+    };
+
     proto._aslContextMenuPatched = true;
+}
+
+/**
+ * Draws a subtle dot-grid on the canvas background so users have
+ * spatial orientation even when zoomed/panned.
+ */
+export function patchCanvasGrid() {
+    if (!window.LGraphCanvas || window.LGraphCanvas.prototype._aslGridPatched) {
+        return;
+    }
+
+    const proto = LGraphCanvas.prototype;
+    const originalDrawBackCanvas = proto.drawBackCanvas;
+
+    proto.drawBackCanvas = function () {
+        originalDrawBackCanvas.call(this);
+
+        const ctx = this.bgcanvas.getContext('2d');
+        if (!ctx) return;
+
+        const scale = this.ds.scale;
+        if (scale < 0.25) return; // skip when zoomed way out
+
+        const spacing = 24;
+        const offset = this.ds.offset;
+        const w = this.bgcanvas.width;
+        const h = this.bgcanvas.height;
+
+        const startX = (offset[0] * scale) % (spacing * scale);
+        const startY = (offset[1] * scale) % (spacing * scale);
+        const step = spacing * scale;
+
+        const dotSize = Math.max(0.6, scale * 0.8);
+        const alpha = Math.min(0.3, scale * 0.25);
+
+        ctx.save();
+        ctx.fillStyle = `rgba(148, 163, 184, ${alpha})`;
+
+        for (let x = startX; x < w; x += step) {
+            for (let y = startY; y < h; y += step) {
+                ctx.beginPath();
+                ctx.arc(x, y, dotSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        ctx.restore();
+    };
+
+    proto._aslGridPatched = true;
 }

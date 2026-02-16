@@ -90,9 +90,8 @@ export const NODE_FORMS = {
         {
             key: "selected_tools",
             label: "Selected tools",
-            type: "list",
-            placeholder: "Drag functions from catalog",
-            description: "Tools that this LLM can use"
+            type: "tool_drop_list",
+            description: "Drag tools from the Function Catalog to add them"
         },
         {
             key: "max_tool_iterations",
@@ -132,9 +131,8 @@ export const NODE_FORMS = {
         {
             key: "selected_tools",
             label: "Selected tools",
-            type: "list",
-            placeholder: "Drag functions from catalog",
-            description: "Tools that this worker can use"
+            type: "tool_drop_list",
+            description: "Drag tools from the Function Catalog to add them"
         },
         {
             key: "max_tool_iterations",

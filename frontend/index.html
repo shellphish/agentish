@@ -112,7 +112,7 @@
                             <p>Drag functions to Tool Nodes</p>
                         </div>
                         <div class="section-body">
-                        <div id="function-catalog" style="max-height: 300px; overflow-y: auto;">
+                        <div id="function-catalog">
                             <!-- Function items will be populated here -->
                         </div>
                         </div>
@@ -123,7 +123,7 @@
                             <h2>🛠️ Tool Registry <span class="section-chevron">▼</span></h2>
                         </div>
                         <div class="section-body">
-                        <button class="btn btn-sm btn-primary" id="new-tool-btn" style="margin-top: 0.5em;">+ New Tool</button>
+                        <button class="btn btn-sm btn-primary" id="new-tool-btn">+ New Tool</button>
                         <div id="tool-list">
                             <!-- Tools will be populated here -->
                         </div>
@@ -205,9 +205,9 @@
                     <div class="submit-step-details"></div>
                 </div>
 
-                <div id="bundle-info" class="hidden" style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; border: 1px solid #0ea5e9;">
-                    <p style="margin: 0; color: #0369a1; font-size: 14px;">
-                        <strong>Bundle ready!</strong> Upload to the sandbox at <a href="http://localhost:8001" target="_blank" style="color: #0284c7;">http://localhost:8001</a> to execute.
+                <div id="bundle-info" class="hidden bundle-info-box">
+                    <p>
+                        <strong>Bundle ready!</strong> Upload to the sandbox at <a href="http://localhost:8001" target="_blank">http://localhost:8001</a> to execute.
                     </p>
                 </div>
             </div>
@@ -239,7 +239,7 @@
         </div>
 
         <!-- Tool Editor Modal -->
-        <div id="tool-editor-modal" class="modal-generic-overlay" style="z-index: 10001;">
+        <div id="tool-editor-modal" class="modal-generic-overlay">
             <div class="modal-generic-panel modal-narrow">
                 <button id="close-tool-editor" class="modal-generic-close">&times;</button>
                 <h2>✨ Create Custom Tool</h2>
@@ -260,7 +260,7 @@
                     <div id="tool-arguments">
                         <!-- Arguments will be added here -->
                     </div>
-                    <button id="add-argument-btn" class="btn-add-field" style="margin-top: 10px;">+ Add Argument</button>
+                    <button id="add-argument-btn" class="btn-add-field">+ Add Argument</button>
                 </div>
 
                 <div class="tool-editor-field">
@@ -274,14 +274,14 @@
                         <option value="">Select a template...</option>
                         <option value="addition">Addition Example</option>
                     </select>
-                    <div style="margin-top: 8px;">
-                        <button id="validate-syntax-btn" class="modal-btn modal-btn-primary" style="padding: 6px 12px; font-size: 13px;">Validate Syntax</button>
+                    <div class="validate-syntax-wrapper">
+                        <button id="validate-syntax-btn" class="modal-btn modal-btn-primary btn-validate-syntax">Validate Syntax</button>
                     </div>
-                    <textarea id="tool-implementation" class="mono-input tall-input" placeholder="def tool_implementation(...):" style="margin-top: 10px;"></textarea>
+                    <textarea id="tool-implementation" class="mono-input tall-input" placeholder="def tool_implementation(...):"></textarea>
                     <div id="syntax-feedback" class="syntax-feedback"></div>
                 </div>
 
-                <div class="modal-btn-row" style="justify-content: flex-end;">
+                <div class="modal-btn-row modal-btn-row--end">
                     <button id="cancel-tool-btn" class="modal-btn modal-btn-ghost">Cancel</button>
                     <button id="save-tool-btn" class="modal-btn modal-btn-primary">Save Tool</button>
                 </div>

@@ -1624,3 +1624,111 @@ input[type="checkbox"] {
     bottom: 0;
   }
 }
+
+/* ===== Inline-style replacements (moved from HTML) ===== */
+#function-catalog {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+#new-tool-btn {
+  margin-top: 0.5em;
+}
+
+.bundle-info-box {
+  margin-top: 20px;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+#tool-editor-modal {
+  z-index: 10001;
+}
+
+#add-argument-btn {
+  margin-top: 10px;
+}
+
+.validate-syntax-wrapper {
+  margin-top: 8px;
+}
+
+.btn-validate-syntax {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+#tool-implementation {
+  margin-top: 10px;
+}
+
+.modal-btn-row--end {
+  justify-content: flex-end;
+}
+
+/* ===== Tool drop-list (drag-only, no text input) ===== */
+.tool-drop-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+/* ===== Inspector scroll feedback ===== */
+.inspector {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-panel-elevated) transparent;
+  --scroll-shadow-size: 16px;
+  background:
+    linear-gradient(var(--bg-panel) 30%, transparent) center top,
+    linear-gradient(transparent, var(--bg-panel) 70%) center bottom,
+    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.25), transparent) center top,
+    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.25), transparent) center bottom;
+  background-repeat: no-repeat;
+  background-size:
+    100% 40px,
+    100% 40px,
+    100% var(--scroll-shadow-size),
+    100% var(--scroll-shadow-size);
+  background-attachment: local, local, scroll, scroll;
+}
+
+.inspector::-webkit-scrollbar {
+  width: 6px;
+}
+
+.inspector::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.inspector::-webkit-scrollbar-thumb {
+  background: var(--bg-panel-elevated);
+  border-radius: 3px;
+}
+
+.inspector::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-accent-strong);
+}
+
+#node-properties {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-panel-elevated) transparent;
+}
+
+#node-properties::-webkit-scrollbar {
+  width: 5px;
+}
+
+#node-properties::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#node-properties::-webkit-scrollbar-thumb {
+  background: var(--bg-panel-elevated);
+  border-radius: 3px;
+}
+
+#node-properties::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-accent-strong);
+}
