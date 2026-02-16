@@ -3,7 +3,7 @@ Agentish UI Server (UI-Only)
 
 This is the minimal server for the Agentish visual workflow editor.
 It provides:
-- Frontend serving (index.html, asl_editor.js, etc.)
+- Frontend serving (index.html, js/ modules, etc.)
 - MCP tool catalog from challengish.yml
 - Bundle download (ZIP with layout.json + asl.json)
 
