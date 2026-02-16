@@ -1,21 +1,20 @@
 """
 MCP Manager for Multi-Server Support
 Manages multiple MCP servers and aggregates tool definitions.
+
+NOTE: This module is not currently used by the UI server
+(server_agentish.py parses challengish.yml directly). It is
+kept for future use when a full compiler pipeline is present.
 """
 
-import sys
-import os
 import logging
 import requests
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Protocol
 
-# Add compiler to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'compiler'))
 
-try:
-    from compiler.config_parser import ConfigParser
-except ImportError:
-    from config_parser import ConfigParser
+class ConfigParser(Protocol):
+    """Minimal interface expected from a config parser."""
+    def get_mcp_servers(self) -> List[Dict[str, Any]]: ...
 
 logger = logging.getLogger(__name__)
 
