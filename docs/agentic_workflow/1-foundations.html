@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 1: Foundations | Agentic Workflow | Agentish</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentic Workflow Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 1</span> Foundations</h1>
+            <p class="tagline">What is an agentic workflow and why does it matter?</p>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- WHAT IS AN AGENT?                                               -->
+        <!-- ============================================================== -->
+        <h2>What Is an Agent?</h2>
+
+        <p>
+            Before we talk about workflows, we need to define the word <em>agent</em>.
+            In the context of AI, an agent is a program that:
+        </p>
+
+        <ol class="features">
+            <li><strong>Perceives</strong> &mdash; It receives input from its environment. This might be a text prompt, a file, a security alert, or data from a sensor.</li>
+            <li><strong>Reasons</strong> &mdash; It processes that input and decides what to do. In modern AI agents, this reasoning is performed by a Large Language Model (LLM) like GPT-4 or Claude.</li>
+            <li><strong>Acts</strong> &mdash; It takes action based on its reasoning. Actions might include generating text, calling an API, running code, or querying a database.</li>
+        </ol>
+
+        <img src="images/core_agent_loop.png" alt="The Core Agent Loop — Perceive, Reason, Act cycle with the LLM at the center" class="illustration img-agent-loop">
+
+        <p>
+            A simple chatbot is an agent: it perceives your message, reasons about a response,
+            and acts by replying. But chatbots are limited. They can only generate text.
+            A more powerful agent can also <strong>use tools</strong> &mdash; it can call functions,
+            access databases, execute code, and interact with the outside world.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Concrete Example</div>
+            <p>
+                Consider a security analyst who receives an alert: &ldquo;Suspicious outbound connection
+                from server-42 to 203.0.113.99 on port 4444.&rdquo;
+            </p>
+            <p>
+                A <strong>human analyst</strong> would: read the alert, check the IP reputation,
+                look at firewall logs, check if the port is associated with known malware,
+                and write a report. That&rsquo;s perceive → reason → act.
+            </p>
+            <p>
+                An <strong>AI agent</strong> does the same thing: it receives the alert text (perceive),
+                the LLM decides it needs to check the IP reputation (reason), and it calls a
+                <code>check_ip_reputation</code> tool to query a threat intelligence database (act).
+                Then it takes the result, reasons about what else it needs, and continues until
+                it has enough information to write a report.
+            </p>
+        </div>
+
+        <h3>Why Not Just Use One Agent?</h3>
+
+        <p>
+            If a single agent can perceive, reason, and act, why would you ever need more
+            than one? For the same reason a company doesn&rsquo;t have one employee doing everything:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Limitation</th><th>What Happens</th><th>Multi-Agent Solution</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Context window</strong></td>
+                    <td>A single agent&rsquo;s prompt grows with every tool call and observation. After 50+ interactions, the LLM may lose track of earlier information or exceed its token limit.</td>
+                    <td>Split the task across agents. Each agent has a fresh, focused context.</td>
+                </tr>
+                <tr>
+                    <td><strong>Specialization</strong></td>
+                    <td>A single prompt that says &ldquo;you are an expert in malware analysis, network forensics, incident response, and report writing&rdquo; is weaker than four focused prompts.</td>
+                    <td>Give each agent a single, well-defined role with a precise prompt.</td>
+                </tr>
+                <tr>
+                    <td><strong>Tool overload</strong></td>
+                    <td>LLMs get confused when given too many tools. Research shows accuracy drops as the number of available tools increases.</td>
+                    <td>Give each agent only the 2&ndash;5 tools it needs for its specific task.</td>
+                </tr>
+                <tr>
+                    <td><strong>Reliability</strong></td>
+                    <td>A single agent making all decisions is a single point of failure. If it makes a wrong choice early, everything downstream is wrong.</td>
+                    <td>Multiple agents can check each other&rsquo;s work, vote on answers, or provide fallback paths.</td>
+                </tr>
+                <tr>
+                    <td><strong>Speed</strong></td>
+                    <td>A single agent must work sequentially. It can&rsquo;t analyze a binary AND check network logs at the same time.</td>
+                    <td>Parallel agents can work simultaneously on independent tasks.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="callout callout-key">
+            <strong>The key insight:</strong> Multi-agent workflows aren&rsquo;t inherently better than
+            single agents. They&rsquo;re a tool for managing <em>complexity</em>. If your task fits
+            in one prompt with a few tools, use one agent. The moment you start feeling the
+            limitations above, that&rsquo;s when you decompose into multiple agents.
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- WHAT IS AN AGENTIC WORKFLOW?                                    -->
+        <!-- ============================================================== -->
+        <h2>What Is an Agentic Workflow?</h2>
+
+        <p>
+            An agentic workflow is a <strong>system of multiple agents working together</strong>
+            to accomplish a goal that a single agent couldn&rsquo;t handle well alone. But
+            &ldquo;working together&rdquo; is vague. How exactly do multiple agents coordinate?
+        </p>
+
+        <p>
+            There are many ways to describe this, but we think one mental model captures
+            everything:
+        </p>
+
+        <div class="callout callout-key">
+            <strong>The One Idea:</strong>
+            An agentic workflow is a <em>directed graph</em>.
+            <strong>Nodes</strong> are agents.
+            <strong>Edges</strong> are information channels.
+            Everything else &mdash; routing, data passing, iteration, error handling &mdash;
+            is configuration of nodes, edges, or the graph&rsquo;s execution semantics.
+        </div>
+
+        <p>
+            That&rsquo;s it. This mental model will carry you through the entire guide.
+            Let&rsquo;s make it concrete.
+        </p>
+
+        <h3>The Graph Metaphor, Explained</h3>
+
+        <p>
+            If you&rsquo;ve ever drawn a flowchart, you already understand this. A
+            <strong>directed graph</strong> is a set of boxes (nodes) connected by arrows (edges).
+            The arrows have a direction: they point from one box to another.
+        </p>
+
+        <img src="images/simple_directed_graph.png" alt="Simple Directed Graph (Pipeline) — Agent A flows to Agent B flows to Agent C" class="illustration img-pipeline">
+
+        <p>
+            Now let&rsquo;s name the parts:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Graph Concept</th><th>In an Agentic Workflow</th><th>Example</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Node</strong></td>
+                    <td>An agent &mdash; a unit that takes input, reasons about it, and produces output.</td>
+                    <td>An LLM with a system prompt and tools that analyzes malware.</td>
+                </tr>
+                <tr>
+                    <td><strong>Edge</strong></td>
+                    <td>A connection between two agents that carries data from one to the next.</td>
+                    <td>The arrow from &ldquo;Analyzer&rdquo; to &ldquo;Responder&rdquo; that carries the analysis results.</td>
+                </tr>
+                <tr>
+                    <td><strong>Entry point</strong></td>
+                    <td>Where execution begins. The first node in the graph.</td>
+                    <td>The node that receives the initial input (e.g., a security alert).</td>
+                </tr>
+                <tr>
+                    <td><strong>Terminal node</strong></td>
+                    <td>Where execution ends. The node whose output is the final result.</td>
+                    <td>The node that produces the final report or submits a flag.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Why a Graph?</h3>
+
+        <p>
+            You might wonder: why specifically a <em>graph</em>? Why not a script, a pipeline,
+            or a state machine? Because graphs are general enough to express any coordination
+            pattern:
+        </p>
+
+        <ul class="features">
+            <li>A <strong>script</strong> (do step 1, then step 2, then step 3) is a graph with no branches &mdash; a straight line.</li>
+            <li>A <strong>pipeline</strong> (A → B → C) is a linear graph.</li>
+            <li>An <strong>if/else</strong> (if malware → handle malware, else → handle false positive) is a graph with a branch.</li>
+            <li>A <strong>loop</strong> (try, check, retry) is a graph with a back-edge.</li>
+            <li><strong>Parallel execution</strong> (analyze three things simultaneously) is a graph with a fan-out and fan-in.</li>
+        </ul>
+
+        <p>
+            Every coordination pattern you could possibly want is expressible as a graph.
+            That&rsquo;s why frameworks like <strong>LangGraph</strong> (which Agentish compiles to)
+            use graphs as their core abstraction.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- FOUR DESIGN DIMENSIONS                                          -->
+        <!-- ============================================================== -->
+        <h2>The Four Design Dimensions</h2>
+
+        <p>
+            Given that a workflow is a graph, every design decision falls into exactly one
+            of four categories. These are the four questions you answer when you design
+            any agentic workflow:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>#</th><th>Dimension</th><th>Question</th><th>Chapter</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td><strong>Node configuration</strong></td>
+                    <td>What does each agent do? What LLM, prompt, and tools does it use?</td>
+                    <td><a href="2-the-agent.html">Chapter 2</a></td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td><strong>Topology</strong></td>
+                    <td>How many agents are there, and how are they connected?</td>
+                    <td><a href="3-workflow-topology.html">Chapter 3</a></td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td><strong>Control flow</strong></td>
+                    <td>In what order do agents run? What decides the path?</td>
+                    <td><a href="4-control-flow.html">Chapter 4</a></td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td><strong>Information flow</strong></td>
+                    <td>What data moves along the edges? How much does each agent see?</td>
+                    <td><a href="5-information-flow.html">Chapter 5</a></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>
+            Chapters 6 and 7 cover cross-cutting concerns (error handling, output aggregation)
+            that apply to all four dimensions.
+        </p>
+
+        <div class="callout">
+            <strong>Why this framework matters:</strong> When you read blog posts or papers about
+            multi-agent systems, you&rsquo;ll encounter dozens of terms &mdash; &ldquo;sequential
+            decomposition,&rdquo; &ldquo;role-based specialization,&rdquo; &ldquo;hierarchical delegation,&rdquo;
+            &ldquo;blackboard architecture.&rdquo; These sound like different things, but they&rsquo;re
+            all just choices in one of the four dimensions above. Once you see that,
+            the entire field becomes much simpler to navigate.
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- RUNNING EXAMPLE                                                 -->
+        <!-- ============================================================== -->
+        <h2>Our Running Example: Security Alert Triage</h2>
+
+        <p>
+            Throughout this guide, we&rsquo;ll build a <strong>Security Alert Triage System</strong>.
+            Let&rsquo;s start with the simplest version and grow it chapter by chapter.
+        </p>
+
+        <h3>The Problem</h3>
+        <p>
+            A security operations center (SOC) receives hundreds of alerts per day.
+            Each alert needs to be:
+        </p>
+        <ol class="features">
+            <li><strong>Classified</strong> &mdash; What kind of alert is this? (malware, intrusion, misconfiguration, false positive)</li>
+            <li><strong>Assessed</strong> &mdash; How severe is it? (critical, high, medium, low)</li>
+            <li><strong>Investigated</strong> &mdash; What additional context is needed? (check IP reputation, examine logs, analyze binary)</li>
+            <li><strong>Responded to</strong> &mdash; What action should be taken? (block IP, quarantine file, escalate to human)</li>
+        </ol>
+
+        <h3>Version 0: One Agent</h3>
+
+        <p>
+            The simplest possible solution: one agent that does everything.
+        </p>
+
+        <img src="images/version0.png" alt="Version 0: The Single Agent Problem — too many tools, confused LLM, bloated context window" class="illustration img-version0">
+
+        <p>
+            This works for simple alerts. But as we discussed, it hits limitations quickly:
+            the prompt is too broad, 8 tools confuse the LLM, and the context window fills
+            up during complex investigations. In <a href="2-the-agent.html">Chapter 2</a>,
+            we&rsquo;ll configure a single agent properly. In <a href="3-workflow-topology.html">Chapter 3</a>,
+            we&rsquo;ll decompose it into specialized agents.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- HOW AGENTISH FITS IN                                            -->
+        <!-- ============================================================== -->
+        <h2>How Agentish Fits In</h2>
+
+        <p>
+            Agentish is a <strong>visual workflow compiler</strong>. Here&rsquo;s what that means:
+        </p>
+
+        <ol class="features">
+            <li><strong>Visual</strong> &mdash; You design your workflow by dragging nodes onto a canvas and connecting them with edges. No code required for the design phase.</li>
+            <li><strong>Workflow</strong> &mdash; What you design is the graph we&rsquo;ve been discussing: nodes (agents), edges (connections), and their configuration.</li>
+            <li><strong>Compiler</strong> &mdash; When you&rsquo;re done designing, Agentish <em>compiles</em> your visual graph into executable Python code. Specifically, it generates <strong>LangGraph</strong> code &mdash; a production-grade framework for running agent graphs.</li>
+        </ol>
+
+        <div class="code-block"><code><span class="comment"># The Agentish pipeline:</span>
+
+  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+  │   Visual    │      │     ASL     │      │  LangGraph  │
+  │   Editor    │─────▶│    JSON     │─────▶│   Python    │
+  │  (Canvas)   │      │   (Spec)    │      │   (Code)    │
+  └─────────────┘      └─────────────┘      └─────────────┘
+    You design           Intermediate         Executable
+    the graph            representation       agent system</code></div>
+
+        <p>
+            The intermediate format is called <strong>ASL</strong> (Agent Specification Language) &mdash;
+            a JSON file that fully describes your workflow. You don&rsquo;t usually edit ASL directly;
+            the visual editor generates it. But understanding ASL helps you understand what
+            Agentish is doing under the hood.
+        </p>
+
+        <h3>Key Agentish Concepts</h3>
+
+        <p>
+            Here&rsquo;s a quick preview of the Agentish primitives we&rsquo;ll cover in detail
+            throughout the guide:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Agentish Primitive</th><th>What It Is</th><th>Chapter</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>LLM Node</strong></td>
+                    <td>An agent powered by an LLM. The fundamental building block.</td>
+                    <td><a href="2-the-agent.html">Ch. 2</a></td>
+                </tr>
+                <tr>
+                    <td><strong>Entry Point</strong></td>
+                    <td>Where execution starts. Every workflow has exactly one.</td>
+                    <td><a href="3-workflow-topology.html">Ch. 3</a></td>
+                </tr>
+                <tr>
+                    <td><strong>Router Node</strong></td>
+                    <td>An LLM-powered decision maker that sends execution down one of N paths.</td>
+                    <td><a href="3-workflow-topology.html">Ch. 3</a>, <a href="4-control-flow.html">Ch. 4</a></td>
+                </tr>
+                <tr>
+                    <td><strong>Worker Node</strong></td>
+                    <td>A subtask agent that does work and returns results to its caller.</td>
+                    <td><a href="3-workflow-topology.html">Ch. 3</a></td>
+                </tr>
+                <tr>
+                    <td><strong>Tool Node</strong></td>
+                    <td>Executes tool calls requested by an LLM Node. Handles the LLM ↔ Tool loop.</td>
+                    <td><a href="2-the-agent.html">Ch. 2</a>, <a href="4-control-flow.html">Ch. 4</a></td>
+                </tr>
+                <tr>
+                    <td><strong>NormalEdge</strong></td>
+                    <td>A direct connection: &ldquo;after A finishes, always go to B.&rdquo;</td>
+                    <td><a href="3-workflow-topology.html">Ch. 3</a></td>
+                </tr>
+                <tr>
+                    <td><strong>ConditionalEdge</strong></td>
+                    <td>A branching connection from a Router Node to one of N targets.</td>
+                    <td><a href="3-workflow-topology.html">Ch. 3</a>, <a href="4-control-flow.html">Ch. 4</a></td>
+                </tr>
+                <tr>
+                    <td><strong>GlobalState</strong></td>
+                    <td>A single shared data store that all nodes read from and write to.</td>
+                    <td><a href="5-information-flow.html">Ch. 5</a></td>
+                </tr>
+                <tr>
+                    <td><strong>Command</strong></td>
+                    <td>The object every node returns: &ldquo;update this state, then go to this node.&rdquo;</td>
+                    <td><a href="4-control-flow.html">Ch. 4</a>, <a href="5-information-flow.html">Ch. 5</a></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>
+            Don&rsquo;t worry about memorizing these now. Each chapter introduces the relevant
+            primitives in context, with examples.
+        </p>
+
+        <div class="screenshot-placeholder">
+            <div class="screenshot-icon">📸</div>
+            <p>Screenshot: The Agentish visual editor canvas showing a simple workflow with Entry Point, LLM Node, Router Node, and two downstream LLM Nodes</p>
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- WHAT YOU NEED                                                   -->
+        <!-- ============================================================== -->
+        <h2>What You Need to Know Before Starting</h2>
+
+        <p>
+            This guide assumes no prior experience with agentic workflows, multi-agent systems,
+            or LangGraph. However, it does assume:
+        </p>
+
+        <ul class="features">
+            <li><strong>Basic understanding of LLMs</strong> &mdash; You know that models like GPT-4 and Claude take text input and produce text output. You don&rsquo;t need to understand transformers or training.</li>
+            <li><strong>Familiarity with prompts</strong> &mdash; You&rsquo;ve written prompts before (e.g., &ldquo;Summarize this text&rdquo;). You know that prompt wording affects output quality.</li>
+            <li><strong>Basic programming concepts</strong> &mdash; You can read simple Python-like pseudocode. You understand functions, dictionaries, and lists.</li>
+        </ul>
+
+        <p>
+            If you&rsquo;re familiar with concepts like function calling / tool use in LLMs,
+            that&rsquo;s helpful but not required. We explain tool use from scratch in
+            <a href="2-the-agent.html">Chapter 2</a>.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- SUMMARY                                                         -->
+        <!-- ============================================================== -->
+        <h2>Chapter Summary</h2>
+
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>An <strong>agent</strong> is a program that perceives input, reasons about it (using an LLM), and takes action.</li>
+                <li>A single agent hits limits (context window, tool overload, specialization) as tasks get complex.</li>
+                <li>An <strong>agentic workflow</strong> is a graph of agents working together &mdash; nodes are agents, edges are data channels.</li>
+                <li>Every design decision maps to one of four dimensions: <strong>node config</strong>, <strong>topology</strong>, <strong>control flow</strong>, or <strong>information flow</strong>.</li>
+                <li><strong>Agentish</strong> lets you design these graphs visually and compiles them to executable LangGraph Python code.</li>
+            </ul>
+        </div>
+
+        <!-- Navigation -->
+        <div class="chapter-nav">
+            <div></div>
+            <a href="2-the-agent.html" class="chapter-nav-next">
+                Chapter 2: The Agent &rarr;
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

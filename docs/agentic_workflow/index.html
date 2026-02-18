@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Workflow — A Complete Guide | Agentish</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="../documentation.html">&larr; Back to Documentation</a></p>
+
+        <section class="hero" style="padding: 2rem 0 2rem;">
+            <h1>Agentic Workflow</h1>
+            <p class="tagline">A Complete Guide &mdash; from First Principles to Agentish</p>
+            <p class="description">
+                This guide teaches you how to design, build, and reason about agentic
+                workflows from scratch. It&rsquo;s structured as a book &mdash; each chapter builds
+                on the one before, taking you from the fundamental building blocks to
+                production-ready multi-agent systems. Every concept is mapped to concrete
+                Agentish primitives so you can build real systems as you learn.
+            </p>
+        </section>
+
+        <h2>How to Read This Guide</h2>
+        <p>
+            Start at Chapter 1 and work your way through in order. Each chapter introduces
+            one layer of complexity. By the end you&rsquo;ll be able to design any agentic
+            workflow and implement it in Agentish.
+        </p>
+
+        <div class="callout callout-key">
+            <strong>Running Example:</strong> Throughout the guide we build a <em>Security Alert
+            Triage System</em> &mdash; an automated pipeline that receives security alerts,
+            classifies them, and dispatches specialized agents to investigate and respond.
+            Each chapter extends this example with the concepts it introduces.
+        </div>
+
+        <h2>Chapters</h2>
+        <div class="chapter-list">
+            <a href="1-foundations.html" class="chapter-card">
+                <div class="chapter-number">1</div>
+                <div class="chapter-content">
+                    <h3>Foundations</h3>
+                    <p>
+                        What is an agentic workflow? Why use multiple agents? The graph mental
+                        model that underpins everything. Start here.
+                    </p>
+                </div>
+            </a>
+            <a href="2-the-agent.html" class="chapter-card">
+                <div class="chapter-number">2</div>
+                <div class="chapter-content">
+                    <h3>The Agent</h3>
+                    <p>
+                        The atomic unit of every workflow. How to configure a single agent:
+                        choosing a model, writing effective prompts, assigning tools, and
+                        understanding reasoning strategies.
+                    </p>
+                </div>
+            </a>
+            <a href="3-workflow-topology.html" class="chapter-card">
+                <div class="chapter-number">3</div>
+                <div class="chapter-content">
+                    <h3>Workflow Topology</h3>
+                    <p>
+                        How to connect agents into a graph. Six canonical topologies &mdash;
+                        single agent, pipeline, fan-out, router, hierarchy, and cyclic &mdash;
+                        with tradeoffs and decision guides.
+                    </p>
+                </div>
+            </a>
+            <a href="4-control-flow.html" class="chapter-card">
+                <div class="chapter-number">4</div>
+                <div class="chapter-content">
+                    <h3>Control Flow</h3>
+                    <p>
+                        How execution moves through the graph at runtime. Static, conditional,
+                        iterative, and event-driven patterns. The Command pattern in Agentish.
+                    </p>
+                </div>
+            </a>
+            <a href="5-information-flow.html" class="chapter-card">
+                <div class="chapter-number">5</div>
+                <div class="chapter-content">
+                    <h3>Information Flow</h3>
+                    <p>
+                        What data moves between agents and how. Pass-through, summarized,
+                        scoped, shared state, and structured patterns. Deep dive into
+                        Agentish&rsquo;s GlobalState, reducers, and template variables.
+                    </p>
+                </div>
+            </a>
+            <a href="6-validation.html" class="chapter-card">
+                <div class="chapter-number">6</div>
+                <div class="chapter-content">
+                    <h3>Validation &amp; Error Handling</h3>
+                    <p>
+                        Making workflows robust. Validation strategies, failure recovery
+                        patterns, tool iteration limits, and building fault-tolerant
+                        multi-agent systems.
+                    </p>
+                </div>
+            </a>
+            <a href="7-output.html" class="chapter-card">
+                <div class="chapter-number">7</div>
+                <div class="chapter-content">
+                    <h3>Output &amp; Putting It All Together</h3>
+                    <p>
+                        Aggregating results from multiple agents. Bringing every concept
+                        together in a complete end-to-end CTF binary challenge workflow.
+                    </p>
+                </div>
+            </a>
+        </div>
+
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

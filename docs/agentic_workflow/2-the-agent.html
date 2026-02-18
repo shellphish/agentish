@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 2: The Agent | Agentic Workflow | Agentish</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentic Workflow Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 2</span> The Agent</h1>
+            <p class="tagline">Configuring the atomic unit of every workflow</p>
+        </section>
+
+        <p>
+            Before you build a multi-agent workflow, you need to master the building block:
+            a single agent. A poorly configured agent in a multi-agent system is like a
+            weak link in a chain &mdash; it degrades the whole system. This chapter teaches
+            you how to configure an agent properly.
+        </p>
+
+        <p>
+            In Agentish, a single agent is an <strong>LLM Node</strong>. Every LLM Node has
+            exactly four configuration surfaces. Getting these right is the highest-leverage
+            thing you can do.
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Config Surface</th><th>Question It Answers</th><th>Examples</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Model</strong></td>
+                    <td>What LLM powers this agent?</td>
+                    <td>GPT-4o, Claude 3.5 Sonnet, Llama 3, a local model</td>
+                </tr>
+                <tr>
+                    <td><strong>Instructions</strong></td>
+                    <td>What does this agent know and focus on?</td>
+                    <td>System prompt defining role, domain, constraints, output format</td>
+                </tr>
+                <tr>
+                    <td><strong>Tools</strong></td>
+                    <td>What can this agent <em>do</em> in the world?</td>
+                    <td>API calls, code execution, file access, database queries</td>
+                </tr>
+                <tr>
+                    <td><strong>Reasoning Strategy</strong></td>
+                    <td>How does this agent <em>think</em>?</td>
+                    <td>Direct response, ReAct loop, plan-then-execute</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="callout">
+            <strong>A note on terminology:</strong>
+            You&rsquo;ll see terms like &ldquo;role-based specialization,&rdquo; &ldquo;domain-based specialization,&rdquo;
+            and &ldquo;capability-based specialization&rdquo; in the literature. These are <em>not</em> separate
+            architectural patterns. They&rsquo;re different knobs on the same agent configuration.
+            <strong>Role</strong> = change the instructions. <strong>Domain</strong> = change the instructions +
+            scope the input. <strong>Capability</strong> = change the tool list. A practitioner
+            doesn&rsquo;t think &ldquo;am I doing role-based or capability-based?&rdquo; &mdash; they think
+            &ldquo;what prompt and tools does this agent need?&rdquo;
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 2.1 MODEL                                                       -->
+        <!-- ============================================================== -->
+        <h2>2.1 &mdash; Model</h2>
+
+        <p>
+            The model is the LLM that powers the agent&rsquo;s reasoning. This is the
+            &ldquo;brain&rdquo; of the agent. Choosing the right model is a tradeoff between
+            capability, speed, cost, and privacy.
+        </p>
+
+        <h3>Model Categories</h3>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Category</th><th>Examples</th><th>Strengths</th><th>Weaknesses</th><th>Best For</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>High-capability</strong></td>
+                    <td>GPT-4o, Claude 3.5 Sonnet, Gemini Pro</td>
+                    <td>Best reasoning, tool use, instruction following</td>
+                    <td>Expensive ($5-15/M tokens), slower (1-3s latency)</td>
+                    <td>Complex analysis, multi-step reasoning, code generation</td>
+                </tr>
+                <tr>
+                    <td><strong>Fast / cheap</strong></td>
+                    <td>GPT-4o-mini, Claude Haiku, Gemini Flash</td>
+                    <td>Very fast (< 500ms), cheap ($0.15-1/M tokens)</td>
+                    <td>Worse at complex reasoning, may miss nuance</td>
+                    <td>Classification, routing, simple extraction, summarization</td>
+                </tr>
+                <tr>
+                    <td><strong>Local / open</strong></td>
+                    <td>Llama 3, Mistral, Qwen (via Ollama)</td>
+                    <td>No API costs, full privacy, runs on your hardware</td>
+                    <td>Typically lower capability, requires GPU</td>
+                    <td>Privacy-sensitive tasks, offline environments, experimentation</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Key Insight: Mix Models Within a Workflow</h3>
+
+        <p>
+            One of the most powerful design decisions: <strong>different agents in the same
+            workflow can use different models.</strong> You don&rsquo;t have to pick one model
+            for the whole system.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Example: Mixed-Model Security Pipeline</div>
+            <div class="code-block"><code><span class="comment"># Agent 1: Alert Classifier — fast, cheap (just classification)</span>
+Model: GPT-4o-mini    Cost: ~$0.15/M tokens    Latency: ~200ms
+
+<span class="comment"># Agent 2: Malware Analyzer — powerful reasoning needed</span>
+Model: Claude 3.5 Sonnet    Cost: ~$15/M tokens    Latency: ~2s
+
+<span class="comment"># Agent 3: Report Writer — moderate capability</span>
+Model: GPT-4o-mini    Cost: ~$0.15/M tokens    Latency: ~300ms
+
+<span class="comment"># Total cost is dominated by the one agent that needs power.</span>
+<span class="comment"># The other two use the cheap model → huge savings.</span></code></div>
+        </div>
+
+        <div class="callout callout-warning">
+            <strong>Practical tip:</strong> Start with the most capable model for <em>all</em> agents.
+            Get the workflow working correctly first. Then selectively downgrade agents
+            that don&rsquo;t need the capability. Don&rsquo;t optimize cost before you have
+            correctness.
+        </div>
+
+        <h3>In Agentish</h3>
+
+        <p>
+            The model is set via the <code>LLM_MODEL_NAME</code> environment variable. This
+            applies globally &mdash; all LLM Nodes use the same model. Agentish supports:
+        </p>
+
+        <ul class="features">
+            <li><code>gpt-4o</code>, <code>gpt-4o-mini</code>, and other OpenAI models (requires <code>OPENAI_API_KEY</code>)</li>
+            <li><code>claude-3-5-sonnet-20241022</code> and other Anthropic models (requires <code>ANTHROPIC_API_KEY</code>)</li>
+            <li>Any Ollama model by name (requires Ollama running locally)</li>
+        </ul>
+
+        <div class="callout">
+            <strong>Note:</strong> In the current version of Agentish, all nodes share the same
+            model (set by one environment variable). Per-node model selection is a planned
+            feature. For now, choose the model that satisfies your most demanding agent.
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 2.2 INSTRUCTIONS                                               -->
+        <!-- ============================================================== -->
+        <h2>2.2 &mdash; Instructions (System Prompt)</h2>
+
+        <p>
+            The system prompt is the single most important configuration of an agent.
+            It&rsquo;s the difference between an agent that works and one that doesn&rsquo;t.
+            The system prompt tells the LLM <em>who it is</em>, <em>what to focus on</em>,
+            <em>what to avoid</em>, and <em>how to format its output</em>.
+        </p>
+
+        <h3>The Four Components of a Good System Prompt</h3>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Component</th><th>What It Does</th><th>Example</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Identity</strong></td>
+                    <td>Establishes the agent&rsquo;s role and expertise level.</td>
+                    <td><em>&ldquo;You are a senior malware reverse engineer with 10 years of experience.&rdquo;</em></td>
+                </tr>
+                <tr>
+                    <td><strong>Focus</strong></td>
+                    <td>Defines what the agent should pay attention to and analyze.</td>
+                    <td><em>&ldquo;Your task is to analyze binary executables for obfuscation techniques, hidden functions, and vulnerability patterns.&rdquo;</em></td>
+                </tr>
+                <tr>
+                    <td><strong>Constraints</strong></td>
+                    <td>Sets boundaries on what the agent should <em>not</em> do.</td>
+                    <td><em>&ldquo;Never execute untrusted code directly. Never guess if you can use a tool to verify. If uncertain, say so explicitly.&rdquo;</em></td>
+                </tr>
+                <tr>
+                    <td><strong>Output format</strong></td>
+                    <td>Specifies the structure of the agent&rsquo;s response.</td>
+                    <td><em>&ldquo;Respond with: 1) Vulnerability type, 2) Affected function, 3) Exploitation difficulty (easy/medium/hard), 4) Recommended next steps.&rdquo;</em></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Good vs. Bad Prompts</h3>
+
+        <div class="example-box">
+            <div class="example-label">❌ Bad Prompt — Vague</div>
+            <div class="code-block"><code><span class="string">"Classify security alerts."</span>
+
+<span class="comment"># Problems:</span>
+<span class="comment"># - No identity: the LLM doesn't know what level of expertise to assume</span>
+<span class="comment"># - No focus: what aspects of the alert should it look at?</span>
+<span class="comment"># - No constraints: can it make assumptions? Should it guess?</span>
+<span class="comment"># - No output format: will it return JSON? Prose? A single word?</span></code></div>
+        </div>
+
+        <div class="example-box">
+            <div class="example-label">✅ Good Prompt — Specific and Structured</div>
+            <div class="code-block"><code><span class="string">"You are a security alert triage specialist at a SOC (Security
+Operations Center). You have deep expertise in network security,
+malware analysis, and incident classification.
+
+For each alert you receive, analyze it and produce:
+
+1. **Severity**: critical / high / medium / low / informational
+2. **Category**: malware, intrusion, data-exfiltration,
+   misconfiguration, false-positive
+3. **Confidence**: A number from 0.0 to 1.0 indicating how
+   confident you are in your classification
+4. **Reasoning**: 2-3 sentences explaining your classification
+
+Guidelines:
+- Consider the source IP, destination, port, and protocol
+- Cross-reference with known threat patterns
+- If you are uncertain, classify as 'high' severity and
+  explain why in your reasoning
+- Never classify as 'informational' unless you are very
+  confident it is benign"</span></code></div>
+        </div>
+
+        <p>
+            The good prompt is longer, but every sentence serves a purpose. It eliminates
+            ambiguity. The LLM knows exactly what to produce and how to handle uncertainty.
+        </p>
+
+        <h3>Template Variables</h3>
+
+        <p>
+            In Agentish, prompts can include <strong>template variables</strong> that are
+            replaced with actual data at runtime. Variables use curly-brace syntax:
+            <code>{variable_name}</code>.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Template Variables in Action</div>
+            <div class="code-block"><code><span class="comment"># In the Agentish LLM Node inspector:</span>
+<span class="keyword">System Prompt:</span>
+<span class="string">"You are a security analyst. Analyze the alert and classify it."</span>
+
+<span class="keyword">Human Prompt:</span>
+<span class="string">"Alert details: {alert_content}
+
+Previous analysis from upstream agent: {previous_analysis}
+
+Classify this alert."</span>
+
+<span class="comment"># At runtime, Agentish replaces {alert_content} and</span>
+<span class="comment"># {previous_analysis} with actual values from the GlobalState.</span>
+<span class="comment"># If alert_content = "SSH brute-force from 203.0.113.42"</span>
+<span class="comment"># the LLM receives:</span>
+<span class="comment"># "Alert details: SSH brute-force from 203.0.113.42"</span></code></div>
+        </div>
+
+        <p>
+            This is how data flows <em>into</em> an agent. The template variables pull specific
+            fields from the shared state (covered in detail in
+            <a href="5-information-flow.html">Chapter 5</a>).
+        </p>
+
+        <div class="screenshot-placeholder">
+            <div class="screenshot-icon">📸</div>
+            <p>Screenshot: LLM Node inspector panel showing System Prompt and Human Prompt fields with template variable syntax</p>
+        </div>
+
+        <h3>The Two Prompt Fields in Agentish</h3>
+
+        <p>
+            Every LLM Node in Agentish has two separate prompt fields:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Field</th><th>Purpose</th><th>When It&rsquo;s Used</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>System Prompt</strong></td>
+                    <td>Defines the agent&rsquo;s identity, role, and behavior. Stays constant across all inputs.</td>
+                    <td>Added once at the beginning of every conversation as a <code>SystemMessage</code>.</td>
+                </tr>
+                <tr>
+                    <td><strong>Human Prompt</strong></td>
+                    <td>The specific task or input for this execution. Usually contains template variables to inject dynamic data.</td>
+                    <td>Added as a <code>HumanMessage</code> after the conversation history.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="callout">
+            <strong>Think of it this way:</strong> The System Prompt is the agent&rsquo;s
+            <em>training manual</em> &mdash; it reads it once and internalizes it.
+            The Human Prompt is the <em>specific task assignment</em> &mdash; it changes every time.
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 2.3 TOOLS                                                       -->
+        <!-- ============================================================== -->
+        <h2>2.3 &mdash; Tools</h2>
+
+        <p>
+            Without tools, an agent can only generate text. It can reason, classify,
+            summarize, and explain &mdash; but it can&rsquo;t <em>do</em> anything in the real
+            world. Tools give agents the ability to act.
+        </p>
+
+        <h3>What Is a Tool?</h3>
+
+        <p>
+            A tool is a <strong>function that the LLM can choose to call</strong>. You define
+            the tool (its name, description, and parameters), and the LLM decides at runtime
+            whether to use it, when to use it, and with what arguments.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">How Tool Calling Works</div>
+            <div class="code-block"><code><span class="comment"># You give the LLM a description of a tool:</span>
+Tool: <span class="string">check_ip_reputation</span>
+Description: <span class="string">"Look up an IP address in threat intelligence databases.
+              Returns reputation score and known associations."</span>
+Parameters: <span class="string">ip_address (string, required)</span>
+
+<span class="comment"># The LLM receives a task:</span>
+<span class="string">"Investigate alert: suspicious connection to 203.0.113.42"</span>
+
+<span class="comment"># The LLM DECIDES to call the tool (this is the key insight):</span>
+<span class="keyword">LLM output:</span> {
+  <span class="string">"tool_call"</span>: <span class="string">"check_ip_reputation"</span>,
+  <span class="string">"args"</span>: {<span class="string">"ip_address"</span>: <span class="string">"203.0.113.42"</span>}
+}
+
+<span class="comment"># The system executes the tool and returns the result:</span>
+<span class="keyword">Tool result:</span> {
+  <span class="string">"reputation"</span>: <span class="string">"malicious"</span>,
+  <span class="string">"score"</span>: 0.95,
+  <span class="string">"associations"</span>: [<span class="string">"ransomware C2"</span>, <span class="string">"APT-29"</span>]
+}
+
+<span class="comment"># The LLM reads the result and continues reasoning...</span></code></div>
+        </div>
+
+        <p>
+            The critical thing to understand: <strong>you don&rsquo;t write code that says
+            &ldquo;call this tool at step 3.&rdquo;</strong> You give the LLM a list of available tools,
+            and it decides autonomously when and how to use them. This is what makes
+            an agent <em>agentic</em> &mdash; it has autonomy over its actions.
+        </p>
+
+        <h3>Tool Categories</h3>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Category</th><th>What It Does</th><th>Examples</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Information retrieval</strong></td>
+                    <td>Fetches data from external sources. Read-only.</td>
+                    <td>Query VirusTotal, search CVE database, read log files, list functions in a binary</td>
+                </tr>
+                <tr>
+                    <td><strong>Analysis / transformation</strong></td>
+                    <td>Processes data and returns derived information.</td>
+                    <td>Decompile a function, run static analysis, parse a network packet, calculate a hash</td>
+                </tr>
+                <tr>
+                    <td><strong>Action</strong></td>
+                    <td>Modifies the environment. Has side effects.</td>
+                    <td>Block an IP address, quarantine a file, submit a flag, send an alert</td>
+                </tr>
+                <tr>
+                    <td><strong>Communication</strong></td>
+                    <td>Sends data to other systems or humans.</td>
+                    <td>Post to Slack, create a Jira ticket, send an email, call another API</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>How Many Tools Per Agent?</h3>
+
+        <div class="callout callout-warning">
+            <strong>Less is more.</strong> Research consistently shows that LLM accuracy on
+            tool selection degrades as the number of available tools increases.
+            With 2&ndash;5 tools, accuracy is high. With 10+ tools, models start picking the
+            wrong tool or hallucinating tool names. This is one of the strongest arguments
+            for multi-agent workflows: instead of one agent with 20 tools, use four agents
+            with 5 tools each.
+        </div>
+
+        <div class="example-box">
+            <div class="example-label">Example: Tool Assignment in Security Triage</div>
+            <div class="code-block"><code><span class="comment"># ❌ Bad: One agent, too many tools</span>
+<span class="keyword">Alert Analyst:</span> [check_ip, check_domain, check_hash, decompile,
+                list_functions, run_sandbox, block_ip, quarantine,
+                search_logs, create_ticket, send_slack, submit_flag]
+<span class="comment"># 12 tools! The LLM will get confused.</span>
+
+<span class="comment"># ✅ Good: Specialized agents, focused tools</span>
+<span class="keyword">Classifier:</span>     [check_ip, check_domain]          <span class="comment"># 2 tools</span>
+<span class="keyword">Malware Analyst:</span> [decompile, list_functions, check_hash]  <span class="comment"># 3 tools</span>
+<span class="keyword">Responder:</span>      [block_ip, quarantine, create_ticket]    <span class="comment"># 3 tools</span></code></div>
+        </div>
+
+        <h3>Tools in Agentish &amp; iCTF</h3>
+
+        <p>
+            In the Agentish ecosystem (particularly for iCTF), tools are defined as
+            <strong>MCP (Model Context Protocol) endpoints</strong> in a <code>challengish.yml</code>
+            file. Each tool is an HTTP endpoint on an MCP server that the agent calls
+            over the network at execution time.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Example from challengish.yml:</span>
+mcp_tools:
+  - name: <span class="string">list_functions</span>
+    description: <span class="string">"List all functions in the binary"</span>
+    endpoint: <span class="string">/tools/list_functions</span>
+    method: <span class="string">GET</span>
+
+  - name: <span class="string">decompile_function</span>
+    description: <span class="string">"Decompile a function by name"</span>
+    endpoint: <span class="string">/tools/decompile_function</span>
+    method: <span class="string">GET</span>
+    parameters:
+      function_name: <span class="string">string</span></code></div>
+
+        <p>
+            In the Agentish visual editor, available tools appear in the <strong>Function
+            Catalog</strong> sidebar. You assign tools to nodes by selecting them in the
+            node&rsquo;s inspector panel under <strong>Selected Tools</strong>.
+        </p>
+
+        <div class="screenshot-placeholder">
+            <div class="screenshot-icon">📸</div>
+            <p>Screenshot: Function Catalog sidebar showing available MCP tools, and the LLM Node inspector with Selected Tools checkboxes</p>
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 2.4 REASONING STRATEGY                                          -->
+        <!-- ============================================================== -->
+        <h2>2.4 &mdash; Reasoning Strategy</h2>
+
+        <p>
+            How does the agent go from input to output? There are three primary strategies,
+            each suited to different kinds of tasks.
+        </p>
+
+        <h3>Strategy 1: Direct (Prompt → Response)</h3>
+
+        <p>
+            The simplest strategy. The agent receives input, the LLM thinks once, and
+            produces output. No tool calls, no iteration. One LLM invocation.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># How it works:</span>
+Input → LLM thinks once → Output
+
+<span class="comment"># Example:</span>
+Input:  <span class="string">"Alert: SSH brute-force from 203.0.113.42, 500 attempts in 10 minutes"</span>
+  ↓
+LLM thinks once
+  ↓
+Output: <span class="string">{"severity": "high", "category": "intrusion", "confidence": 0.92}</span></code></div>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Pros</th><th>Cons</th><th>Best For</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Fast (one LLM call), cheap, predictable</td>
+                    <td>Can&rsquo;t gather external information, limited to what&rsquo;s in the prompt</td>
+                    <td>Classification, summarization, extraction, formatting, routing decisions</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>
+            <strong>In Agentish:</strong> An LLM Node with no tools assigned uses the direct strategy.
+        </p>
+
+        <h3>Strategy 2: ReAct (Reason → Act → Observe → Repeat)</h3>
+
+        <p>
+            The most common and most powerful strategy. The name &ldquo;ReAct&rdquo; comes from
+            &ldquo;Reason + Act.&rdquo; The agent enters a loop:
+        </p>
+
+        <ol class="features">
+            <li><strong>Reason</strong> &mdash; The LLM thinks about what information it needs or what action to take.</li>
+            <li><strong>Act</strong> &mdash; It calls a tool (an action in the real world).</li>
+            <li><strong>Observe</strong> &mdash; It reads the tool&rsquo;s response.</li>
+            <li><strong>Repeat</strong> &mdash; Based on the observation, it decides whether to call another tool or produce a final answer.</li>
+        </ol>
+
+        <div class="code-block"><code><span class="comment"># The ReAct loop visualized:</span>
+
+  ┌──────────────────────────────────────────────────────┐
+  │                                                      │
+  │   ┌──────────┐    ┌──────────┐    ┌──────────┐      │
+  │   │  Reason  │───▶│   Act    │───▶│ Observe  │──┐   │
+  │   └──────────┘    │(tool call)│   │(tool     │  │   │
+  │        ▲          └──────────┘    │ result)  │  │   │
+  │        │                          └──────────┘  │   │
+  │        └────────────────────────────────────────┘   │
+  │                    (need more info? loop)            │
+  │                                                      │
+  │        ┌──────────────────────┐                      │
+  │        │  Have enough info?   │                      │
+  │        │  → Final Answer      │                      │
+  │        └──────────────────────┘                      │
+  └──────────────────────────────────────────────────────┘</code></div>
+
+        <div class="example-box">
+            <div class="example-label">Example: ReAct Loop in a Binary Analysis Agent</div>
+            <div class="code-block"><code><span class="keyword">Reason:</span>  <span class="string">"I need to see what functions are in this binary."</span>
+<span class="keyword">Act:</span>    call <span class="string">list_functions()</span>
+<span class="keyword">Observe:</span> <span class="string">["main", "check_password", "decrypt_flag", "obfuscate"]</span>
+
+<span class="keyword">Reason:</span>  <span class="string">"'decrypt_flag' looks interesting. Let me see the code."</span>
+<span class="keyword">Act:</span>    call <span class="string">decompile_function("decrypt_flag")</span>
+<span class="keyword">Observe:</span> <span class="string">"void decrypt_flag() { char key[] = \"s3cr3t\"; ... }"</span>
+
+<span class="keyword">Reason:</span>  <span class="string">"I can see the decryption key. Let me check the strings too."</span>
+<span class="keyword">Act:</span>    call <span class="string">check_strings()</span>
+<span class="keyword">Observe:</span> <span class="string">["Usage: ./binary &lt;password&gt;", "Correct!", "Wrong!"]</span>
+
+<span class="keyword">Reason:</span>  <span class="string">"I have enough info. The password is 's3cr3t'."</span>
+<span class="keyword">Final:</span>  <span class="string">"The binary checks a hardcoded password 's3cr3t' in the
+         check_password function. decrypt_flag uses this key to
+         decrypt the flag."</span></code></div>
+        </div>
+
+        <p>
+            Notice: the agent decided <em>on its own</em> which tools to call and in what order.
+            You didn&rsquo;t write &ldquo;Step 1: call list_functions, Step 2: call decompile_function.&rdquo;
+            The LLM reasoned about what information it needed and planned its own investigation.
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Pros</th><th>Cons</th><th>Best For</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Flexible, can gather information dynamically, adapts to what it finds</td>
+                    <td>Multiple LLM calls (expensive, slower), can get stuck in loops, unpredictable number of steps</td>
+                    <td>Investigation tasks, analysis, any task where the agent needs to gather information before answering</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>
+            <strong>In Agentish:</strong> An LLM Node with tools assigned automatically uses the
+            ReAct strategy. The LLM Node and its paired Tool Node form the loop. The
+            <code>max_tool_iterations</code> setting controls how many loops are allowed
+            (see <a href="6-validation.html">Chapter 6</a>).
+        </p>
+
+        <h3>Strategy 3: Plan-then-Execute</h3>
+
+        <p>
+            A variation where the agent first creates an explicit plan (a numbered list of
+            steps), then executes each step. This gives the agent a &ldquo;roadmap&rdquo; and
+            reduces wandering.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Phase 1: Planning</span>
+<span class="keyword">Agent:</span> <span class="string">"To analyze this binary, I will:
+  1. List all functions to get an overview
+  2. Identify security-relevant functions (password checks, crypto)
+  3. Decompile the most promising function
+  4. Extract the key/password
+  5. Formulate my findings"</span>
+
+<span class="comment"># Phase 2: Execution (follows the plan)</span>
+<span class="keyword">Step 1:</span> call list_functions() → [main, check_password, ...]
+<span class="keyword">Step 2:</span> identifies check_password and decrypt_flag
+<span class="keyword">Step 3:</span> call decompile_function("decrypt_flag") → code
+<span class="keyword">Step 4:</span> extracts key "s3cr3t" from code
+<span class="keyword">Step 5:</span> writes final report</code></div>
+
+        <p>
+            This is implemented through prompting: you tell the agent in its system prompt
+            to first create a plan, then execute it step by step. It&rsquo;s still using
+            the ReAct loop under the hood, but with a planning phase at the beginning.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 2.5 MAPPING TO AGENTISH                                         -->
+        <!-- ============================================================== -->
+        <h2>Mapping to Agentish: The LLM Node</h2>
+
+        <p>
+            Here&rsquo;s how everything in this chapter maps to the Agentish LLM Node configuration:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Concept</th><th>Agentish Configuration</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Model</td>
+                    <td><code>LLM_MODEL_NAME</code> environment variable. Set once, applies to all nodes.</td>
+                </tr>
+                <tr>
+                    <td>Instructions</td>
+                    <td><strong>System Prompt</strong> field (agent&rsquo;s identity/behavior) + <strong>Human Prompt</strong> field (task input with <code>{template_variables}</code>).</td>
+                </tr>
+                <tr>
+                    <td>Tools</td>
+                    <td><strong>Selected Tools</strong> in the inspector. Populated from the Function Catalog (which reads <code>challengish.yml</code>).</td>
+                </tr>
+                <tr>
+                    <td>Reasoning: Direct</td>
+                    <td>LLM Node with no tools selected. One LLM call, direct output.</td>
+                </tr>
+                <tr>
+                    <td>Reasoning: ReAct</td>
+                    <td>LLM Node with tools selected. Automatic LLM ↔ Tool Node loop. Controlled by <code>max_tool_iterations</code>.</td>
+                </tr>
+                <tr>
+                    <td>Reasoning: Plan-then-Execute</td>
+                    <td>Use the system prompt to instruct the agent to plan first. The ReAct loop handles execution.</td>
+                </tr>
+                <tr>
+                    <td>Structured Output</td>
+                    <td>Enable <strong>Structured Output</strong> in the inspector and define a JSON schema. The LLM is constrained to return data matching the schema.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-placeholder">
+            <div class="screenshot-icon">📸</div>
+            <p>Screenshot: LLM Node inspector panel showing all configuration fields: Title, System Prompt, Human Prompt, Selected Tools, Max Tool Iterations, Structured Output toggle</p>
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- RUNNING EXAMPLE                                                 -->
+        <!-- ============================================================== -->
+        <h2>Running Example: Configuring Our First Agent</h2>
+
+        <p>
+            Let&rsquo;s apply what we&rsquo;ve learned to configure the first agent in our
+            Security Alert Triage System: the <strong>Alert Classifier</strong>.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Alert Classifier — Full Configuration</div>
+            <div class="code-block"><code><span class="keyword">Model:</span>        GPT-4o-mini  <span class="comment">(fast, cheap — classification is simple)</span>
+
+<span class="keyword">System Prompt:</span>
+<span class="string">"You are a security alert triage specialist at a SOC. You have
+deep expertise in network security, malware analysis, and incident
+classification.
+
+For each alert, produce:
+1. Severity: critical / high / medium / low / informational
+2. Category: malware, intrusion, data-exfiltration,
+   misconfiguration, false-positive
+3. Confidence: 0.0 to 1.0
+
+If confidence &lt; 0.7, classify severity as 'high' and explain why.
+Never classify as 'informational' unless confidence &gt; 0.9."</span>
+
+<span class="keyword">Human Prompt:</span>
+<span class="string">"Classify this alert: {alert_content}"</span>
+
+<span class="keyword">Tools:</span>          None  <span class="comment">(direct strategy — classification only)</span>
+
+<span class="keyword">Strategy:</span>      Direct  <span class="comment">(one LLM call, no tools needed)</span></code></div>
+        </div>
+
+        <p>
+            This agent is simple, focused, and cheap to run. In the next chapter, we&rsquo;ll
+            connect it to other specialized agents to build a complete triage system.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- SUMMARY                                                         -->
+        <!-- ============================================================== -->
+        <h2>Chapter Summary</h2>
+
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>Every agent has four configuration surfaces: <strong>model</strong>, <strong>instructions</strong>, <strong>tools</strong>, and <strong>reasoning strategy</strong>.</li>
+                <li>The <strong>system prompt</strong> is the highest-leverage configuration. It needs identity, focus, constraints, and output format.</li>
+                <li><strong>Tools</strong> give agents the ability to act. The LLM decides when and how to call them.</li>
+                <li>Keep tools per agent to <strong>2&ndash;5</strong>. More tools = more confusion.</li>
+                <li>Three reasoning strategies: <strong>Direct</strong> (one shot), <strong>ReAct</strong> (tool loop), <strong>Plan-then-Execute</strong> (plan first, then ReAct).</li>
+                <li>In Agentish, all of this is configured in the <strong>LLM Node inspector</strong>.</li>
+            </ul>
+        </div>
+
+        <!-- Navigation -->
+        <div class="chapter-nav">
+            <a href="1-foundations.html" class="chapter-nav-prev">
+                &larr; Chapter 1: Foundations
+            </a>
+            <a href="3-workflow-topology.html" class="chapter-nav-next">
+                Chapter 3: Workflow Topology &rarr;
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 4: Control Flow | Agentic Workflow | Agentish</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentic Workflow Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 4</span> Control Flow</h1>
+            <p class="tagline">How execution moves through the graph</p>
+        </section>
+
+        <p>
+            <a href="3-workflow-topology.html">Chapter 3</a> defined the <em>shape</em> of
+            the graph &mdash; which nodes exist and how they connect. Now we ask:
+            <strong>when a node finishes, what happens next?</strong>
+        </p>
+
+        <p>
+            Topology is the map. Control flow is the journey along that map. The same
+            topology can produce different behaviors depending on how control flow is
+            configured.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 4.1 TYPES OF CONTROL FLOW                                       -->
+        <!-- ============================================================== -->
+        <h2>4.1 &mdash; Types of Control Flow</h2>
+
+        <p>
+            Every transition in the graph uses one of four control flow patterns:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Pattern</th><th>Description</th><th>Decided When?</th><th>Decided By?</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Static</strong></td>
+                    <td>Always go to the same next node</td>
+                    <td>Design time (when you draw the graph)</td>
+                    <td>The edge itself</td>
+                </tr>
+                <tr>
+                    <td><strong>Conditional</strong></td>
+                    <td>Choose one of several next nodes based on a decision</td>
+                    <td>Run time (based on input/output)</td>
+                    <td>An LLM (Router Node)</td>
+                </tr>
+                <tr>
+                    <td><strong>Iterative</strong></td>
+                    <td>Repeat a subgraph until a condition is met</td>
+                    <td>Run time (based on progress)</td>
+                    <td>Iteration counter or LLM evaluator</td>
+                </tr>
+                <tr>
+                    <td><strong>Tool-driven</strong></td>
+                    <td>Continue calling tools or move forward</td>
+                    <td>Run time (based on tool calls)</td>
+                    <td>The LLM&rsquo;s tool-calling behavior</td>
+                </tr>
+            </tbody>
+        </table>
+
+
+        <!-- ============================================================== -->
+        <!-- 4.2 STATIC FLOW                                                 -->
+        <!-- ============================================================== -->
+        <h2>4.2 &mdash; Static Flow</h2>
+
+        <p>
+            The simplest control flow: <strong>when this node finishes, always go to
+            that node.</strong> No conditions, no decisions. This is the &ldquo;NormalEdge&rdquo;
+            in Agentish.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Static flow: A always goes to B</span>
+  ┌─────────┐  NormalEdge  ┌─────────┐
+  │  Agent A │────────────▶│  Agent B │
+  └─────────┘              └─────────┘
+
+<span class="comment"># In the generated code, this becomes:</span>
+<span class="keyword">return</span> Command(
+    update={...},
+    goto=<span class="string">"llm_3_node"</span>   <span class="comment"># Hard-coded destination</span>
+)</code></div>
+
+        <p>
+            Every pipeline is built from static flow. It&rsquo;s predictable, easy to debug,
+            and easy to reason about. Use it whenever the next step doesn&rsquo;t depend
+            on the current node&rsquo;s output.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 4.3 CONDITIONAL FLOW                                            -->
+        <!-- ============================================================== -->
+        <h2>4.3 &mdash; Conditional Flow</h2>
+
+        <p>
+            The node looks at the current state and picks one of several possible
+            next nodes. This is how Routers work.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Conditional flow: Router picks one branch</span>
+                         ┌──────────────┐
+                    ┌───▶│  Handler A   │
+                    │    └──────────────┘
+  ┌──────────┐     │    ┌──────────────┐
+  │  Router  │─────┼───▶│  Handler B   │
+  └──────────┘     │    └──────────────┘
+                    │    ┌──────────────┐
+                    └───▶│  Handler C   │
+                         └──────────────┘
+
+<span class="comment"># The Router LLM returns structured output:</span>
+{
+  <span class="string">"next_node"</span>: <span class="string">"llm_5_node"</span>,
+  <span class="string">"reason"</span>: <span class="string">"The alert involves unauthorized access attempts,
+            which matches the Intrusion Handler's expertise"</span>
+}
+
+<span class="comment"># This translates to:</span>
+<span class="keyword">return</span> Command(
+    update={<span class="string">"routing_reason"</span>: decision.reason},
+    goto=decision.next_node   <span class="comment"># Dynamic destination</span>
+)</code></div>
+
+        <h3>How the Router Makes Decisions</h3>
+
+        <p>
+            Under the hood, a Router Node uses structured output (a Pydantic model
+            called <code>RouterDecision</code>) to constrain the LLM&rsquo;s response:
+        </p>
+
+        <div class="code-block"><code><span class="comment"># The Pydantic schema that constrains the Router's output:</span>
+<span class="keyword">class</span> RouterDecision(BaseModel):
+    next_node: str   <span class="comment"># Must be one of the available targets</span>
+    reason: str      <span class="comment"># Why this target was chosen (stored for debugging)</span>
+
+<span class="comment"># The Router Node's prompt includes the available targets:</span>
+<span class="string">"""Available routing targets:
+- llm_4_node: "Malware Handler" (LLMNode)
+- llm_5_node: "Intrusion Handler" (LLMNode)
+- llm_6_node: "Misconfiguration Handler" (LLMNode)
+
+Based on the conversation, which node should handle this next?"""</span></code></div>
+
+        <p>
+            The structured output ensures the LLM returns valid JSON matching the
+            schema. Agentish then validates that the chosen <code>next_node</code> is
+            actually one of the connected targets. If the LLM hallucinates a target
+            that doesn&rsquo;t exist, Agentish falls back to the first available target
+            and logs a warning.
+        </p>
+
+        <h3>In Agentish</h3>
+        <p>
+            Conditional flow = <strong>Router Node</strong> + <strong>ConditionalEdge</strong>
+            connections. Each ConditionalEdge represents one possible destination.
+            You draw them from the Router Node to each potential handler.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 4.4 TOOL-DRIVEN FLOW                                            -->
+        <!-- ============================================================== -->
+        <h2>4.4 &mdash; Tool-driven Flow</h2>
+
+        <p>
+            This is the most subtle and important control flow pattern. When an LLM Node
+            has tools, it creates an <strong>implicit loop</strong>:
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Tool-driven flow: implicit loop within a single "node"</span>
+
+  ┌────────────────────────────────────────────┐
+  │              LLM Node (Agent)              │
+  │                                            │
+  │   ┌──────────┐      ┌──────────────────┐   │
+  │   │ LLM Call │─────▶│ Tool Execution   │   │
+  │   │          │◀─────│ (Tool Node)      │   │
+  │   └────┬─────┘      └──────────────────┘   │
+  │        │                                   │
+  │        │ (no more tool calls)              │
+  │        ▼                                   │
+  └────────────────────────────────────────────┘
+           │
+           ▼
+     Next Node in Graph</code></div>
+
+        <p>
+            Here&rsquo;s how it works step by step:
+        </p>
+
+        <ol>
+            <li>The LLM is invoked with messages and a list of available tools.</li>
+            <li>If the LLM&rsquo;s response contains <strong>tool calls</strong>, execution goes to the <strong>Tool Node</strong>.</li>
+            <li>The Tool Node executes the requested tools and returns results as <code>ToolMessage</code> objects.</li>
+            <li>Execution goes <strong>back to the LLM Node</strong>. The LLM sees the tool results in its message history.</li>
+            <li>Steps 2&ndash;4 repeat until the LLM responds <strong>without</strong> tool calls (it has gathered enough information).</li>
+            <li>Once the LLM gives a final text response, execution moves to the <strong>next node in the graph</strong>.</li>
+        </ol>
+
+        <div class="callout">
+            <strong>Key insight:</strong> Each iteration of the tool loop is an LLM invocation.
+            If an agent calls 5 tools before giving a final answer, that&rsquo;s 6 LLM calls total
+            (5 tool-calling rounds + 1 final response). This matters for cost and latency.
+        </div>
+
+        <h3>The Two-Phase Execution Pattern</h3>
+
+        <p>
+            Agentish uses a clever pattern to handle an important LangChain limitation:
+            <strong><code>.with_structured_output()</code> disables tool calling.</strong>
+            If you want a node to both use tools <em>and</em> return structured output
+            (e.g., a JSON schema), you can&rsquo;t do both at once.
+        </p>
+
+        <p>The solution is a two-phase approach:</p>
+
+        <div class="code-block"><code><span class="comment"># Phase 1: First call — tools enabled, no structured output</span>
+<span class="keyword">def</span> llm_2_node(global_state):
+    current_iteration = global_state.get(<span class="string">"node_2_tool_iteration_count"</span>, 0)
+
+    <span class="comment"># Check: are we returning from tool execution?</span>
+    <span class="keyword">if</span> current_iteration > 0:
+        <span class="comment"># Phase 2: Done with tools → apply structured output</span>
+        <span class="keyword">if</span> structured_output_enabled:
+            model_with_output = model.with_structured_output(Schema)
+            response = model_with_output.invoke(messages)
+        <span class="keyword">else</span>:
+            response = model.invoke(messages)
+        <span class="keyword">return</span> Command(
+            update={<span class="string">"node_2_tool_iteration_count"</span>: 0},
+            goto=<span class="string">"next_node"</span>
+        )
+
+    <span class="comment"># Phase 1: First call — tools available</span>
+    response = model.invoke(messages)   <span class="comment"># Can make tool calls</span>
+
+    <span class="keyword">if</span> response.tool_calls:
+        <span class="keyword">return</span> Command(goto=<span class="string">"tool_2_node"</span>)   <span class="comment"># Execute tools</span>
+
+    <span class="comment"># No tools needed — apply structured output directly</span>
+    <span class="keyword">if</span> structured_output_enabled:
+        model_with_output = model.with_structured_output(Schema)
+        response = model_with_output.invoke(messages)
+
+    <span class="keyword">return</span> Command(goto=<span class="string">"next_node"</span>)</code></div>
+
+        <div class="callout callout-warning">
+            <strong>⚠️ Common mistake:</strong> Applying <code>.with_structured_output()</code> on
+            the first call. This silently disables all tools, and the LLM will never make tool calls.
+            The agent appears to &ldquo;work&rdquo; but never actually uses its tools.
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 4.5 ITERATIVE FLOW                                              -->
+        <!-- ============================================================== -->
+        <h2>4.5 &mdash; Iterative Flow</h2>
+
+        <p>
+            Iteration = control flow that includes a <strong>back-edge</strong> &mdash;
+            a path that returns to a previously visited node. This creates cycles
+            in the graph.
+        </p>
+
+        <h3>Bounded Iteration (Tool Loops)</h3>
+
+        <p>
+            The most common form of iteration is the tool-driven loop described above.
+            Agentish enforces a hard limit via <code>max_tool_iterations</code>:
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Tool Node enforces iteration limits:</span>
+<span class="keyword">def</span> tool_2_node(global_state):
+    current_iteration = global_state.get(<span class="string">"node_2_tool_iteration_count"</span>, 0)
+
+    <span class="keyword">if</span> current_iteration >= max_tool_iterations:
+        <span class="comment"># FORCE the LLM to stop and give a final answer</span>
+        <span class="keyword">return</span> Command(
+            update={
+                <span class="string">"messages"</span>: [HumanMessage(
+                    content=<span class="string">"You are out of tool calls. Return your final output now."</span>
+                )]
+            },
+            goto=<span class="string">"llm_2_node"</span>   <span class="comment"># Go back to LLM for final response</span>
+        )
+
+    <span class="comment"># Normal: execute tool, increment counter, loop back</span>
+    result = execute_tool(tool_call)
+    <span class="keyword">return</span> Command(
+        update={
+            <span class="string">"node_2_tool_iteration_count"</span>: current_iteration + 1,
+            <span class="string">"messages"</span>: [ToolMessage(content=result)]
+        },
+        goto=<span class="string">"llm_2_node"</span>   <span class="comment"># Loop back for next LLM decision</span>
+    )</code></div>
+
+        <h3>Open Iteration (Graph Cycles)</h3>
+
+        <p>
+            You can also create explicit cycles at the graph level &mdash; a Router Node
+            that decides whether to loop back or move forward:
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Open iteration with a Router as loop controller:</span>
+
+  ┌──────────┐     ┌──────────┐     ┌──────────────┐
+  │ Analyze  │────▶│ Attempt  │────▶│   Evaluate   │
+  └──────────┘     └──────────┘     │   (Router)   │
+       ▲                            └──────┬───────┘
+       │                                   │
+       │         ┌─────────────────┐       │
+       └─────────│ "needs_retry"   │◀──────┘
+                 └─────────────────┘       │
+                                    ┌──────┘
+                                    ▼
+                              ┌──────────┐
+                              │   END    │
+                              └──────────┘</code></div>
+
+        <p>
+            The Evaluate Router decides: &ldquo;did we succeed?&rdquo; If yes, route to END.
+            If no, route back to Analyze for another attempt. You should always pair
+            this with a maximum iteration count to prevent infinite loops.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 4.6 THE COMMAND PATTERN                                         -->
+        <!-- ============================================================== -->
+        <h2>4.6 &mdash; The Command Pattern</h2>
+
+        <p>
+            All control flow in Agentish is implemented through the <strong>Command
+            pattern</strong> from LangGraph. Every node function returns a
+            <code>Command</code> object that bundles two things together:
+        </p>
+
+        <ol>
+            <li><strong>State updates</strong> &mdash; what data to write (the <code>update</code> dict)</li>
+            <li><strong>Routing decision</strong> &mdash; where to go next (the <code>goto</code> string)</li>
+        </ol>
+
+        <div class="code-block"><code><span class="keyword">from</span> langgraph.types <span class="keyword">import</span> Command
+
+<span class="comment"># Every node returns one of these:</span>
+<span class="keyword">return</span> Command(
+    update={
+        <span class="string">"count"</span>: 1,                          <span class="comment"># Increment counter</span>
+        <span class="string">"messages"</span>: [response],               <span class="comment"># Append to message list</span>
+        <span class="string">"node_2_messages"</span>: [response],        <span class="comment"># Append to node's history</span>
+        <span class="string">"node_2_llm_calls"</span>: 1,                <span class="comment"># Increment LLM call count</span>
+    },
+    goto=<span class="string">"router_3_node"</span>                      <span class="comment"># Where to go next</span>
+)</code></div>
+
+        <h3>Why Not Separate Edges?</h3>
+
+        <p>
+            The traditional LangGraph approach uses <strong>conditional edge functions</strong>
+            &mdash; separate functions that inspect the state and return a destination string.
+            This works, but it separates the routing logic from the node logic:
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Traditional (older) approach:</span>
+<span class="keyword">def</span> llm_node(state):
+    response = model.invoke(...)
+    <span class="keyword">return</span> {<span class="string">"messages"</span>: [response]}   <span class="comment"># Just state update</span>
+
+<span class="keyword">def</span> should_continue(state):              <span class="comment"># Separate routing function</span>
+    <span class="keyword">if</span> state[<span class="string">"messages"</span>][-1].tool_calls:
+        <span class="keyword">return</span> <span class="string">"tool_node"</span>
+    <span class="keyword">return</span> <span class="string">"next_node"</span>
+
+graph.add_conditional_edges(<span class="string">"llm_node"</span>, should_continue, {...})
+
+
+<span class="comment"># Command pattern (Agentish approach):</span>
+<span class="keyword">def</span> llm_node(state):
+    response = model.invoke(...)
+    <span class="keyword">if</span> response.tool_calls:
+        <span class="keyword">return</span> Command(update={...}, goto=<span class="string">"tool_node"</span>)     <span class="comment"># State + routing together</span>
+    <span class="keyword">return</span> Command(update={...}, goto=<span class="string">"next_node"</span>)       <span class="comment"># No separate function</span>
+
+<span class="comment"># No add_conditional_edges needed!</span></code></div>
+
+        <p>
+            The Command pattern is cleaner because you can see <em>what happens</em> and
+            <em>where it goes</em> in the same place. It&rsquo;s also safer &mdash; no risk of
+            the routing function and the node function getting out of sync.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 4.7 EDGES IN AGENTISH                                           -->
+        <!-- ============================================================== -->
+        <h2>4.7 &mdash; Edges in Agentish</h2>
+
+        <p>
+            In the Agentish visual editor, edges are the lines you draw between nodes.
+            There are exactly two types:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Edge Type</th><th>Control Flow</th><th>Visual Appearance</th><th>JSON Representation</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>NormalEdge</strong></td>
+                    <td>Static &mdash; always follow this path</td>
+                    <td>Solid line</td>
+                    <td><code>{"from": "2", "to": "3", "type": "NormalEdge"}</code></td>
+                </tr>
+                <tr>
+                    <td><strong>ConditionalEdge</strong></td>
+                    <td>Conditional &mdash; Router decides at run time</td>
+                    <td>Dashed line</td>
+                    <td><code>{"from": "3", "to": "4", "type": "ConditionalEdge"}</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>
+            Tool-driven and iterative flow don&rsquo;t need separate edge types. They&rsquo;re
+            handled automatically by the generated code: when a node has tools, the
+            compiler creates the LLM→Tool→LLM loop internally. You don&rsquo;t draw tool
+            loop edges on the canvas.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- SUMMARY                                                         -->
+        <!-- ============================================================== -->
+        <h2>Chapter Summary</h2>
+
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li><strong>Static flow:</strong> &ldquo;Always go here.&rdquo; Implemented with NormalEdge.</li>
+                <li><strong>Conditional flow:</strong> &ldquo;The LLM decides where to go.&rdquo; Implemented with Router Node + ConditionalEdge.</li>
+                <li><strong>Tool-driven flow:</strong> &ldquo;Call tools until done, then move on.&rdquo; Automatic loop created by the compiler.</li>
+                <li><strong>Iterative flow:</strong> &ldquo;Try again if not done.&rdquo; Graph-level back-edges with a termination condition.</li>
+                <li>The <strong>Command pattern</strong> bundles state updates and routing in one object. No separate edge functions needed.</li>
+                <li>The <strong>two-phase execution pattern</strong> solves the structured-output-disables-tools problem.</li>
+                <li>Always set <strong><code>max_tool_iterations</code></strong> to prevent runaway tool loops.</li>
+            </ul>
+        </div>
+
+        <!-- Navigation -->
+        <div class="chapter-nav">
+            <a href="3-workflow-topology.html" class="chapter-nav-prev">
+                &larr; Chapter 3: Workflow Topology
+            </a>
+            <a href="5-information-flow.html" class="chapter-nav-next">
+                Chapter 5: Information Flow &rarr;
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

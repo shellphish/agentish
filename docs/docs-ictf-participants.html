@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Participants | iCTF Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="documentation.html">&larr; Back to Documentation</a></p>
+
+        <section class="hero" style="padding: 2rem 0 2rem;">
+            <h1>Participants</h1>
+            <p class="tagline">iCTF &mdash; Competing with Agentish</p>
+            <p class="description">
+                How to use Agentish to build autonomous agent workflows for the
+                International Capture The Flag competition.
+            </p>
+        </section>
+
+        <!-- What is the iCTF -->
+        <h2>What is the iCTF?</h2>
+        <p>
+            The International Capture The Flag (&ldquo;iCTF&rdquo;) is a distributed, wide-area security exercise
+            organized by <a href="https://shellphish.net" target="_blank">Shellphish</a> at UC Santa Barbara.
+            It is one of the world&rsquo;s largest and longest-running educational hacking competitions.
+        </p>
+        <p>
+            In the Agentish edition, teams build <strong>autonomous AI agents</strong> that interact with
+            challenge environments through MCP tools. Instead of solving challenges manually, you design
+            agent workflows that analyze, reason, and act on your behalf.
+        </p>
+        <p>
+            For more information, visit <a href="https://ictf.cs.ucsb.edu" target="_blank">ictf.cs.ucsb.edu</a>.
+        </p>
+
+        <!-- Getting Started -->
+        <h2>Getting Started</h2>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;"><strong>Register your team</strong> at <a href="https://ictf.cs.ucsb.edu" target="_blank">ictf.cs.ucsb.edu</a></li>
+            <li style="padding-left: 0.5rem;"><strong>Set up Agentish</strong> &mdash; clone the repo and install dependencies</li>
+            <li style="padding-left: 0.5rem;"><strong>Open the editor</strong> &mdash; start building your agent workflow</li>
+            <li style="padding-left: 0.5rem;"><strong>Export your bundle</strong> &mdash; download the ZIP with your workflow</li>
+            <li style="padding-left: 0.5rem;"><strong>Submit</strong> &mdash; upload the bundle to the competition sandbox</li>
+        </ol>
+
+        <!-- Setup -->
+        <h2>Setup</h2>
+        <div class="code-block"><code><span class="comment"># Clone the repository</span>
+$ git clone https://github.com/shellphish/agentish.git
+$ cd agentish
+
+<span class="comment"># Install dependencies</span>
+$ pip install -r requirements.txt
+
+<span class="comment"># Start the server (with challenge tools)</span>
+$ CHALLENGISH_CONFIG_PATH=challengish.yml python backend/server_agentish.py --port 8000
+
+<span class="comment"># Open http://localhost:8000 in your browser</span>
+        </code></div>
+        <p>
+            During the competition, you will be provided a <code>challengish.yml</code> file
+            that defines the available MCP tools for each challenge.
+        </p>
+
+        <!-- Using the Visual Editor -->
+        <h2>Using the Visual Editor</h2>
+
+        <h3>1. Understanding the Canvas</h3>
+        <p>
+            The editor presents a node-based graph canvas. You build your agent by placing nodes
+            and connecting them with edges to define the execution flow.
+        </p>
+
+        <h3>2. Adding Nodes</h3>
+        <p>Right-click on the canvas to add nodes. Available node types:</p>
+        <ul class="features">
+            <li><strong>Entry Point</strong> &mdash; The starting node. Every workflow needs one.</li>
+            <li><strong>LLM Node</strong> &mdash; An AI agent that processes input, reasons, and optionally calls tools.</li>
+            <li><strong>Router Node</strong> &mdash; Makes decisions about which path to take based on context.</li>
+            <li><strong>Worker Node</strong> &mdash; Performs a subtask and returns results to the calling LLM.</li>
+        </ul>
+
+        <h3>3. Connecting Nodes</h3>
+        <p>
+            Drag from an output slot to an input slot to create an edge.
+            Edges define the execution flow of your agent.
+        </p>
+
+        <h3>4. Configuring Nodes</h3>
+        <p>Click on a node to open the property inspector. Key settings:</p>
+        <ul class="features">
+            <li><strong>System Prompt</strong> &mdash; Instructions for the LLM (its role, constraints, behavior)</li>
+            <li><strong>Human Prompt</strong> &mdash; Template with <code>{variable}</code> placeholders from state</li>
+            <li><strong>Selected Tools</strong> &mdash; Which MCP tools this node can use</li>
+            <li><strong>Max Tool Iterations</strong> &mdash; Limit on how many times the LLM can call tools in a loop</li>
+        </ul>
+
+        <h3>5. Using Tools</h3>
+        <p>
+            The <strong>Function Catalog</strong> sidebar shows all available MCP tools from the challenge.
+            Assign tools to LLM or Worker nodes in the inspector. The LLM will decide when and how
+            to call them during execution.
+        </p>
+
+        <!-- Workflow Strategies -->
+        <h2>Workflow Strategies</h2>
+
+        <h3>Simple Pipeline</h3>
+        <div class="code-block"><code>Entry → LLM (analyze) → LLM (solve) → END
+
+<span class="comment"># Good for straightforward challenges</span>
+<span class="comment"># Single-pass analysis and solution</span>
+        </code></div>
+
+        <h3>Router-Based Branching</h3>
+        <div class="code-block"><code>Entry → Analyzer → Router → ┬─ Approach A
+                                 ├─ Approach B
+                                 └─ Approach C
+                                       ↓
+                                     Final
+
+<span class="comment"># Good when different strategies are needed</span>
+<span class="comment"># Router picks the best approach based on analysis</span>
+        </code></div>
+
+        <h3>Worker Delegation</h3>
+        <div class="code-block"><code>Entry → Coordinator ←──→ Worker 1 (reconnaissance)
+              │        ←──→ Worker 2 (exploitation)
+              ↓
+            Final
+
+<span class="comment"># Good for complex challenges requiring multiple subtasks</span>
+<span class="comment"># Coordinator delegates to specialized workers</span>
+        </code></div>
+
+        <!-- Exporting & Submitting -->
+        <h2>Exporting &amp; Submitting</h2>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;">Click <strong>"Download Bundle"</strong> in the editor toolbar</li>
+            <li style="padding-left: 0.5rem;">You get a ZIP file containing:
+                <ul style="list-style: none; margin-top: 0.3rem;">
+                    <li>→ <code>asl.json</code> &mdash; Your workflow definition</li>
+                    <li>→ <code>layout.json</code> &mdash; Visual layout (for re-importing)</li>
+                </ul>
+            </li>
+            <li style="padding-left: 0.5rem;">Upload the bundle to the <strong>agentish-ctf</strong> sandbox</li>
+            <li style="padding-left: 0.5rem;">The sandbox compiles your ASL into executable Python and runs it against the challenge</li>
+        </ol>
+
+        <!-- Tips -->
+        <h2>Tips for Success</h2>
+        <ul class="features">
+            <li><strong>Start simple</strong> &mdash; Get a basic pipeline working before adding complexity</li>
+            <li><strong>Write detailed prompts</strong> &mdash; The better your system prompt, the better the agent performs</li>
+            <li><strong>Use routers wisely</strong> &mdash; When the challenge requires different strategies, let the AI choose</li>
+            <li><strong>Set tool limits</strong> &mdash; Prevent runaway tool loops with reasonable <code>max_tool_iterations</code></li>
+            <li><strong>Test incrementally</strong> &mdash; Export and test often, don&rsquo;t build the entire workflow before testing</li>
+            <li><strong>Read tool descriptions</strong> &mdash; Understanding what each MCP tool does is key to designing effective workflows</li>
+            <li><strong>Use workers for subtasks</strong> &mdash; Break complex reasoning into focused worker nodes</li>
+        </ul>
+
+        <!-- Important Notes -->
+        <h2>Important Notes</h2>
+        <ul class="features">
+            <li><strong>Agentish does NOT execute agents</strong> &mdash; It only creates workflow definitions. Execution happens in the sandbox.</li>
+            <li><strong>Tool calls are HTTP requests</strong> &mdash; At execution time, your agent calls MCP tools over HTTP. Network issues may cause tool failures.</li>
+            <li><strong>LLM choice matters</strong> &mdash; Different models have different strengths. Consider the trade-off between speed and capability.</li>
+            <li><strong>Bundle is self-contained</strong> &mdash; The exported ZIP has everything needed to compile and run your agent.</li>
+        </ul>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentish Framework | Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="documentation.html">&larr; Back to Documentation</a></p>
+
+        <section class="hero" style="padding: 2rem 0 2rem;">
+            <h1>Agentish Framework</h1>
+            <p class="tagline">Visual Workflow Compiler for Autonomous AI Agents</p>
+            <p class="description">
+                Agentish transforms Agent Specification Language (ASL) JSON definitions into
+                executable LangGraph Python code through an intuitive drag-and-drop graph editor.
+            </p>
+        </section>
+
+        <!-- Overview -->
+        <h2>Overview</h2>
+        <p>
+            Agentish is the frontend UI for building AI agent workflows. It provides a visual graph
+            editor where you wire together LLM calls, tools, routers, and workers &mdash; then export
+            the workflow as a bundle that can be compiled and executed.
+        </p>
+        <ul class="features">
+            <li><strong>Visual Graph Editor</strong> &mdash; Drag-and-drop interface for creating agent workflows</li>
+            <li><strong>Node Types</strong> &mdash; LLM nodes, Router nodes, Worker nodes, Entry points</li>
+            <li><strong>MCP Tool Integration</strong> &mdash; Load available tools from <code>challengish.yml</code></li>
+            <li><strong>Bundle Export</strong> &mdash; Download your workflow as a ZIP bundle (asl.json + layout.json)</li>
+            <li><strong>Multi-LLM Support</strong> &mdash; OpenAI, Anthropic Claude, and Ollama</li>
+            <li><strong>Single Global State</strong> &mdash; Unified state management with per-node tracking</li>
+        </ul>
+
+        <!-- Architecture Diagram -->
+        <h2>Architecture</h2>
+        <div class="code-block"><code>
+┌─────────────────────────────────────────────────────────────┐
+│                      AGENTISH WORKFLOW                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌──────────┐      ┌──────────┐      ┌──────────┐          │
+│  │  Entry   │─────▶│   LLM    │─────▶│  Router  │          │
+│  │  Point   │      │   Node   │      │   Node   │          │
+│  └──────────┘      └────┬─────┘      └────┬─────┘          │
+│                          │                  │                 │
+│                          ▼                  ├──────┬──────┐  │
+│                    ┌──────────┐            ▼      ▼      ▼  │
+│                    │   Tool   │         LLM1   LLM2   LLM3  │
+│                    │   Node   │          │      │      │    │
+│                    └────┬─────┘          └──────┴──────┘    │
+│                          │                       ▼           │
+│                          └─────────────────▶  Final         │
+│                                              Output          │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │           GLOBAL STATE (Single Source of Truth)      │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+        </code></div>
+
+        <!-- Components -->
+        <h2>Components</h2>
+
+        <h3>Frontend</h3>
+        <p>The visual editor UI is built with vanilla JavaScript and the LiteGraph library.</p>
+        <ul class="features">
+            <li><code>frontend/index.html</code> &mdash; Main visual editor UI</li>
+            <li><code>frontend/js/main.js</code> &mdash; Entry point &amp; editor bootstrap</li>
+            <li><code>frontend/js/constants.js</code> &mdash; Configuration, node forms, type maps</li>
+            <li><code>frontend/js/state.js</code> &mdash; Shared mutable state (graph, canvas, tools)</li>
+            <li><code>frontend/js/nodes.js</code> &mdash; Node type definitions &amp; registration</li>
+            <li><code>frontend/js/inspector.js</code> &mdash; Property inspector panel</li>
+            <li><code>frontend/js/serialization.js</code> &mdash; ASL import/export &amp; layout I/O</li>
+            <li><code>frontend/js/tools.js</code> &mdash; Tool registry, function catalog, MCP hydration</li>
+            <li><code>frontend/js/ui.js</code> &mdash; Event bindings (keyboard, menus, modals)</li>
+        </ul>
+
+        <h3>Backend</h3>
+        <p>A minimal Flask server that serves the frontend and the MCP tool catalog.</p>
+        <ul class="features">
+            <li><code>backend/server_agentish.py</code> &mdash; Serves frontend and MCP tools API</li>
+            <li><code>backend/mcp_manager.py</code> &mdash; Reads <code>challengish.yml</code> and exposes tool definitions</li>
+        </ul>
+
+        <!-- Quick Start -->
+        <h2>Quick Start</h2>
+        <div class="code-block"><code><span class="comment"># Clone the repository</span>
+$ git clone https://github.com/shellphish/agentish.git
+$ cd agentish
+
+<span class="comment"># Install dependencies</span>
+$ pip install -r requirements.txt
+
+<span class="comment"># Run the server</span>
+$ bash start_server.sh
+
+<span class="comment"># Or with MCP tools</span>
+$ CHALLENGISH_CONFIG_PATH=sample_challenge/challengish.yml python backend/server_agentish.py --port 8000
+        </code></div>
+        <p>Then open <code>http://localhost:8000</code> in your browser.</p>
+
+        <!-- Building Workflows -->
+        <h2>Building Workflows</h2>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;"><strong>Add Nodes</strong> &mdash; Right-click on the canvas to add nodes</li>
+            <li style="padding-left: 0.5rem;"><strong>Connect Nodes</strong> &mdash; Drag from output to input slots</li>
+            <li style="padding-left: 0.5rem;"><strong>Configure Nodes</strong> &mdash; Click a node to edit its properties in the inspector</li>
+            <li style="padding-left: 0.5rem;"><strong>Export Bundle</strong> &mdash; Click "Download Bundle" to get a ZIP file</li>
+        </ol>
+
+        <!-- Bundle Format -->
+        <h2>Bundle Format</h2>
+        <p>The exported bundle is a ZIP containing:</p>
+        <ul class="features">
+            <li><code>asl.json</code> &mdash; The ASL (Agent Specification Language) workflow definition</li>
+            <li><code>layout.json</code> &mdash; Visual layout information for the graph editor</li>
+        </ul>
+
+        <!-- API Endpoints -->
+        <h2>API Endpoints</h2>
+        <div class="code-block"><code>GET  /              &mdash; Serve the visual editor UI
+GET  /config.json    &mdash; Frontend configuration
+GET  /api/mcp/tools  &mdash; List available MCP tools from challengish.yml
+POST /api/bundle/download &mdash; Create and download a bundle ZIP
+GET  /health         &mdash; Health check
+        </code></div>
+
+        <!-- ASL JSON Format -->
+        <h2>ASL JSON Format</h2>
+        <p>Workflows are defined in the Agent Specification Language (ASL), a JSON format with these top-level sections:</p>
+        <div class="code-block"><code><span class="keyword">meta</span>
+  version        <span class="comment">// ASL format version (e.g. "2025.10")</span>
+  exported_at    <span class="comment">// ISO timestamp</span>
+
+<span class="keyword">graph</span>
+  entrypoint     <span class="comment">// ID of the starting node</span>
+  state.schema   <span class="comment">// Global state field definitions</span>
+  nodes[]        <span class="comment">// Array of node objects</span>
+  edges[]        <span class="comment">// Array of edge connections</span>
+  tools{}        <span class="comment">// Tool definitions (name → config)</span>
+        </code></div>
+
+        <h3>Node Types</h3>
+        <ul class="features">
+            <li><code>EntryPoint</code> &mdash; Workflow start; initializes agent state</li>
+            <li><code>LLMNode</code> &mdash; LLM agent; processes input, optionally uses tools</li>
+            <li><code>RouterBlock</code> &mdash; Conditional router; LLM-powered branching</li>
+            <li><code>WorkerNode</code> &mdash; Subtask worker; routes back to calling node</li>
+        </ul>
+
+        <h3>Edge Types</h3>
+        <ul class="features">
+            <li><code>NormalEdge</code> &mdash; Direct connection (A → B)</li>
+            <li><code>ConditionalEdge</code> &mdash; Router-based branching (Router → A or B or C)</li>
+        </ul>
+
+        <!-- Compiler Architecture -->
+        <h2>Compiler Pipeline</h2>
+        <p>The compiler transforms ASL JSON into executable LangGraph Python code:</p>
+        <div class="code-block"><code>ASL JSON → Parse &amp; Validate → Sort Nodes → Build Mappings → Generate Code → Python Output
+
+<span class="comment">Generation order (critical):</span>
+ 1. Imports
+ 2. Helper functions
+ 3. Model initialization
+ 4. State class (GlobalState TypedDict)
+ 5. Tool functions (@tool decorators)
+ 6. Worker tools (must come before models)
+ 7. Model instances
+ 8. Tool groups (tools_by_name_for_node_X)
+ 9. LLM node functions
+10. Tool node functions
+11. Router node functions
+12. Worker node functions
+13. Graph construction (StateGraph)
+14. Main entry point
+        </code></div>
+
+        <!-- Environment Variables -->
+        <h2>Configuration</h2>
+        <h3>Environment Variables</h3>
+        <div class="code-block"><code><span class="comment"># LLM Configuration</span>
+LLM_MODEL_NAME=gpt-4                    <span class="comment"># Model to use</span>
+LLM_TEMPERATURE=0.0                     <span class="comment"># Creativity (0-2)</span>
+LLM_MAX_OUTPUT_TOKENS=4096              <span class="comment"># Max response length</span>
+LLM_CONTEXT_WINDOW=8192                 <span class="comment"># Max context size</span>
+LLM_API_KEY=sk-...                      <span class="comment"># API key</span>
+
+<span class="comment"># Supported model prefixes:</span>
+<span class="comment">#   gpt-*, o1-*       → OpenAI</span>
+<span class="comment">#   claude-*          → Anthropic</span>
+<span class="comment">#   (anything else)   → Ollama (local)</span>
+
+<span class="comment"># Agentish Server</span>
+CHALLENGISH_CONFIG_PATH=challengish.yml  <span class="comment"># Path to MCP tool config</span>
+        </code></div>
+
+        <!-- Execution Note -->
+        <h2>Execution</h2>
+        <p>
+            <strong>Agentish does NOT execute agents.</strong> It only creates workflow definitions.
+            To execute your agent, use the <strong>agentish-ctf</strong> execution environment:
+        </p>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;">Export your bundle from Agentish</li>
+            <li style="padding-left: 0.5rem;">Upload the bundle to the agentish-ctf sandbox</li>
+            <li style="padding-left: 0.5rem;">The sandbox compiles and executes your agent with access to MCP tools</li>
+        </ol>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

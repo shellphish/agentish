@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 5: Information Flow | Agentic Workflow | Agentish</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentic Workflow Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 5</span> Information Flow</h1>
+            <p class="tagline">What data moves through the graph, and how</p>
+        </section>
+
+        <p>
+            <a href="4-control-flow.html">Chapter 4</a> covered <em>where</em> execution
+            goes. This chapter covers <em>what it carries</em>. In a multi-agent system,
+            agents need to share data: the output of one agent becomes the input of the
+            next. How does that work?
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 5.1 THE SINGLE STATE PHILOSOPHY                                 -->
+        <!-- ============================================================== -->
+        <h2>5.1 &mdash; The Single State Philosophy</h2>
+
+        <p>
+            Many multi-agent frameworks give each agent its own private state. When agents
+            need to share data, you write explicit &ldquo;handoff&rdquo; logic to copy fields
+            between states. This gets messy fast &mdash; state synchronization bugs are a
+            top source of workflow failures.
+        </p>
+
+        <p>
+            Agentish takes a different approach: <strong>one global state, shared by all
+            nodes.</strong> Every node reads from and writes to the same <code>GlobalState</code>
+            dictionary. No copying, no synchronization, no handoff logic.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Every node receives the same GlobalState object:</span>
+<span class="keyword">def</span> llm_2_node(global_state: GlobalState) -> Command:
+    <span class="comment"># Read shared data</span>
+    alert_text = global_state.get(<span class="string">"alert_text"</span>, <span class="string">""</span>)
+    classification = global_state.get(<span class="string">"classification"</span>, <span class="string">""</span>)
+
+    <span class="comment"># Write results back to the same shared state</span>
+    <span class="keyword">return</span> Command(
+        update={
+            <span class="string">"investigation_result"</span>: <span class="string">"Found suspicious IP 10.0.0.5..."</span>,
+            <span class="string">"messages"</span>: [response]
+        },
+        goto=<span class="string">"llm_3_node"</span>
+    )</code></div>
+
+
+        <!-- ============================================================== -->
+        <!-- 5.2 GLOBALSTATE DEEP DIVE                                       -->
+        <!-- ============================================================== -->
+        <h2>5.2 &mdash; GlobalState: The Shared Blackboard</h2>
+
+        <p>
+            The <code>GlobalState</code> is a Python <code>TypedDict</code> &mdash; a dictionary
+            with typed fields. You define the fields when you design your workflow. Each
+            field has a name and a type.
+        </p>
+
+        <div class="code-block"><code><span class="keyword">class</span> GlobalState(TypedDict):
+    <span class="string">"""Global state shared across all nodes in the workflow."""</span>
+
+    <span class="comment"># ── User-defined fields ──</span>
+    count: Annotated[int, operator.add]                                <span class="comment"># Counter</span>
+    messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y: x + y]         <span class="comment"># Chat history</span>
+    alert_text: str                                                    <span class="comment"># The input alert</span>
+    classification: str                                                <span class="comment"># Classifier output</span>
+    severity: str                                                      <span class="comment"># Severity level</span>
+
+    <span class="comment"># ── Auto-generated per-node fields ──</span>
+    node_2_messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y: x + y]  <span class="comment"># Node 2's conversation</span>
+    node_2_llm_calls: Annotated[int, operator.add]                     <span class="comment"># Node 2's LLM call count</span>
+    node_2_tool_iteration_count: int                                   <span class="comment"># Node 2's tool loop counter</span>
+    <span class="comment"># ... repeated for each node ...</span>
+
+    <span class="comment"># ── Router fields ──</span>
+    routing_reason: Optional[str]                                      <span class="comment"># Why the router chose this path</span></code></div>
+
+        <p>
+            There are three categories of fields:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Category</th><th>Who Creates Them</th><th>Examples</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>User-defined</strong></td>
+                    <td>You, when designing the workflow in Agentish</td>
+                    <td><code>alert_text</code>, <code>classification</code>, <code>severity</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Auto-generated per-node</strong></td>
+                    <td>The compiler, based on nodes in the graph</td>
+                    <td><code>node_2_messages</code>, <code>node_2_llm_calls</code>, <code>node_2_tool_iteration_count</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Router tracking</strong></td>
+                    <td>The compiler, if routers exist</td>
+                    <td><code>routing_reason</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+
+        <!-- ============================================================== -->
+        <!-- 5.3 REDUCERS                                                    -->
+        <!-- ============================================================== -->
+        <h2>5.3 &mdash; Reducers: How Updates Merge</h2>
+
+        <p>
+            Here&rsquo;s a subtle but critical concept. When a node returns
+            <code>Command(update={"count": 1})</code>, what does that <code>1</code> mean?
+            Is the new count <em>1</em>, or is it <em>old count + 1</em>?
+        </p>
+
+        <p>
+            The answer depends on the field&rsquo;s <strong>reducer</strong>. A reducer is a
+            function that defines how new values merge with existing values.
+        </p>
+
+        <h3>Fields Without Reducers: Last Write Wins</h3>
+
+        <div class="code-block"><code><span class="comment"># No reducer — last write wins:</span>
+classification: str
+
+<span class="comment"># Node A writes: {"classification": "malware"}</span>
+<span class="comment"># Node B writes: {"classification": "phishing"}</span>
+<span class="comment"># Final value: "phishing" (Node B's value overwrites Node A's)</span></code></div>
+
+        <h3>Fields With <code>operator.add</code> Reducer: Accumulate</h3>
+
+        <div class="code-block"><code><span class="comment"># With operator.add reducer — values accumulate:</span>
+count: Annotated[int, operator.add]
+
+<span class="comment"># Starting value: count = 0</span>
+<span class="comment"># Node A writes: {"count": 1}    → LangGraph computes: 0 + 1 = 1</span>
+<span class="comment"># Node B writes: {"count": 1}    → LangGraph computes: 1 + 1 = 2</span>
+<span class="comment"># Final value: 2 ✓</span></code></div>
+
+        <h3>Fields With List Reducer: Append</h3>
+
+        <div class="code-block"><code><span class="comment"># With list concatenation reducer — items append:</span>
+messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y: x + y]
+
+<span class="comment"># Starting value: messages = []</span>
+<span class="comment"># Node A writes: {"messages": [AIMessage("Hello")]}</span>
+<span class="comment">#   → LangGraph computes: [] + [AIMessage("Hello")]</span>
+<span class="comment">#   = [AIMessage("Hello")]</span>
+<span class="comment"># Node B writes: {"messages": [AIMessage("World")]}</span>
+<span class="comment">#   → LangGraph computes: [AIMessage("Hello")] + [AIMessage("World")]</span>
+<span class="comment">#   = [AIMessage("Hello"), AIMessage("World")]</span></code></div>
+
+        <div class="callout callout-warning">
+            <strong>⚠️ The &ldquo;counter bug&rdquo;:</strong> If <code>count</code> uses
+            <code>operator.add</code> but your node writes
+            <code>{"count": old_value + 1}</code> instead of <code>{"count": 1}</code>,
+            you&rsquo;ll double-count. With a reducer, nodes should return
+            <strong>increments</strong> (the delta), not <strong>totals</strong> (the absolute value).
+        </div>
+
+        <h3>Summary Table</h3>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Field</th><th>Reducer</th><th>Update Meaning</th><th>Node Returns</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>classification</code></td>
+                    <td>None (last write wins)</td>
+                    <td>Replace the value</td>
+                    <td>The new value: <code>"malware"</code></td>
+                </tr>
+                <tr>
+                    <td><code>count</code></td>
+                    <td><code>operator.add</code></td>
+                    <td>Add to existing value</td>
+                    <td>The increment: <code>1</code></td>
+                </tr>
+                <tr>
+                    <td><code>messages</code></td>
+                    <td><code>lambda x, y: x + y</code></td>
+                    <td>Append to existing list</td>
+                    <td>New items: <code>[msg]</code></td>
+                </tr>
+                <tr>
+                    <td><code>node_X_tool_iteration_count</code></td>
+                    <td>None (last write wins)</td>
+                    <td>Replace the value</td>
+                    <td>The new absolute count: <code>5</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+
+        <!-- ============================================================== -->
+        <!-- 5.4 MESSAGES                                                    -->
+        <!-- ============================================================== -->
+        <h2>5.4 &mdash; Messages: The Conversation Thread</h2>
+
+        <p>
+            The most important field in GlobalState is <code>messages</code>. It&rsquo;s the
+            shared conversation history &mdash; a chronological list of all messages
+            exchanged across all nodes.
+        </p>
+
+        <h3>Message Types</h3>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Type</th><th>Who Creates It</th><th>Contains</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>SystemMessage</code></td>
+                    <td>The node&rsquo;s system prompt</td>
+                    <td>Instructions for the LLM (not stored in global messages)</td>
+                </tr>
+                <tr>
+                    <td><code>HumanMessage</code></td>
+                    <td>The user, the human prompt, or the system (e.g., iteration warning)</td>
+                    <td>Input text or task description</td>
+                </tr>
+                <tr>
+                    <td><code>AIMessage</code></td>
+                    <td>The LLM&rsquo;s response</td>
+                    <td>Text response or tool call requests</td>
+                </tr>
+                <tr>
+                    <td><code>ToolMessage</code></td>
+                    <td>Tool execution results</td>
+                    <td>Tool output data (JSON, text, etc.)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Global vs. Per-Node Messages</h3>
+
+        <p>
+            There are <strong>two</strong> message lists in play:
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Global messages — the full conversation across all nodes:</span>
+messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y: x + y]
+
+<span class="comment"># Per-node messages — this specific node's conversation:</span>
+node_2_messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y: x + y]</code></div>
+
+        <p>
+            Why both? Each LLM Node builds its prompt from its <strong>own</strong> message
+            history (<code>node_X_messages</code>), not the global one. This keeps each
+            agent&rsquo;s context focused. But the node also writes to the global
+            <code>messages</code> list so downstream nodes can see what happened upstream.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Example: Message Flow in a Pipeline</div>
+            <div class="code-block"><code><span class="comment"># After Classifier (Node 2) runs:</span>
+global messages = [
+    HumanMessage(<span class="string">"New alert: suspicious login from 10.0.0.5"</span>),
+    AIMessage(<span class="string">"Classification: Intrusion, Severity: High"</span>)
+]
+node_2_messages = [
+    HumanMessage(<span class="string">"New alert: suspicious login from 10.0.0.5"</span>),
+    AIMessage(<span class="string">"Classification: Intrusion, Severity: High"</span>)
+]
+
+<span class="comment"># Investigator (Node 3) starts. It builds its prompt from:</span>
+<span class="comment"># 1. Its own system prompt</span>
+<span class="comment"># 2. Its own message history (node_3_messages = [] at first)</span>
+<span class="comment"># 3. The last global message (to see Classifier's output)</span>
+
+<span class="comment"># After Investigator runs:</span>
+global messages = [
+    HumanMessage(<span class="string">"New alert: suspicious login from 10.0.0.5"</span>),
+    AIMessage(<span class="string">"Classification: Intrusion, Severity: High"</span>),
+    AIMessage(<span class="string">"Investigation: IP 10.0.0.5 has 47 failed logins..."</span>)
+]
+node_3_messages = [
+    AIMessage(<span class="string">"Investigation: IP 10.0.0.5 has 47 failed logins..."</span>)
+]</code></div>
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 5.5 TEMPLATE VARIABLES                                          -->
+        <!-- ============================================================== -->
+        <h2>5.5 &mdash; Template Variables</h2>
+
+        <p>
+            How does an agent access specific GlobalState fields in its prompt?
+            Through <strong>template variables</strong> &mdash; placeholders in curly braces
+            that get replaced with actual values at run time.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># In the Agentish editor, you write:</span>
+<span class="string">"Investigate this {classification} alert. The raw alert text is:
+{alert_text}
+
+Previous analysis: {investigation_result}"</span>
+
+<span class="comment"># At runtime, Agentish renders the template against GlobalState:</span>
+render_template(prompt_text, global_state)
+
+<span class="comment"># Result:</span>
+<span class="string">"Investigate this Intrusion alert. The raw alert text is:
+Suspicious login attempt from 10.0.0.5 at 03:42 UTC
+
+Previous analysis: {investigation_result}"</span>
+<span class="comment"># ↑ Note: investigation_result wasn't set yet, so it stays as-is</span></code></div>
+
+        <p>
+            Key behaviors:
+        </p>
+
+        <ul class="features">
+            <li>If the variable exists in GlobalState, it&rsquo;s replaced with the current value.</li>
+            <li>If the variable doesn&rsquo;t exist yet, the placeholder stays as literal text (no crash).</li>
+            <li>Template variables work in both the <strong>system prompt</strong> and the <strong>human prompt</strong>.</li>
+            <li>The variable name must exactly match a field name in the state schema.</li>
+        </ul>
+
+        <div class="callout">
+            <strong>Design tip:</strong> Template variables are how you create data dependencies
+            between agents. If Agent B&rsquo;s prompt references <code>{classification}</code>,
+            then Agent A (the Classifier) must write to the <code>classification</code> field
+            before Agent B runs. The topology (Agent A → Agent B) ensures this ordering.
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 5.6 DATA PASSING PATTERNS                                       -->
+        <!-- ============================================================== -->
+        <h2>5.6 &mdash; Data Passing Patterns</h2>
+
+        <p>
+            There are three common patterns for how data flows between agents:
+        </p>
+
+        <h3>Pattern 1: Message Relay</h3>
+        <p>
+            Agents communicate through the global <code>messages</code> list.
+            Each agent reads the previous agent&rsquo;s output from the last message.
+            Simple and implicit. Good for pipelines.
+        </p>
+
+        <h3>Pattern 2: Named Fields</h3>
+        <p>
+            Agents write to and read from specific named fields in GlobalState
+            (e.g., <code>classification</code>, <code>severity</code>). Explicit and
+            type-safe. Good for structured handoffs.
+        </p>
+
+        <h3>Pattern 3: Template Injection</h3>
+        <p>
+            Agents read data by referencing fields in their prompts via
+            <code>{field_name}</code> template variables. The data is injected
+            into the prompt text before the LLM sees it. Good for providing
+            context without the agent needing to &ldquo;ask&rdquo; for it.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Running Example: All Three Patterns Combined</div>
+            <div class="code-block"><code><span class="comment"># Classifier writes classification to a named field:</span>
+Command(update={
+    <span class="string">"classification"</span>: <span class="string">"intrusion"</span>,          <span class="comment"># Pattern 2: Named field</span>
+    <span class="string">"severity"</span>: <span class="string">"high"</span>,                     <span class="comment"># Pattern 2: Named field</span>
+    <span class="string">"messages"</span>: [AIMessage(<span class="string">"It's an intrusion"</span>)]  <span class="comment"># Pattern 1: Message relay</span>
+})
+
+<span class="comment"># Investigator's prompt uses template variables:</span>
+system_prompt = <span class="string">"You are investigating a {classification} alert   # Pattern 3: Template injection</span>
+                <span class="string">with severity {severity}."</span>
+
+<span class="comment"># All three patterns complement each other.</span></code></div>
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- SUMMARY                                                         -->
+        <!-- ============================================================== -->
+        <h2>Chapter Summary</h2>
+
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>Agentish uses a <strong>single GlobalState</strong> shared by all nodes. No per-agent private state.</li>
+                <li>GlobalState is a Python <code>TypedDict</code> with user-defined fields, auto-generated per-node fields, and router fields.</li>
+                <li><strong>Reducers</strong> define how updates merge: <code>operator.add</code> for counters (return increments), list concatenation for messages (return new items), or no reducer (last write wins).</li>
+                <li>Each node has <strong>two message lists</strong>: the global <code>messages</code> (full history) and per-node <code>node_X_messages</code> (focused context).</li>
+                <li><strong>Template variables</strong> (<code>{field_name}</code>) inject GlobalState values into prompts at runtime. Missing fields stay as literal text.</li>
+                <li>Three data passing patterns: message relay, named fields, and template injection. Use them together.</li>
+            </ul>
+        </div>
+
+        <!-- Navigation -->
+        <div class="chapter-nav">
+            <a href="4-control-flow.html" class="chapter-nav-prev">
+                &larr; Chapter 4: Control Flow
+            </a>
+            <a href="6-validation.html" class="chapter-nav-next">
+                Chapter 6: Validation &amp; Error Handling &rarr;
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

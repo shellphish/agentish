@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 3: Workflow Topology | Agentic Workflow | Agentish</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentic Workflow Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 3</span> Workflow Topology</h1>
+            <p class="tagline">How to connect agents into a graph</p>
+        </section>
+
+        <p>
+            In <a href="2-the-agent.html">Chapter 2</a>, you learned how to configure a
+            single agent. Now the question becomes: <strong>how many agents do you need,
+            and how do they connect?</strong> This is the <em>topology</em> &mdash; the shape of
+            your graph.
+        </p>
+
+        <p>
+            Topology is a <em>design-time</em> decision. You draw it before anything runs.
+            It answers the question: &ldquo;If I were to sketch this system on a whiteboard,
+            what would the diagram look like?&rdquo;
+        </p>
+
+        <div class="callout">
+            <strong>Jargon alert:</strong> You&rsquo;ll encounter terms like &ldquo;sequential decomposition,&rdquo;
+            &ldquo;linear flow,&rdquo; &ldquo;sequential chaining,&rdquo; and &ldquo;pipeline architecture&rdquo; in blog posts
+            and papers. These all describe the same thing: agents in a line. We call it a
+            <strong>pipeline</strong>. Similarly, &ldquo;hierarchical delegation,&rdquo;
+            &ldquo;manager-worker pattern,&rdquo; and &ldquo;supervisor architecture&rdquo; all describe a
+            tree with a coordinator at the top. Don&rsquo;t let synonyms trick you into thinking
+            there are more patterns than there are.
+        </div>
+
+        <p>
+            There are exactly <strong>six canonical topologies</strong>. Every multi-agent system
+            you&rsquo;ll ever encounter is one of these, or a combination of them.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 3.1 SINGLE AGENT                                                -->
+        <!-- ============================================================== -->
+        <h2>3.1 &mdash; Single Agent</h2>
+
+        <p>
+            One node. No graph. The agent handles everything. This isn&rsquo;t really a
+            &ldquo;topology&rdquo; in the graph sense, but it&rsquo;s the baseline you should always
+            consider first.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Topology:</span>
+  ┌──────────┐     ┌─────────┐
+  │  Entry   │────▶│  Agent  │
+  └──────────┘     └─────────┘</code></div>
+
+        <h3>When to Use</h3>
+        <ul class="features">
+            <li>The task is simple or tightly coupled (e.g., classify an alert, summarize a report)</li>
+            <li>The agent needs fewer than 5 tools</li>
+            <li>The expected conversation length is short (under ~20 tool calls)</li>
+            <li>You&rsquo;re prototyping and want to validate feasibility before adding complexity</li>
+        </ul>
+
+        <h3>When to Move Beyond</h3>
+        <ul class="features">
+            <li>The agent&rsquo;s system prompt is becoming a wall of text trying to cover multiple roles</li>
+            <li>You&rsquo;re assigning more than 5&ndash;7 tools and seeing the LLM pick wrong ones</li>
+            <li>The context window is filling up before the task is done</li>
+            <li>You need different expertise for different phases of the task</li>
+        </ul>
+
+        <div class="example-box">
+            <div class="example-label">Running Example</div>
+            <p>
+                Our Alert Classifier from <a href="2-the-agent.html">Chapter 2</a> is a single agent.
+                It receives an alert, classifies it, and returns a result. No decomposition needed.
+                But what happens after classification? The alert needs to be <em>investigated</em>
+                based on its category. That&rsquo;s when we need more agents.
+            </p>
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 3.2 PIPELINE                                                    -->
+        <!-- ============================================================== -->
+        <h2>3.2 &mdash; Pipeline (Chain)</h2>
+
+        <p>
+            Nodes in a line: <strong>A → B → C</strong>. Each agent takes the previous
+            agent&rsquo;s output as input and produces output for the next one. This is the
+            most common and most intuitive multi-agent pattern.
+        </p>
+
+        <img src="images/simple_directed_graph.png" alt="Pipeline topology — agents connected in a line" class="illustration img-pipeline">
+
+        <h3>When to Use</h3>
+        <ul class="features">
+            <li>The task naturally decomposes into sequential phases</li>
+            <li>Each phase requires different expertise, tools, or context</li>
+            <li>The output of one phase is the input to the next</li>
+            <li>You want clear separation of concerns and easy debugging</li>
+        </ul>
+
+        <h3>Design Tradeoffs</h3>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Advantage</th><th>Disadvantage</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Simple to understand and debug</td>
+                    <td>Each agent adds latency (sequential execution)</td>
+                </tr>
+                <tr>
+                    <td>Each agent has focused context</td>
+                    <td>Errors propagate forward &mdash; if Agent A is wrong, B and C are wrong too</td>
+                </tr>
+                <tr>
+                    <td>Easy to add or remove stages</td>
+                    <td>No parallelism &mdash; can&rsquo;t do multiple things at once</td>
+                </tr>
+                <tr>
+                    <td>Natural for refine-and-improve patterns</td>
+                    <td>Later agents may lose information from earlier stages</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="example-box">
+            <div class="example-label">Running Example: Security Alert Pipeline</div>
+            <div class="code-block"><code><span class="comment"># Three specialized agents in a line:</span>
+
+  ┌──────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+  │  Entry   │────▶│ Classifier  │────▶│ Investigator│────▶│  Responder  │
+  └──────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+
+<span class="keyword">Classifier:</span>    Model: GPT-4o-mini, Tools: none
+               <span class="string">"Classify the alert by category and severity."</span>
+
+<span class="keyword">Investigator:</span>  Model: GPT-4o, Tools: [check_ip, search_logs, check_hash]
+               <span class="string">"Investigate the classified alert. Gather evidence."</span>
+
+<span class="keyword">Responder:</span>     Model: GPT-4o-mini, Tools: [block_ip, create_ticket]
+               <span class="string">"Based on the investigation, take appropriate action."</span></code></div>
+            <p>
+                Each agent has a focused role, its own tools, and a clean handoff to the next.
+                The Classifier is cheap and fast. The Investigator uses a powerful model because
+                investigation requires complex reasoning. The Responder is cheap again &mdash;
+                it just executes the plan.
+            </p>
+        </div>
+
+        <h3>In Agentish</h3>
+        <p>
+            Create three LLM Nodes and connect them with <strong>NormalEdge</strong> connections.
+            A NormalEdge means &ldquo;after this node finishes, always go to the connected node.&rdquo;
+            No conditions, no branching.
+        </p>
+
+        <div class="screenshot-placeholder">
+            <div class="screenshot-icon">📸</div>
+            <p>Screenshot: Agentish canvas showing a 3-node pipeline connected with NormalEdge connections</p>
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 3.3 FAN-OUT / FAN-IN                                            -->
+        <!-- ============================================================== -->
+        <h2>3.3 &mdash; Fan-out / Fan-in (Parallel)</h2>
+
+        <p>
+            One input dispatched to <strong>multiple agents simultaneously</strong>. All agents
+            run in parallel on the same input, then their results merge at a collection point.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Topology:</span>
+                    ┌───────────┐
+               ┌───▶│ Analyst A │───┐
+               │    └───────────┘   │
+  ┌─────────┐  │    ┌───────────┐   │    ┌──────────┐
+  │ Dispatch │──┼───▶│ Analyst B │───┼───▶│  Merge   │
+  └─────────┘  │    └───────────┘   │    └──────────┘
+               │    ┌───────────┐   │
+               └───▶│ Analyst C │───┘
+                    └───────────┘</code></div>
+
+        <h3>When to Use</h3>
+        <ul class="features">
+            <li>You need multiple independent analyses of the same input</li>
+            <li>The analyses are truly independent (no data dependency between branches)</li>
+            <li>You want diverse perspectives, ensemble agreement, or redundancy</li>
+            <li>Speed matters &mdash; parallel execution reduces total wall-clock time</li>
+        </ul>
+
+        <h3>Key Distinction from Router</h3>
+
+        <div class="callout callout-key">
+            <strong>Fan-out = ALL branches run.</strong> Every downstream agent processes the input.
+            <br>
+            <strong>Router = ONE branch runs.</strong> The router picks the single best handler.
+            <br><br>
+            This is the fundamental difference. Fan-out is about getting multiple answers.
+            Router is about picking the right handler.
+        </div>
+
+        <div class="example-box">
+            <div class="example-label">Example: Multi-Perspective Binary Analysis</div>
+            <p>
+                A suspicious binary is analyzed by three agents simultaneously:
+            </p>
+            <ul class="features">
+                <li><strong>Static Analyst:</strong> Examines code structure, function names, string patterns (tools: <code>decompile</code>, <code>check_strings</code>)</li>
+                <li><strong>Behavior Analyst:</strong> Looks at network activity, file system access, process spawning (tools: <code>run_sandbox</code>, <code>check_network</code>)</li>
+                <li><strong>Signature Analyst:</strong> Compares against known malware databases (tools: <code>check_hash</code>, <code>query_virustotal</code>)</li>
+            </ul>
+            <p>
+                A <strong>Merge Agent</strong> combines all three reports into a unified assessment,
+                potentially finding connections that individual analysts missed (e.g., the static
+                analyst found an XOR loop, and the behavior analyst found a suspicious DNS query
+                &mdash; together these suggest encrypted C2 communication).
+            </p>
+        </div>
+
+        <h3>In Agentish</h3>
+        <p>
+            Connect one node&rsquo;s output to multiple downstream nodes using NormalEdge connections.
+            Then connect all downstream nodes to a single merge node. The merge node sees all
+            outputs in the shared GlobalState.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 3.4 ROUTER                                                      -->
+        <!-- ============================================================== -->
+        <h2>3.4 &mdash; Router (Dispatcher)</h2>
+
+        <p>
+            One node classifies the input and sends it to <strong>exactly one</strong> of N
+            downstream handlers. Only one branch activates per execution. This saves
+            tokens and time by routing work to the right specialist.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Topology:</span>
+                         ┌───────────────┐
+                    ┌───▶│ Malware Agent │
+                    │    └───────────────┘
+  ┌──────────┐     │    ┌───────────────┐
+  │  Router  │─────┼───▶│ Intrusion Agt │
+  └──────────┘     │    └───────────────┘
+                    │    ┌───────────────┐
+                    └───▶│ Misconfig Agt │
+                         └───────────────┘</code></div>
+
+        <h3>When to Use</h3>
+        <ul class="features">
+            <li>Different input categories require fundamentally different handling</li>
+            <li>Each handler needs different tools, prompts, or expertise</li>
+            <li>You want to save cost by only running the relevant agent</li>
+            <li>The classification can be done reliably (low ambiguity)</li>
+        </ul>
+
+        <h3>How Router Nodes Decide</h3>
+
+        <p>
+            A Router Node is an LLM-powered decision maker. It doesn&rsquo;t use hard-coded
+            rules (like &ldquo;if alert contains &lsquo;malware&rsquo; → malware agent&rdquo;). Instead, it uses
+            the LLM with <strong>structured output</strong> to make nuanced decisions:
+        </p>
+
+        <div class="code-block"><code><span class="comment"># What the Router Node does internally:</span>
+
+1. Reads the conversation history from GlobalState
+2. Receives a system prompt describing routing criteria
+3. Sees a list of available targets:
+   <span class="string">- llm_4_node: "Malware Agent" (LLMNode)</span>
+   <span class="string">- llm_5_node: "Intrusion Agent" (LLMNode)</span>
+   <span class="string">- llm_6_node: "Misconfig Agent" (LLMNode)</span>
+4. Uses structured output to return a decision:
+   {
+     <span class="string">"next_node"</span>: <span class="string">"llm_4_node"</span>,
+     <span class="string">"reason"</span>: <span class="string">"Alert mentions suspicious binary download
+                  and PE file execution, indicating malware"</span>
+   }
+5. Agentish validates the choice against available targets
+6. Execution continues at the chosen node</code></div>
+
+        <p>
+            The decision is validated &mdash; if the LLM returns a target that doesn&rsquo;t exist,
+            Agentish falls back to the first available target. The <code>reason</code> field is
+            stored in the GlobalState for debugging and audit trails.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Running Example: Alert Category Router</div>
+            <div class="code-block"><code><span class="comment"># Extending our pipeline with a router:</span>
+
+  ┌──────────┐     ┌─────────────┐     ┌────────────┐
+  │  Entry   │────▶│ Classifier  │────▶│   Router   │
+  └──────────┘     └─────────────┘     └──────┬─────┘
+                                              │
+                        ┌─────────────────────┼───────────────────┐
+                        ▼                     ▼                   ▼
+                 ┌─────────────┐     ┌──────────────┐    ┌──────────────┐
+                 │   Malware   │     │  Intrusion   │    │   Misconfig  │
+                 │   Handler   │     │   Handler    │    │   Handler    │
+                 └──────┬──────┘     └──────┬───────┘    └──────┬───────┘
+                        │                   │                    │
+                        └───────────────────┴────────────────────┘
+                                            ▼
+                                    ┌──────────────┐
+                                    │  Responder   │
+                                    └──────────────┘
+
+<span class="comment"># The Router reads the Classifier's output and decides:</span>
+<span class="comment"># "This alert is about a suspicious binary → route to Malware Handler"</span>
+<span class="comment"># Only the Malware Handler runs. The other two are skipped.</span></code></div>
+        </div>
+
+        <h3>In Agentish</h3>
+        <p>
+            Add a <strong>Router Node</strong> and connect it to downstream nodes using
+            <strong>ConditionalEdge</strong> connections. The Router Node appears in the
+            editor with a distinct visual style. Each ConditionalEdge represents one
+            possible routing target.
+        </p>
+
+        <div class="screenshot-placeholder">
+            <div class="screenshot-icon">📸</div>
+            <p>Screenshot: Agentish canvas showing a Router Node with ConditionalEdge connections to three downstream LLM Nodes</p>
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 3.5 HIERARCHY                                                   -->
+        <!-- ============================================================== -->
+        <h2>3.5 &mdash; Hierarchy (Manager-Worker)</h2>
+
+        <p>
+            A coordinator agent delegates subtasks to worker agents, who perform the
+            work and return results to the coordinator. The coordinator then synthesizes
+            the results. Think of it as a manager who assigns tasks to their team.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Topology:</span>
+             ┌──────────────┐
+             │  Coordinator │
+             └──────┬───────┘
+                    │ delegates to
+         ┌──────────┼──────────┐
+         ▼          ▼          ▼
+  ┌────────────┐ ┌─────────┐ ┌──────────┐
+  │   Recon    │ │ Exploit │ │ Cleanup  │
+  │   Worker   │ │ Worker  │ │  Worker  │
+  └────────────┘ └─────────┘ └──────────┘
+         │          │          │
+         └──────────┴──────────┘
+                    │ results flow back
+                    ▼
+             ┌──────────────┐
+             │  Coordinator │  (synthesizes results)
+             └──────────────┘</code></div>
+
+        <h3>Router vs. Hierarchy</h3>
+
+        <p>
+            These are easy to confuse because both have a &ldquo;central node&rdquo; connected
+            to multiple downstream nodes. The critical difference:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Aspect</th><th>Router</th><th>Hierarchy</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>How many run?</strong></td>
+                    <td>Exactly one branch</td>
+                    <td>Multiple workers (potentially all)</td>
+                </tr>
+                <tr>
+                    <td><strong>Results flow?</strong></td>
+                    <td>Forward to next stage</td>
+                    <td>Back to the coordinator</td>
+                </tr>
+                <tr>
+                    <td><strong>Central node role</strong></td>
+                    <td>Classifier / dispatcher</td>
+                    <td>Task decomposer / synthesizer</td>
+                </tr>
+                <tr>
+                    <td><strong>Analogy</strong></td>
+                    <td>A receptionist directing you to the right department</td>
+                    <td>A project manager assigning tasks to team members</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>When to Use</h3>
+        <ul class="features">
+            <li>A complex task decomposes into independent subtasks</li>
+            <li>You need a coordinator to plan, delegate, and synthesize</li>
+            <li>Workers are reusable across different coordinator contexts</li>
+            <li>The final output requires combining results from multiple specialists</li>
+        </ul>
+
+        <div class="example-box">
+            <div class="example-label">Example: CTF Challenge Coordinator</div>
+            <p>
+                A CTF coordinator agent receives a binary challenge and delegates:
+            </p>
+            <ul class="features">
+                <li><strong>Recon Worker:</strong> Enumerate functions, find entry points, check protections (tools: <code>list_functions</code>, <code>check_protections</code>)</li>
+                <li><strong>Exploit Worker:</strong> Analyze vulnerable functions, attempt exploitation (tools: <code>decompile_function</code>, <code>execute_payload</code>)</li>
+                <li><strong>Cleanup Worker:</strong> Extract the flag from exploit output, format submission (tools: <code>submit_flag</code>)</li>
+            </ul>
+            <p>
+                Each worker reports back to the coordinator with a structured result
+                (<code>{"result": "...", "success": true/false}</code>). The coordinator decides
+                what to do next based on the results.
+            </p>
+        </div>
+
+        <h3>In Agentish: Worker Nodes</h3>
+
+        <p>
+            Agentish has a dedicated <strong>Worker Node</strong> type for this pattern.
+            Workers differ from LLM Nodes in important ways:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Aspect</th><th>LLM Node</th><th>Worker Node</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Compiled as</strong></td>
+                    <td>A graph node (part of the state graph)</td>
+                    <td>A <code>@tool</code> decorated function (called by the LLM)</td>
+                </tr>
+                <tr>
+                    <td><strong>Routing</strong></td>
+                    <td>Routes to next node in the graph</td>
+                    <td>Returns result to the calling LLM Node</td>
+                </tr>
+                <tr>
+                    <td><strong>State access</strong></td>
+                    <td>Reads from and writes to GlobalState</td>
+                    <td>Does NOT update GlobalState directly</td>
+                </tr>
+                <tr>
+                    <td><strong>Output format</strong></td>
+                    <td>Flexible (text, structured output)</td>
+                    <td>Fixed: <code>{"result": str, "success": bool}</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+
+        <!-- ============================================================== -->
+        <!-- 3.6 CYCLIC                                                      -->
+        <!-- ============================================================== -->
+        <h2>3.6 &mdash; Cyclic (Looping)</h2>
+
+        <p>
+            The graph has <strong>back-edges</strong> &mdash; an agent&rsquo;s output feeds back
+            to a previous agent (or itself). This is where <em>iteration</em> and
+            <em>refinement</em> live. The system tries something, evaluates the result,
+            and tries again if needed.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Topology:</span>
+  ┌───────────┐     ┌───────────┐
+  │  Analyze  │────▶│  Attempt  │
+  └───────────┘     └─────┬─────┘
+         ▲                │
+         │     ┌──────────┘
+         │     ▼
+         │  ┌───────────┐     ┌───────┐
+         └──│  Evaluate  │───▶│  END  │  (if solved)
+            └───────────┘     └───────┘
+
+<span class="comment"># Analyze → Attempt → Evaluate → loop back (or exit)</span></code></div>
+
+        <h3>When to Use</h3>
+        <ul class="features">
+            <li>Trial-and-error problems (fuzzing, exploit development, debugging)</li>
+            <li>Refinement tasks (improve quality iteratively: draft → critique → revise)</li>
+            <li>Search problems where you try approaches until one works</li>
+            <li>Self-correction: try, check result, adjust strategy</li>
+        </ul>
+
+        <div class="callout callout-warning">
+            <strong>⚠️ Cyclic topologies can run forever.</strong> Unlike all other topologies,
+            a cyclic graph can execute indefinitely. You <em>must</em> include termination logic:
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li><strong>Maximum iterations</strong> &mdash; e.g., <code>max_tool_iterations: 15</code></li>
+                <li><strong>Success detection</strong> &mdash; a router or evaluator detects the goal is met</li>
+                <li><strong>Convergence criteria</strong> &mdash; output stops changing between iterations</li>
+            </ul>
+            We cover termination in depth in <a href="4-control-flow.html">Chapter 4</a>
+            and <a href="6-validation.html">Chapter 6</a>.
+        </div>
+
+        <div class="example-box">
+            <div class="example-label">Example: Iterative Exploit Development</div>
+            <div class="code-block"><code><span class="comment"># Iteration 1:</span>
+<span class="keyword">Analyze:</span>  <span class="string">"Buffer overflow in check_password. Try 64-byte payload."</span>
+<span class="keyword">Attempt:</span>  <span class="string">"Segfault at 0x41414141. Overflow confirmed, offset wrong."</span>
+<span class="keyword">Evaluate:</span> <span class="string">"Not solved. Offset was wrong. Need to adjust."</span>
+          → Loop back to Analyze
+
+<span class="comment"># Iteration 2:</span>
+<span class="keyword">Analyze:</span>  <span class="string">"Offset was 64, but EIP at 0x41414141 means we overshot.</span>
+          <span class="string">Try 72 bytes before the return address."</span>
+<span class="keyword">Attempt:</span>  <span class="string">"Got control of EIP! Redirecting to decrypt_flag..."</span>
+<span class="keyword">Evaluate:</span> <span class="string">"Flag captured: FLAG{s3cur1ty_ftw}. Done!"</span>
+          → Exit loop</code></div>
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 3.7 COMBINING TOPOLOGIES                                        -->
+        <!-- ============================================================== -->
+        <h2>Combining Topologies</h2>
+
+        <p>
+            Real-world workflows are rarely a single pure topology. They combine patterns.
+            A pipeline might have a router at one stage. A hierarchy might have cycles
+            inside each worker. The six canonical topologies are building blocks you
+            compose together.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Running Example: Full Security Triage (Pipeline + Router)</div>
+            <div class="code-block"><code><span class="comment"># Topology: Pipeline → Router → Specialized handlers → Pipeline</span>
+
+  ┌────────┐   ┌────────────┐   ┌─────────┐
+  │ Entry  │──▶│ Classifier │──▶│ Router  │
+  └────────┘   └────────────┘   └────┬────┘
+                                     │
+                    ┌────────────────┼──────────────────┐
+                    ▼                ▼                   ▼
+             ┌───────────┐   ┌───────────┐       ┌───────────┐
+             │  Malware  │   │ Intrusion │       │ Misconfig │
+             │  Handler  │   │  Handler  │       │  Handler  │
+             └─────┬─────┘   └─────┬─────┘       └─────┬─────┘
+                   │               │                    │
+                   └───────────────┴────────────────────┘
+                                   ▼
+                            ┌───────────┐
+                            │ Responder │
+                            └───────────┘
+
+<span class="comment"># This combines:</span>
+<span class="comment"># - Pipeline (Entry → Classifier → Router → ... → Responder)</span>
+<span class="comment"># - Router (Router dispatches to one of three handlers)</span></code></div>
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- AGENTISH MAPPING                                                -->
+        <!-- ============================================================== -->
+        <h2>Mapping to Agentish: Summary</h2>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Topology</th><th>Agentish Implementation</th><th>Edge Type</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Single Agent</td><td>One <strong>Entry Point</strong> → one <strong>LLM Node</strong></td><td>NormalEdge</td></tr>
+                <tr><td>Pipeline</td><td>LLM Nodes in sequence</td><td>NormalEdge</td></tr>
+                <tr><td>Fan-out / Fan-in</td><td>One node → multiple NormalEdges → merge node</td><td>NormalEdge</td></tr>
+                <tr><td>Router</td><td><strong>Router Node</strong> → multiple targets</td><td>ConditionalEdge</td></tr>
+                <tr><td>Hierarchy</td><td>LLM Node + <strong>Worker Nodes</strong></td><td>Workers are <code>@tool</code> functions, not edges</td></tr>
+                <tr><td>Cyclic</td><td>Edges that loop back; controlled by iteration limits or router</td><td>NormalEdge (back-edge) or ConditionalEdge</td></tr>
+            </tbody>
+        </table>
+
+        <p>
+            In Agentish, you build these topologies visually: right-click the canvas to
+            add nodes, drag from output slots to input slots to create edges. The graph
+            shape you draw <em>is</em> the topology.
+        </p>
+
+        <div class="screenshot-placeholder">
+            <div class="screenshot-icon">📸</div>
+            <p>Screenshot: Agentish canvas showing a combined Pipeline + Router topology (the running example above)</p>
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- CHOOSING A TOPOLOGY                                             -->
+        <!-- ============================================================== -->
+        <h2>How to Choose a Topology</h2>
+
+        <div class="callout callout-key">
+            <strong>Decision guide:</strong> Ask these questions in order:
+            <ol style="margin: 0.5rem 0 0 1.5rem;">
+                <li><strong>Can one agent handle it?</strong> → Use Single Agent.</li>
+                <li><strong>Does it have sequential phases?</strong> → Use Pipeline.</li>
+                <li><strong>Do different inputs need different handlers?</strong> → Add a Router.</li>
+                <li><strong>Can parts run independently in parallel?</strong> → Add Fan-out/Fan-in.</li>
+                <li><strong>Does a coordinator need to delegate subtasks?</strong> → Use Hierarchy.</li>
+                <li><strong>Does it need trial-and-error?</strong> → Add cycles to any of the above.</li>
+            </ol>
+        </div>
+
+        <p>
+            Start with the simplest topology that could work, then add complexity only
+            when you hit a limitation. A single agent is simpler than a pipeline.
+            A pipeline is simpler than a router. Don&rsquo;t over-engineer.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- SUMMARY                                                         -->
+        <!-- ============================================================== -->
+        <h2>Chapter Summary</h2>
+
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>Topology = the shape of the graph. A design-time decision about <em>which agents exist</em> and <em>how they connect</em>.</li>
+                <li>There are <strong>six canonical topologies</strong>: Single Agent, Pipeline, Fan-out/Fan-in, Router, Hierarchy, and Cyclic.</li>
+                <li>Real systems <strong>combine</strong> topologies (e.g., Pipeline + Router).</li>
+                <li><strong>Router = one branch runs.</strong> Fan-out = all branches run.</li>
+                <li><strong>Workers</strong> are <code>@tool</code> functions that return results to the caller. <strong>LLM Nodes</strong> route forward in the graph.</li>
+                <li>Cyclic topologies require <strong>termination logic</strong> (max iterations, success detection).</li>
+                <li>Start simple. Add complexity only when needed.</li>
+            </ul>
+        </div>
+
+        <!-- Navigation -->
+        <div class="chapter-nav">
+            <a href="2-the-agent.html" class="chapter-nav-prev">
+                &larr; Chapter 2: The Agent
+            </a>
+            <a href="4-control-flow.html" class="chapter-nav-next">
+                Chapter 4: Control Flow &rarr;
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

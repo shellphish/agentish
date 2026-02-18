@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 6: Validation & Error Handling | Agentic Workflow | Agentish</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentic Workflow Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 6</span> Validation &amp; Error Handling</h1>
+            <p class="tagline">Making workflows robust against failure</p>
+        </section>
+
+        <p>
+            LLMs are probabilistic. Tools can fail. APIs time out. Networks drop.
+            An agentic workflow that works on the &ldquo;happy path&rdquo; but falls over at the
+            first unexpected event is not production-ready.
+        </p>
+
+        <p>
+            This chapter covers the <strong>defensive design patterns</strong> that make
+            workflows reliable: input validation, output validation, iteration limits,
+            error handling in tools, and graceful degradation.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 6.1 WHAT CAN GO WRONG                                          -->
+        <!-- ============================================================== -->
+        <h2>6.1 &mdash; What Can Go Wrong</h2>
+
+        <p>
+            Before discussing solutions, let&rsquo;s catalog the failure modes:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Failure Mode</th><th>Example</th><th>Impact</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Runaway tool loops</strong></td>
+                    <td>Agent keeps calling tools without converging</td>
+                    <td>Infinite execution, unbounded cost</td>
+                </tr>
+                <tr>
+                    <td><strong>Wrong tool selection</strong></td>
+                    <td>Agent calls <code>delete_file</code> instead of <code>read_file</code></td>
+                    <td>Incorrect or destructive actions</td>
+                </tr>
+                <tr>
+                    <td><strong>Tool execution failure</strong></td>
+                    <td>API returns 500, file not found, timeout</td>
+                    <td>Agent gets error instead of data</td>
+                </tr>
+                <tr>
+                    <td><strong>Invalid routing</strong></td>
+                    <td>Router hallucinate a target node that doesn&rsquo;t exist</td>
+                    <td>Execution goes to wrong place or crashes</td>
+                </tr>
+                <tr>
+                    <td><strong>State corruption</strong></td>
+                    <td>Node writes wrong type to a state field</td>
+                    <td>Downstream nodes crash on type mismatch</td>
+                </tr>
+                <tr>
+                    <td><strong>Context overflow</strong></td>
+                    <td>Too many messages fill the context window</td>
+                    <td>LLM loses early context, makes poor decisions</td>
+                </tr>
+                <tr>
+                    <td><strong>LLM refusal or hallucination</strong></td>
+                    <td>Model refuses to use a tool, invents fake output</td>
+                    <td>Workflow proceeds with incorrect data</td>
+                </tr>
+            </tbody>
+        </table>
+
+
+        <!-- ============================================================== -->
+        <!-- 6.2 ITERATION LIMITS                                            -->
+        <!-- ============================================================== -->
+        <h2>6.2 &mdash; Iteration Limits: The Circuit Breaker</h2>
+
+        <p>
+            The single most important safeguard in any agentic workflow.
+            Every LLM Node with tools has a <code>max_tool_iterations</code> setting
+            that caps how many times the tool loop can execute.
+        </p>
+
+        <h3>How It Works</h3>
+
+        <div class="code-block"><code><span class="comment"># In the node configuration (Agentish editor):</span>
+max_tool_iterations: 15
+iteration_warning_message: <span class="string">"You are running low on tool calls.
+                            Wrap up your analysis and return a final answer."</span>
+
+<span class="comment"># In the generated Tool Node code:</span>
+<span class="keyword">def</span> tool_2_node(global_state):
+    current_iteration = global_state.get(<span class="string">"node_2_tool_iteration_count"</span>, 0)
+
+    <span class="comment"># ── Hard limit: force stop ──</span>
+    <span class="keyword">if</span> current_iteration >= 15:
+        <span class="keyword">return</span> Command(
+            update={
+                <span class="string">"messages"</span>: [HumanMessage(
+                    content=<span class="string">"You are out of tool calls. Now, based on everything
+                             you have analyzed, return the final output."</span>
+                )]
+            },
+            goto=<span class="string">"llm_2_node"</span>   <span class="comment"># Force LLM to give final answer</span>
+        )
+
+    <span class="comment"># ── Soft warning: nudge toward completion ──</span>
+    <span class="keyword">if</span> current_iteration >= 12:   <span class="comment"># ~80% of limit</span>
+        warning = HumanMessage(
+            content=<span class="string">"You are running low on tool calls.
+                     Wrap up your analysis and return a final answer."</span>
+        )
+        <span class="comment"># Warning is appended to messages alongside tool results</span>
+
+    <span class="comment"># ── Normal: execute tool, increment counter ──</span>
+    result = execute_tool(tool_call)
+    <span class="keyword">return</span> Command(
+        update={
+            <span class="string">"node_2_tool_iteration_count"</span>: current_iteration + 1,
+            <span class="string">"messages"</span>: [ToolMessage(content=result)]
+        },
+        goto=<span class="string">"llm_2_node"</span>
+    )</code></div>
+
+        <h3>Choosing Iteration Limits</h3>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Agent Type</th><th>Suggested Limit</th><th>Rationale</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Classifier (no tools)</td>
+                    <td>0</td>
+                    <td>No tools, no loop</td>
+                </tr>
+                <tr>
+                    <td>Simple lookup agent</td>
+                    <td>5&ndash;10</td>
+                    <td>Query a database, format result</td>
+                </tr>
+                <tr>
+                    <td>Investigation agent</td>
+                    <td>15&ndash;30</td>
+                    <td>Multiple data sources, iterative analysis</td>
+                </tr>
+                <tr>
+                    <td>CTF exploit agent</td>
+                    <td>30&ndash;50</td>
+                    <td>Trial-and-error, multiple attempts</td>
+                </tr>
+                <tr>
+                    <td>Aggressively autonomous agent</td>
+                    <td>50&ndash;100</td>
+                    <td>Long-running tasks, but monitor closely</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="callout">
+            <strong>Rule of thumb:</strong> Start with <strong>15</strong>. Watch actual behavior.
+            If the agent consistently hits the limit before finishing, increase it.
+            If the agent finishes in 3 calls, lower it to avoid wasting tokens on a
+            runaway case.
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 6.3 TOOL ERROR HANDLING                                         -->
+        <!-- ============================================================== -->
+        <h2>6.3 &mdash; Tool Error Handling</h2>
+
+        <p>
+            When a tool fails, the LLM should know <em>what</em> failed and <em>why</em>,
+            so it can decide whether to retry, try a different approach, or give up
+            gracefully. Never let exceptions bubble up silently.
+        </p>
+
+        <h3>Pattern: Structured Error Returns</h3>
+
+        <div class="code-block"><code><span class="keyword">@tool</span>
+<span class="keyword">def</span> check_ip_reputation(ip_address: str, state: dict = None) -> dict:
+    <span class="string">"""Check an IP address against threat intelligence databases."""</span>
+    <span class="keyword">try</span>:
+        result = threat_intel_api.lookup(ip_address)
+        <span class="keyword">return</span> {
+            <span class="string">"success"</span>: True,
+            <span class="string">"ip"</span>: ip_address,
+            <span class="string">"reputation"</span>: result.score,
+            <span class="string">"tags"</span>: result.tags,
+            <span class="string">"error"</span>: None
+        }
+    <span class="keyword">except</span> ConnectionError:
+        <span class="keyword">return</span> {
+            <span class="string">"success"</span>: False,
+            <span class="string">"ip"</span>: ip_address,
+            <span class="string">"reputation"</span>: None,
+            <span class="string">"tags"</span>: [],
+            <span class="string">"error"</span>: <span class="string">"Could not reach threat intel API. Service may be down."</span>
+        }
+    <span class="keyword">except</span> ValueError <span class="keyword">as</span> e:
+        <span class="keyword">return</span> {
+            <span class="string">"success"</span>: False,
+            <span class="string">"ip"</span>: ip_address,
+            <span class="string">"reputation"</span>: None,
+            <span class="string">"tags"</span>: [],
+            <span class="string">"error"</span>: f<span class="string">"Invalid IP address format: {str(e)}"</span>
+        }</code></div>
+
+        <p>
+            When the LLM sees <code>"success": false</code> and a clear error message,
+            it can reason about what to do next: retry, skip, or try an alternative tool.
+        </p>
+
+        <h3>Pattern: Tool Not Found</h3>
+
+        <p>
+            If the LLM requests a tool that doesn&rsquo;t exist in the node&rsquo;s tool set,
+            the Tool Node returns an error message rather than crashing:
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Generated Tool Node handles unknown tools:</span>
+<span class="keyword">def</span> tool_2_node(global_state):
+    tool_name = tool_call[<span class="string">"name"</span>]
+    tool_func = tools_by_name_for_node_2.get(tool_name)
+
+    <span class="keyword">if</span> tool_func <span class="keyword">is</span> None:
+        result = f<span class="string">"Error: Tool '{tool_name}' not found. "</span>
+                 f<span class="string">"Available tools: {list(tools_by_name_for_node_2.keys())}"</span>
+    <span class="keyword">else</span>:
+        result = tool_func.invoke(tool_call[<span class="string">"args"</span>])</code></div>
+
+
+        <!-- ============================================================== -->
+        <!-- 6.4 ROUTER VALIDATION                                           -->
+        <!-- ============================================================== -->
+        <h2>6.4 &mdash; Router Validation</h2>
+
+        <p>
+            What if the Router LLM returns a <code>next_node</code> value that doesn&rsquo;t
+            match any of the connected targets?
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Router validation in generated code:</span>
+<span class="keyword">def</span> router_3_node(global_state):
+    decision = model_with_schema.invoke(messages)
+
+    <span class="comment"># Validate the decision</span>
+    available_targets = [<span class="string">"llm_4_node"</span>, <span class="string">"llm_5_node"</span>, <span class="string">"llm_6_node"</span>]
+
+    <span class="keyword">if</span> decision.next_node <span class="keyword">in</span> available_targets:
+        <span class="comment"># Valid choice</span>
+        <span class="keyword">return</span> Command(
+            update={<span class="string">"routing_reason"</span>: decision.reason},
+            goto=decision.next_node
+        )
+    <span class="keyword">else</span>:
+        <span class="comment"># Invalid choice — fallback to first target + warning</span>
+        print(f<span class="string">"⚠️ Router chose invalid target '{decision.next_node}'. "</span>
+              f<span class="string">"Falling back to '{available_targets[0]}'"</span>)
+        <span class="keyword">return</span> Command(
+            update={<span class="string">"routing_reason"</span>: f<span class="string">"FALLBACK: {decision.reason}"</span>},
+            goto=available_targets[0]
+        )</code></div>
+
+        <p>
+            This ensures the workflow never crashes due to a routing hallucination.
+            The fallback is safe (always a valid node), and the warning is logged
+            so you can improve the router&rsquo;s prompt.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 6.5 STRUCTURED OUTPUT VALIDATION                                -->
+        <!-- ============================================================== -->
+        <h2>6.5 &mdash; Structured Output Validation</h2>
+
+        <p>
+            When you configure an LLM Node to use structured output (a Pydantic schema),
+            you&rsquo;re asking the LLM to return JSON matching that schema. This provides
+            type-level validation automatically:
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Define expected output structure:</span>
+<span class="keyword">class</span> AlertClassification(BaseModel):
+    category: str        <span class="comment"># "malware", "intrusion", "misconfig"</span>
+    severity: str        <span class="comment"># "critical", "high", "medium", "low"</span>
+    confidence: float    <span class="comment"># 0.0 to 1.0</span>
+    reasoning: str       <span class="comment"># Why this classification</span>
+
+<span class="comment"># LangChain ensures the LLM's output matches the schema.</span>
+<span class="comment"># If the LLM returns {"severity": 42} instead of a string,</span>
+<span class="comment"># Pydantic validation catches it.</span>
+
+model_with_output = model.with_structured_output(AlertClassification)
+result = model_with_output.invoke(messages)
+<span class="comment"># result.category → str ✓</span>
+<span class="comment"># result.severity → str ✓</span>
+<span class="comment"># result.confidence → float ✓</span></code></div>
+
+        <div class="callout">
+            <strong>When to use structured output:</strong> Use it whenever downstream
+            logic depends on specific fields. If another agent&rsquo;s prompt uses
+            <code>{classification}</code>, make sure the upstream agent outputs a structured
+            result with a <code>classification</code> field — don&rsquo;t rely on parsing free text.
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 6.6 STATE TYPE SAFETY                                           -->
+        <!-- ============================================================== -->
+        <h2>6.6 &mdash; State Type Safety</h2>
+
+        <p>
+            Since GlobalState is a <code>TypedDict</code>, you get type annotations for
+            every field. Common type mismatches to watch for:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Mistake</th><th>Symptom</th><th>Fix</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Writing <code>"5"</code> to an <code>int</code> field</td>
+                    <td><code>TypeError</code> on arithmetic downstream</td>
+                    <td>Ensure tools return correct types</td>
+                </tr>
+                <tr>
+                    <td>Writing a single message to a <code>List</code> field</td>
+                    <td><code>TypeError: 'AIMessage' is not iterable</code></td>
+                    <td>Wrap in a list: <code>[message]</code></td>
+                </tr>
+                <tr>
+                    <td>Forgetting to initialize a field</td>
+                    <td><code>KeyError</code> when reading</td>
+                    <td>Use <code>.get(field, default)</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>
+            In Agentish, the state schema is defined in the visual editor. The compiler
+            generates the <code>TypedDict</code> with proper types. As long as your tools
+            return the right types, the system stays consistent.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 6.7 DEFENSE IN DEPTH                                            -->
+        <!-- ============================================================== -->
+        <h2>6.7 &mdash; Defense in Depth Checklist</h2>
+
+        <p>
+            Before deploying a workflow, verify these safeguards are in place:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Layer</th><th>Safeguard</th><th>How to Configure</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Tool loops</strong></td>
+                    <td><code>max_tool_iterations</code></td>
+                    <td>Set per-node in Agentish editor (default: 30)</td>
+                </tr>
+                <tr>
+                    <td><strong>Tool loops</strong></td>
+                    <td>Iteration warning message</td>
+                    <td>Custom message at ~80% of limit</td>
+                </tr>
+                <tr>
+                    <td><strong>Tool failures</strong></td>
+                    <td>Try/except in tool implementations</td>
+                    <td>Return <code>{"success": false, "error": "..."}</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Routing</strong></td>
+                    <td>Router fallback validation</td>
+                    <td>Auto-generated by compiler</td>
+                </tr>
+                <tr>
+                    <td><strong>Output format</strong></td>
+                    <td>Structured output (Pydantic)</td>
+                    <td>Enable in node config + define schema</td>
+                </tr>
+                <tr>
+                    <td><strong>State types</strong></td>
+                    <td>TypedDict + reducers</td>
+                    <td>Define schema carefully in editor</td>
+                </tr>
+                <tr>
+                    <td><strong>Graph cycles</strong></td>
+                    <td>Termination conditions</td>
+                    <td>Router + max iteration counter</td>
+                </tr>
+            </tbody>
+        </table>
+
+
+        <!-- ============================================================== -->
+        <!-- SUMMARY                                                         -->
+        <!-- ============================================================== -->
+        <h2>Chapter Summary</h2>
+
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>Agentic workflows have <strong>many failure modes</strong>: runaway loops, tool errors, bad routing, type mismatches, context overflow.</li>
+                <li><strong><code>max_tool_iterations</code></strong> is the most important safeguard. Set it for every node with tools. Start at 15.</li>
+                <li>Use <strong>soft warnings</strong> at ~80% of the limit to nudge the LLM toward a final answer.</li>
+                <li>Tools should return <strong>structured error objects</strong> (<code>{"success": false, "error": "..."}</code>), not throw exceptions.</li>
+                <li>Router validation <strong>falls back to the first target</strong> if the LLM hallucinates a non-existent node.</li>
+                <li><strong>Structured output</strong> (Pydantic schemas) provides type-level validation for LLM outputs.</li>
+                <li>Apply <strong>defense in depth</strong>: multiple layers of safeguards catch different failure modes.</li>
+            </ul>
+        </div>
+
+        <!-- Navigation -->
+        <div class="chapter-nav">
+            <a href="5-information-flow.html" class="chapter-nav-prev">
+                &larr; Chapter 5: Information Flow
+            </a>
+            <a href="7-output.html" class="chapter-nav-next">
+                Chapter 7: Putting It All Together &rarr;
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

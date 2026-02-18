@@ -280,6 +280,308 @@ footer a {
     font-size: 0.95rem;
 }
 
+/* === Inline Code === */
+code {
+    font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", "Courier New", monospace;
+    font-size: 0.88em;
+}
+
+p code, li code, td code {
+    background: #151525;
+    border: 1px solid #1e1e3a;
+    border-radius: 4px;
+    padding: 0.15em 0.4em;
+    color: #e5c07b;
+    font-size: 0.85em;
+}
+
+/* === Table of Contents === */
+.toc {
+    background: #0d0d1a;
+    border: 1px solid #1e1e3a;
+    border-radius: 8px;
+    padding: 1.5rem 2rem;
+    margin: 2rem 0 3rem;
+}
+
+.toc h3 {
+    color: #e2e8f0;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+}
+
+.toc ol {
+    counter-reset: toc-counter;
+    list-style: none;
+    padding-left: 0;
+}
+
+.toc > ol > li {
+    counter-increment: toc-counter;
+    margin-bottom: 0.4rem;
+}
+
+.toc > ol > li > a {
+    color: #7dd956;
+    font-weight: 600;
+    font-size: 0.92rem;
+}
+
+.toc ol ol {
+    padding-left: 1.5rem;
+    margin-top: 0.3rem;
+    margin-bottom: 0.6rem;
+}
+
+.toc ol ol li {
+    margin-bottom: 0.2rem;
+}
+
+.toc ol ol a {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    font-weight: 400;
+}
+
+.toc a:hover {
+    color: #7dd3fc;
+}
+
+/* === Callout Boxes === */
+.callout {
+    background: #0f1525;
+    border-left: 4px solid #38bdf8;
+    border-radius: 0 6px 6px 0;
+    padding: 1rem 1.3rem;
+    margin: 1.2rem 0;
+    font-size: 0.92rem;
+    line-height: 1.7;
+}
+
+.callout strong {
+    color: #38bdf8;
+}
+
+.callout-key {
+    background: #0f1a12;
+    border-left-color: #7dd956;
+}
+
+.callout-key strong {
+    color: #7dd956;
+}
+
+.callout-warning {
+    background: #1a1510;
+    border-left-color: #f59e0b;
+}
+
+.callout-warning strong {
+    color: #f59e0b;
+}
+
+/* === Example Boxes === */
+.example-box {
+    background: #0d0d1a;
+    border: 1px solid #2a2a4a;
+    border-radius: 8px;
+    padding: 1.2rem 1.5rem;
+    margin: 1.2rem 0;
+    position: relative;
+}
+
+.example-label {
+    display: inline-block;
+    background: #7dd956;
+    color: #0a0a14;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.15rem 0.6rem;
+    border-radius: 3px;
+    margin-bottom: 0.7rem;
+}
+
+.example-box p:last-child,
+.example-box .code-block:last-child {
+    margin-bottom: 0;
+}
+
+/* === Screenshot Placeholders === */
+.screenshot-placeholder {
+    background: #0a0a14;
+    border: 2px dashed #2a2a4a;
+    border-radius: 8px;
+    padding: 2rem 1.5rem;
+    margin: 1.5rem 0;
+    text-align: center;
+}
+
+.screenshot-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.screenshot-placeholder p {
+    color: #5c6370;
+    font-size: 0.85rem;
+    font-style: italic;
+    margin-bottom: 0;
+}
+
+/* === Documentation Tables === */
+.doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.9rem;
+}
+
+.doc-table th {
+    background: #0f0f1e;
+    color: #7dd956;
+    font-weight: 600;
+    text-align: left;
+    padding: 0.7rem 1rem;
+    border-bottom: 2px solid #2a2a4a;
+}
+
+.doc-table td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid #1e1e3a;
+    color: #c8ccd4;
+    vertical-align: top;
+}
+
+.doc-table tr:hover td {
+    background: #0d0d1a;
+}
+
+.doc-table td strong {
+    color: #e2e8f0;
+}
+
+/* === H4 Heading === */
+h4 {
+    color: #e5c07b;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+/* === Chapter Book Styles === */
+.chapter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.chapter-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.2rem;
+    background: rgba(30, 30, 58, 0.4);
+    border: 1px solid #1e1e3a;
+    border-radius: 8px;
+    padding: 1.2rem 1.5rem;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.chapter-card:hover {
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.05);
+}
+
+.chapter-number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #38bdf8;
+    min-width: 2.5rem;
+    line-height: 1.3;
+}
+
+.chapter-content h3 {
+    color: #e2e8f0;
+    font-size: 1.05rem;
+    margin-bottom: 0.3rem;
+}
+
+.chapter-content p {
+    color: #8b8fa3;
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.chapter-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #38bdf8;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.3rem;
+}
+
+.chapter-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #1e1e3a;
+    gap: 1rem;
+}
+
+.chapter-nav a {
+    color: #38bdf8;
+    text-decoration: none;
+    font-size: 0.95rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid #1e1e3a;
+    border-radius: 6px;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.chapter-nav a:hover {
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.08);
+}
+
+.chapter-nav-prev {
+    margin-right: auto;
+}
+
+.chapter-nav-next {
+    margin-left: auto;
+}
+
+/* === Illustration Images === */
+.illustration {
+    display: block;
+    width: 100%;
+    margin: 1.5rem auto;
+    border-radius: 10px;
+    border: 1px solid #1e1e3a;
+}
+
+.illustration.img-agent-loop {
+    max-width: 360px;
+}
+
+.illustration.img-pipeline {
+    max-width: 440px;
+}
+
+.illustration.img-version0 {
+    max-width: 520px;
+}
+
 /* === Responsive === */
 @media (max-width: 600px) {
     nav {

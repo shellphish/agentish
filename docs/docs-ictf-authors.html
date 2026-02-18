@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Challenge Authors | iCTF Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="documentation.html">&larr; Back to Documentation</a></p>
+
+        <section class="hero" style="padding: 2rem 0 2rem;">
+            <h1>Challenge Authors</h1>
+            <p class="tagline">iCTF &mdash; Creating Challenges for Agentish</p>
+            <p class="description">
+                How to create iCTF challenges that expose MCP tools for autonomous agents
+                built with Agentish.
+            </p>
+        </section>
+
+        <!-- Overview -->
+        <h2>Overview</h2>
+        <p>
+            As a challenge author, you create a challenge environment that exposes tools via
+            MCP (Model Context Protocol) servers. Participants use the Agentish visual editor
+            to build agent workflows that interact with your tools to solve the challenge.
+        </p>
+        <div class="code-block"><code><span class="comment"># The data flow:</span>
+
+challengish.yml              <span class="comment"># You define this</span>
+       │
+       ▼  (read at startup)
+server_agentish.py ──▶ GET /api/mcp/tools ──▶ Frontend Function Catalog
+                                                      │
+                                                      ▼  (participant builds workflow)
+                                               Download Bundle (ZIP)
+                                                 ├── asl.json    ← workflow + tool defs
+                                                 └── layout.json ← visual positions
+                                                      │
+                                                      ▼  (execution time)
+                                               Agent calls your MCP server via HTTP
+        </code></div>
+
+        <!-- challengish.yml -->
+        <h2>The challengish.yml File</h2>
+        <p>
+            This is the central configuration file. It tells the Agentish UI what MCP tools exist.
+            The backend reads it at startup and serves tool definitions to the frontend.
+        </p>
+        <p>
+            <strong>Important:</strong> The Agentish UI never contacts the MCP server directly.
+            It only reads the YAML. The MCP server is only needed at execution time when the compiled
+            agent runs in a sandbox.
+        </p>
+
+        <h3>Schema</h3>
+        <div class="code-block"><code><span class="comment"># Challenge metadata</span>
+challenge_name: <span class="string">"My Challenge Name"</span>
+challenge_id: <span class="string">"my-challenge-001"</span>
+
+<span class="comment"># MCP server definitions</span>
+mcp_servers:
+  - name: <span class="string">"server_name"</span>          <span class="comment"># Unique identifier</span>
+    port: 8002                   <span class="comment"># MCP server port</span>
+    internal_host: <span class="string">"hostname"</span>    <span class="comment"># Docker hostname (used in compiled code)</span>
+    enabled: true                <span class="comment"># Set false to hide from UI</span>
+
+    routes:
+      - function: <span class="string">"tool_name"</span>    <span class="comment"># Tool name (valid Python identifier)</span>
+        endpoint: <span class="string">"/mcp/path"</span>    <span class="comment"># HTTP path on MCP server</span>
+        method: <span class="string">"GET"</span>            <span class="comment"># GET or POST</span>
+        description: <span class="string">"..."</span>       <span class="comment"># Shown in the UI</span>
+        arguments:               <span class="comment"># Tool parameters</span>
+          - name: <span class="string">"param"</span>
+            type: <span class="string">"str"</span>
+            required: true
+            description: <span class="string">"..."</span>
+        return_schema:           <span class="comment"># Documents response shape</span>
+          success: <span class="string">"bool"</span>
+        </code></div>
+
+        <h3>Key Points</h3>
+        <ul class="features">
+            <li><strong>GET tools</strong> &mdash; arguments become query params in compiled code</li>
+            <li><strong>POST tools</strong> &mdash; arguments become JSON body in compiled code</li>
+            <li><code>internal_host:port</code> becomes <code>http://internal_host:port</code> in the compiled agent's HTTP calls</li>
+            <li><code>function</code> becomes the <code>@tool</code> function name in generated Python</li>
+        </ul>
+
+        <!-- Full Example -->
+        <h2>Full Example</h2>
+        <div class="code-block"><code>challenge_name: <span class="string">"Sample Binary Reversing Challenge"</span>
+challenge_id: <span class="string">"sample-binary-reversing-001"</span>
+
+mcp_servers:
+  - name: <span class="string">"binary_analysis"</span>
+    port: 8002
+    internal_host: <span class="string">"mcp_binary"</span>
+    enabled: true
+
+    routes:
+      - function: <span class="string">"list_functions"</span>
+        endpoint: <span class="string">"/mcp/list_functions"</span>
+        method: <span class="string">"GET"</span>
+        description: <span class="string">"List all functions in the binary"</span>
+        arguments: []
+        return_schema:
+          success: <span class="string">"bool"</span>
+          functions: <span class="string">"list"</span>
+
+      - function: <span class="string">"decompile_function"</span>
+        endpoint: <span class="string">"/mcp/decompile_function"</span>
+        method: <span class="string">"GET"</span>
+        description: <span class="string">"Decompile a specific function"</span>
+        arguments:
+          - name: <span class="string">"function_name"</span>
+            type: <span class="string">"str"</span>
+            required: true
+            description: <span class="string">"Name of the function to decompile"</span>
+        return_schema:
+          success: <span class="string">"bool"</span>
+          decompiled_code: <span class="string">"str"</span>
+        </code></div>
+
+        <!-- Docker Setup -->
+        <h2>Docker Setup</h2>
+        <p>Each challenge is typically deployed with Docker Compose:</p>
+
+        <h3>Directory Structure</h3>
+        <div class="code-block"><code>my_challenge/
+├── challengish.yml          <span class="comment"># MCP tool definitions</span>
+├── docker-compose.yml       <span class="comment"># Runs Agentish + your MCP server</span>
+├── Dockerfile.agentish      <span class="comment"># Builds the Agentish container</span>
+├── Dockerfile.mcp           <span class="comment"># Builds your MCP server</span>
+└── mcp_server/
+    └── server.py            <span class="comment"># Your MCP tool implementations</span>
+        </code></div>
+
+        <h3>docker-compose.yml</h3>
+        <div class="code-block"><code>services:
+  agentish:
+    build:
+      context: ..
+      dockerfile: my_challenge/Dockerfile.agentish
+    ports:
+      - <span class="string">"8000:8000"</span>
+    environment:
+      - CHALLENGISH_CONFIG_PATH=/app/challengish.yml
+    volumes:
+      - ./challengish.yml:/app/challengish.yml
+
+  mcp_binary:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    ports:
+      - <span class="string">"8002:8002"</span>
+        </code></div>
+
+        <h3>Quick Start</h3>
+        <div class="code-block"><code><span class="comment"># Build and run</span>
+$ cd my_challenge/
+$ docker compose up --build
+
+<span class="comment"># Open http://localhost:8000</span>
+<span class="comment"># Your tools appear in the Function Catalog sidebar</span>
+        </code></div>
+
+        <!-- Running Without Docker -->
+        <h2>Running Without Docker</h2>
+        <div class="code-block"><code><span class="comment"># From the agentish project root</span>
+$ CHALLENGISH_CONFIG_PATH=my_challenge/challengish.yml python backend/server_agentish.py --port 8000
+        </code></div>
+
+        <!-- Creating Your Own Challenge -->
+        <h2>Creating Your Own Challenge</h2>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;">Copy the <code>sample_challenge/challengish.yml</code> as your template</li>
+            <li style="padding-left: 0.5rem;">Change <code>internal_host</code> and <code>port</code> to match your MCP server</li>
+            <li style="padding-left: 0.5rem;">Define your own <code>routes</code> with the tools your MCP server exposes</li>
+            <li style="padding-left: 0.5rem;">Build your MCP server that implements the HTTP endpoints</li>
+            <li style="padding-left: 0.5rem;">Mount the YAML into the Agentish container via docker-compose</li>
+            <li style="padding-left: 0.5rem;">Test by opening the UI and verifying tools appear in the Function Catalog</li>
+        </ol>
+
+        <!-- MCP Server Implementation -->
+        <h2>MCP Server Implementation</h2>
+        <p>
+            Your MCP server is a simple HTTP server (Flask, FastAPI, etc.) that implements the
+            endpoints defined in <code>challengish.yml</code>. Each route becomes an HTTP endpoint
+            that the compiled agent calls at execution time.
+        </p>
+        <div class="code-block"><code><span class="comment"># Example Flask MCP server</span>
+<span class="keyword">from</span> flask <span class="keyword">import</span> Flask, request, jsonify
+
+app = Flask(__name__)
+
+@app.route(<span class="string">"/mcp/list_functions"</span>, methods=[<span class="string">"GET"</span>])
+<span class="keyword">def</span> list_functions():
+    functions = analyze_binary()
+    <span class="keyword">return</span> jsonify({<span class="string">"success"</span>: True, <span class="string">"functions"</span>: functions})
+
+@app.route(<span class="string">"/mcp/decompile_function"</span>, methods=[<span class="string">"GET"</span>])
+<span class="keyword">def</span> decompile_function():
+    name = request.args.get(<span class="string">"function_name"</span>)
+    code = decompile(name)
+    <span class="keyword">return</span> jsonify({<span class="string">"success"</span>: True, <span class="string">"decompiled_code"</span>: code})
+        </code></div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

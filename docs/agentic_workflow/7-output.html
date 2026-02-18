@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 7: Putting It All Together | Agentic Workflow | Agentish</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentic Workflow Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 7</span> Putting It All Together</h1>
+            <p class="tagline">From blank canvas to running workflow</p>
+        </section>
+
+        <p>
+            You now have all the pieces: agents, topology, control flow, information
+            flow, and validation. This final chapter walks through an end-to-end
+            example that combines everything &mdash; and covers the output and
+            aggregation patterns that tie the workflow together.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 7.1 END-TO-END WALKTHROUGH                                      -->
+        <!-- ============================================================== -->
+        <h2>7.1 &mdash; End-to-End: CTF Binary Challenge Workflow</h2>
+
+        <p>
+            Let&rsquo;s build a complete workflow for a CTF (Capture The Flag) binary
+            exploitation challenge. This is a real-world use case from the iCTF
+            competition, and it touches every concept from Chapters 1&ndash;6.
+        </p>
+
+        <h3>The Task</h3>
+        <p>
+            Given a compiled binary, the system should: analyze its protections,
+            identify vulnerabilities, develop an exploit, extract the flag,
+            and submit it. If the first exploit attempt fails, it should iterate.
+        </p>
+
+        <h3>Step 1: Choose the Topology</h3>
+
+        <p>
+            Applying the decision guide from <a href="3-workflow-topology.html">Chapter 3</a>:
+        </p>
+
+        <ol>
+            <li>Can one agent handle it? <strong>No</strong> &mdash; too many distinct phases (recon, exploit, submit).</li>
+            <li>Sequential phases? <strong>Yes</strong> &mdash; recon before exploit, exploit before submit. → <strong>Pipeline.</strong></li>
+            <li>Trial-and-error? <strong>Yes</strong> &mdash; exploit may need multiple attempts. → <strong>Add cycles.</strong></li>
+        </ol>
+
+        <p>Result: <strong>Pipeline with a cyclic exploit loop.</strong></p>
+
+        <h3>Step 2: Design the Agents</h3>
+
+        <p>
+            Applying the principles from <a href="2-the-agent.html">Chapter 2</a>:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Agent</th><th>Model</th><th>Tools</th><th>Max Iterations</th><th>Role</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Recon Agent</strong></td>
+                    <td>GPT-4o</td>
+                    <td><code>checksec</code>, <code>list_functions</code>, <code>check_strings</code></td>
+                    <td>10</td>
+                    <td>Analyze binary protections and structure</td>
+                </tr>
+                <tr>
+                    <td><strong>Exploit Agent</strong></td>
+                    <td>GPT-4o</td>
+                    <td><code>decompile</code>, <code>run_payload</code>, <code>read_memory</code></td>
+                    <td>30</td>
+                    <td>Develop and test exploit payloads</td>
+                </tr>
+                <tr>
+                    <td><strong>Evaluator</strong></td>
+                    <td>GPT-4o-mini</td>
+                    <td>None</td>
+                    <td>0</td>
+                    <td>Check if exploit succeeded (Router)</td>
+                </tr>
+                <tr>
+                    <td><strong>Submit Agent</strong></td>
+                    <td>GPT-4o-mini</td>
+                    <td><code>submit_flag</code></td>
+                    <td>3</td>
+                    <td>Extract and submit the flag</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Step 3: Draw the Graph</h3>
+
+        <div class="code-block"><code><span class="comment"># Complete topology:</span>
+
+  ┌────────┐     ┌──────────┐     ┌─────────────┐     ┌──────────────┐
+  │ Entry  │────▶│  Recon   │────▶│   Exploit   │────▶│  Evaluator   │
+  └────────┘     └──────────┘     └─────────────┘     │  (Router)    │
+                                        ▲              └──────┬───────┘
+                                        │                     │
+                                        │ <span class="string">"retry"</span>              │
+                                        └─────────────────────┘
+                                                              │
+                                                  <span class="string">"success"</span>    │
+                                                              ▼
+                                                       ┌───────────┐
+                                                       │  Submit   │
+                                                       └───────────┘
+
+<span class="keyword">Edges:</span>
+  Entry → Recon:      NormalEdge
+  Recon → Exploit:    NormalEdge
+  Exploit → Evaluator: NormalEdge
+  Evaluator → Exploit: ConditionalEdge (<span class="string">"retry"</span>)
+  Evaluator → Submit:  ConditionalEdge (<span class="string">"success"</span>)</code></div>
+
+        <h3>Step 4: Define the State</h3>
+
+        <div class="code-block"><code><span class="comment"># GlobalState schema (configured in Agentish editor):</span>
+{
+    <span class="string">"count"</span>:              <span class="string">"int"</span>,
+    <span class="string">"messages"</span>:           <span class="string">"Annotated[List[BaseMessage], lambda x, y: x + y]"</span>,
+    <span class="string">"binary_path"</span>:        <span class="string">"str"</span>,
+    <span class="string">"protections"</span>:        <span class="string">"str"</span>,          <span class="comment"># Recon output</span>
+    <span class="string">"vulnerability"</span>:      <span class="string">"str"</span>,          <span class="comment"># Identified vuln</span>
+    <span class="string">"exploit_output"</span>:     <span class="string">"str"</span>,          <span class="comment"># Last exploit attempt result</span>
+    <span class="string">"exploit_attempts"</span>:   <span class="string">"int"</span>,          <span class="comment"># How many tries</span>
+    <span class="string">"flag"</span>:               <span class="string">"str"</span>           <span class="comment"># Extracted flag</span>
+}</code></div>
+
+        <h3>Step 5: Write the Prompts</h3>
+
+        <div class="code-block"><code><span class="comment"># Recon Agent — System Prompt:</span>
+<span class="string">"You are a binary analysis specialist. Analyze the target binary
+at {binary_path}. Your job is to:
+1. Check security protections (ASLR, NX, canaries, PIE)
+2. List all functions and identify entry points
+3. Look for suspicious strings (format strings, shell commands)
+Report your findings in a structured format."</span>
+
+<span class="comment"># Exploit Agent — System Prompt:</span>
+<span class="string">"You are an exploit developer. Based on the reconnaissance:
+
+Protections: {protections}
+Vulnerability: {vulnerability}
+
+Develop a working exploit. You have tools to decompile functions,
+run test payloads, and read memory. If a previous attempt failed:
+{exploit_output}
+Adjust your approach based on what went wrong."</span>
+
+<span class="comment"># Evaluator (Router) — System Prompt:</span>
+<span class="string">"You are evaluating whether an exploit attempt succeeded.
+Look at the exploit output: {exploit_output}
+
+If the output contains a flag pattern (FLAG{...}), route to Submit.
+If the output shows a crash, segfault, or error, route to Exploit
+for another attempt."</span>
+
+<span class="comment"># Submit Agent — System Prompt:</span>
+<span class="string">"Extract the flag from: {exploit_output}
+Submit it using the submit_flag tool."</span></code></div>
+
+
+        <!-- ============================================================== -->
+        <!-- 7.2 OUTPUT PATTERNS                                             -->
+        <!-- ============================================================== -->
+        <h2>7.2 &mdash; Output Patterns</h2>
+
+        <p>
+            How does a workflow produce its final result? There are three common patterns:
+        </p>
+
+        <h3>Pattern 1: Last Node Output</h3>
+        <p>
+            The simplest pattern. The final node in the pipeline produces the workflow&rsquo;s
+            output. Whatever it writes to GlobalState <em>is</em> the result.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># The last node's output is the workflow result:</span>
+<span class="keyword">def</span> submit_agent(global_state):
+    <span class="comment"># ... submit flag ...</span>
+    <span class="keyword">return</span> Command(
+        update={
+            <span class="string">"flag"</span>: <span class="string">"FLAG{s3cur1ty_ftw}"</span>,     <span class="comment"># ← This is the final output</span>
+            <span class="string">"messages"</span>: [response]
+        },
+        goto=<span class="string">"END"</span>
+    )</code></div>
+
+        <h3>Pattern 2: Aggregation Node</h3>
+        <p>
+            A dedicated final node that reads from multiple fields and synthesizes
+            a combined result. Useful for fan-out/fan-in topologies.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Aggregation node reads multiple results and combines them:</span>
+<span class="keyword">def</span> aggregator(global_state):
+    static_analysis = global_state.get(<span class="string">"static_result"</span>, <span class="string">""</span>)
+    dynamic_analysis = global_state.get(<span class="string">"dynamic_result"</span>, <span class="string">""</span>)
+    signature_analysis = global_state.get(<span class="string">"signature_result"</span>, <span class="string">""</span>)
+
+    prompt = f<span class="string">"""Combine these three analyses into a unified report:
+    Static: {static_analysis}
+    Dynamic: {dynamic_analysis}
+    Signatures: {signature_analysis}"""</span>
+
+    <span class="comment"># LLM synthesizes a coherent summary</span>
+    response = model.invoke([HumanMessage(content=prompt)])
+    <span class="keyword">return</span> Command(
+        update={<span class="string">"final_report"</span>: response.content},
+        goto=<span class="string">"END"</span>
+    )</code></div>
+
+        <h3>Pattern 3: Structured Final Output</h3>
+        <p>
+            Use Pydantic structured output on the final node to guarantee the result
+            matches a specific schema. This is the most robust approach for downstream
+            consumption.
+        </p>
+
+        <div class="code-block"><code><span class="comment"># Define the final output schema:</span>
+<span class="keyword">class</span> WorkflowResult(BaseModel):
+    success: bool
+    flag: Optional[str]
+    attempts: int
+    summary: str
+    recommendations: List[str]
+
+<span class="comment"># The final node uses structured output:</span>
+model_with_output = model.with_structured_output(WorkflowResult)
+result = model_with_output.invoke(messages)
+<span class="comment"># result.success → True</span>
+<span class="comment"># result.flag → "FLAG{s3cur1ty_ftw}"</span>
+<span class="comment"># result.attempts → 3</span>
+<span class="comment"># result.summary → "Buffer overflow in check_password..."</span></code></div>
+
+
+        <!-- ============================================================== -->
+        <!-- 7.3 THE AGENTISH PIPELINE                                       -->
+        <!-- ============================================================== -->
+        <h2>7.3 &mdash; The Agentish Pipeline</h2>
+
+        <p>
+            Here&rsquo;s how the complete Agentish pipeline works, from visual design to
+            running code:
+        </p>
+
+        <div class="code-block"><code><span class="comment"># 1. DESIGN — You draw the graph in the Agentish visual editor</span>
+   Canvas → Nodes + Edges + Configuration
+
+<span class="comment"># 2. EXPORT — Agentish serializes your graph to ASL JSON</span>
+   Canvas → <span class="string">workflow.json</span> (Agentish Specification Language)
+
+<span class="comment"># 3. COMPILE — The Agentish compiler generates Python code</span>
+   <span class="string">workflow.json</span> → <span class="string">workflow.py</span> (LangGraph + LangChain)
+
+<span class="comment"># 4. RUN — Execute the generated Python</span>
+   <span class="keyword">python</span> workflow.py
+   → LangGraph executes nodes per the compiled state graph
+   → Each node calls its LLM, uses its tools, writes to GlobalState
+   → Control flow follows edges (static) or router decisions (conditional)
+   → Result appears in GlobalState when the graph reaches END</code></div>
+
+        <h3>What the Compiler Generates</h3>
+
+        <p>
+            The compiled Python file contains these sections, in order:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Section</th><th>Purpose</th><th>Generated From</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Imports</td>
+                    <td>LangChain, LangGraph, operator, typing</td>
+                    <td>Always included</td>
+                </tr>
+                <tr>
+                    <td>Helper functions</td>
+                    <td><code>render_template()</code>, <code>init_chat_model()</code></td>
+                    <td>Always included</td>
+                </tr>
+                <tr>
+                    <td>GlobalState</td>
+                    <td>TypedDict with all fields and reducers</td>
+                    <td>State schema + node list</td>
+                </tr>
+                <tr>
+                    <td>Pydantic schemas</td>
+                    <td><code>RouterDecision</code>, structured output schemas</td>
+                    <td>Router nodes + structured output configs</td>
+                </tr>
+                <tr>
+                    <td>Tool functions</td>
+                    <td><code>@tool</code> decorated implementations</td>
+                    <td>Tools defined in ASL</td>
+                </tr>
+                <tr>
+                    <td>Worker tool wrappers</td>
+                    <td>Worker nodes exposed as tools</td>
+                    <td>Worker nodes (must come before model init)</td>
+                </tr>
+                <tr>
+                    <td>Model instances</td>
+                    <td><code>ChatOpenAI</code>, <code>ChatAnthropic</code>, etc.</td>
+                    <td>Node model configurations</td>
+                </tr>
+                <tr>
+                    <td>Tool registries</td>
+                    <td><code>tools_by_name_for_node_X</code> dicts</td>
+                    <td>Tool assignments per node</td>
+                </tr>
+                <tr>
+                    <td>Node functions</td>
+                    <td>LLM, Tool, Router, Worker nodes</td>
+                    <td>Each node in the graph</td>
+                </tr>
+                <tr>
+                    <td>Graph construction</td>
+                    <td><code>StateGraph</code> setup + <code>compile()</code></td>
+                    <td>Node list + entry point</td>
+                </tr>
+                <tr>
+                    <td>Main function</td>
+                    <td>Entry point with initial state</td>
+                    <td>Entry point config</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="callout">
+            <strong>Order matters!</strong> Workers must be defined before models
+            (because models may bind worker tools). Schemas before node functions
+            (because nodes reference schemas). The compiler handles this automatically.
+        </div>
+
+
+        <!-- ============================================================== -->
+        <!-- 7.4 DESIGN PRINCIPLES                                           -->
+        <!-- ============================================================== -->
+        <h2>7.4 &mdash; Design Principles Recap</h2>
+
+        <p>
+            Across all seven chapters, a few principles have appeared repeatedly.
+            Here they are in one place:
+        </p>
+
+        <h3>1. Start Simple, Add Complexity</h3>
+        <p>
+            Begin with a single agent. If it works, you&rsquo;re done. If it struggles,
+            identify <em>why</em> (too many tools? too many responsibilities? needs
+            iteration?) and add the minimum structure to solve that problem.
+        </p>
+
+        <h3>2. One Agent, One Job</h3>
+        <p>
+            Each agent should have a focused role with a clear system prompt and a
+            small set of relevant tools. If an agent&rsquo;s prompt is longer than a
+            paragraph, consider splitting it.
+        </p>
+
+        <h3>3. Explicit Over Implicit</h3>
+        <p>
+            Use named state fields over message parsing. Use structured output over
+            free-text parsing. Use template variables over hoping the LLM remembers
+            context.
+        </p>
+
+        <h3>4. Defense in Depth</h3>
+        <p>
+            Every tool should handle errors. Every loop should have a limit. Every
+            router should validate its decision. Layer your safeguards.
+        </p>
+
+        <h3>5. Model Selection is an Optimization</h3>
+        <p>
+            Use powerful models (GPT-4o, Claude Sonnet) for complex reasoning.
+            Use cheap models (GPT-4o-mini) for classification, routing, and
+            formatting. Don&rsquo;t pay for intelligence you don&rsquo;t need.
+        </p>
+
+
+        <!-- ============================================================== -->
+        <!-- 7.5 WHAT'S NEXT                                                 -->
+        <!-- ============================================================== -->
+        <h2>7.5 &mdash; What&rsquo;s Next</h2>
+
+        <ul class="features">
+            <li><strong>Try it yourself:</strong> Open the <a href="https://github.com/shellphish/agentish" target="_blank" rel="noopener">Agentish editor</a> and build the Security Alert Triage workflow from scratch.</li>
+            <li><strong>Explore examples:</strong> Check the <code>examples/</code> folder in the repository for more complete workflow definitions.</li>
+            <li><strong>Read the Agentish guide:</strong> The <a href="../docs-agentish.html">Agentish documentation</a> covers the visual editor, node types, and export/compile flow in detail.</li>
+            <li><strong>Join the iCTF:</strong> See the <a href="../docs-ictf-participants.html">iCTF Participants guide</a> to use Agentish in a live CTF competition.</li>
+        </ul>
+
+
+        <!-- ============================================================== -->
+        <!-- SUMMARY                                                         -->
+        <!-- ============================================================== -->
+        <h2>Chapter Summary</h2>
+
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>A real workflow combines <strong>multiple topologies</strong>: pipeline + cycles, router + hierarchy, etc.</li>
+                <li>The Agentish pipeline: <strong>Design (visual) → Export (ASL JSON) → Compile (Python) → Run.</strong></li>
+                <li>Three output patterns: <strong>last node output</strong>, <strong>aggregation node</strong>, and <strong>structured final output</strong>.</li>
+                <li>Compiler output order matters: imports → helpers → state → schemas → tools → workers → models → nodes → graph.</li>
+                <li>Five design principles: start simple, one agent per job, explicit over implicit, defense in depth, optimize model selection.</li>
+            </ul>
+        </div>
+
+        <div class="callout" style="border-color: var(--green); background: rgba(125, 217, 86, 0.05);">
+            <strong>🎉 You&rsquo;ve completed the Agentic Workflow Guide.</strong>
+            You now understand the foundations of multi-agent systems, how to configure
+            agents, connect them into workflows, control execution, pass data between
+            them, handle errors, and produce structured output &mdash; all through
+            the lens of Agentish and LangGraph. Go build something.
+        </div>
+
+        <!-- Navigation -->
+        <div class="chapter-nav">
+            <a href="6-validation.html" class="chapter-nav-prev">
+                &larr; Chapter 6: Validation &amp; Error Handling
+            </a>
+            <a href="index.html" class="chapter-nav-next">
+                Back to Guide Overview &rarr;
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>
