@@ -287,9 +287,28 @@ Classify this alert."</span>
             <a href="5-information-flow.html">Chapter 5</a>).
         </p>
 
-        <div class="screenshot-placeholder">
-            <div class="screenshot-icon">📸</div>
-            <p>Screenshot: LLM Node inspector panel showing System Prompt and Human Prompt fields with template variable syntax</p>
+        <div class="example-box">
+            <div class="example-label">ASL — LLM Node with Template Variables in Prompts</div>
+            <div class="code-block"><code>{
+  "id": "2",
+  "type": "LLMNode",
+  "label": "Alert Classifier",
+  "config": {
+    "title": "Alert Classifier",
+    "input_state_keys": ["alert_content", "previous_analysis"],
+    "output_state_keys": ["classification"],
+    "system_prompt": "You are a security analyst. Analyze the alert and classify it.",
+    "human_prompt": "Alert details: {alert_content}\n\nPrevious analysis from upstream agent: {previous_analysis}\n\nClassify this alert.",
+    "selected_tools": [],
+    "max_tool_iterations": 30
+  }
+}</code></div>
+            <p>
+                The <code>human_prompt</code> field contains <code>{alert_content}</code> and
+                <code>{previous_analysis}</code> — template variables that Agentish replaces with
+                values from the GlobalState at runtime. The <code>input_state_keys</code> declare
+                which state fields this node reads.
+            </p>
         </div>
 
         <h3>The Two Prompt Fields in Agentish</h3>
@@ -460,9 +479,65 @@ mcp_tools:
             node&rsquo;s inspector panel under <strong>Selected Tools</strong>.
         </p>
 
-        <div class="screenshot-placeholder">
-            <div class="screenshot-icon">📸</div>
-            <p>Screenshot: Function Catalog sidebar showing available MCP tools, and the LLM Node inspector with Selected Tools checkboxes</p>
+        <div class="example-box">
+            <div class="example-label">ASL — Tool Assignment Across Specialized Agents</div>
+            <div class="code-block"><code><span class="comment">// Each LLM Node has a focused set of selected_tools:</span>
+
+<span class="comment">// Classifier — no tools (Direct strategy)</span>
+{
+  "id": "2", "type": "LLMNode", "label": "Classifier",
+  "config": {
+    "title": "Classifier",
+    "selected_tools": [],           <span class="comment">// Direct: no tools needed</span>
+    "max_tool_iterations": 30
+  }
+}
+
+<span class="comment">// Malware Analyst — 3 focused tools (ReAct strategy)</span>
+{
+  "id": "4", "type": "LLMNode", "label": "Malware Analyst",
+  "config": {
+    "title": "Malware Analyst",
+    "selected_tools": ["decompile", "list_functions", "check_hash"],
+    "max_tool_iterations": 15
+  }
+}
+
+<span class="comment">// Responder — 3 action tools (ReAct strategy)</span>
+{
+  "id": "6", "type": "LLMNode", "label": "Responder",
+  "config": {
+    "title": "Responder",
+    "selected_tools": ["block_ip", "quarantine", "create_ticket"],
+    "max_tool_iterations": 10
+  }
+}
+
+<span class="comment">// The tools section defines each tool's MCP endpoint:</span>
+"tools": {
+  "decompile": {
+    "name": "decompile",
+    "type": "mcp",
+    "description": "Decompile a function by name",
+    "arguments": [{ "name": "function_name", "type": "str", "required": true }],
+    "mcp_server": "http://mcp_binary:8002",
+    "mcp_method": "GET /mcp/decompile"
+  },
+  "check_hash": {
+    "name": "check_hash",
+    "type": "mcp",
+    "description": "Check a file hash against known malware databases",
+    "arguments": [{ "name": "hash", "type": "str", "required": true }],
+    "mcp_server": "http://mcp_binary:8002",
+    "mcp_method": "GET /mcp/check_hash"
+  }
+}</code></div>
+            <p>
+                Each node's <code>selected_tools</code> picks from the available tools defined in the
+                top-level <code>tools</code> section. In the Agentish editor, the tools come from the
+                <strong>Function Catalog</strong> sidebar, and you assign them via checkboxes in
+                each node's inspector.
+            </p>
         </div>
 
 
@@ -663,9 +738,57 @@ Output: <span class="string">{"severity": "high", "category": "intrusion", "conf
             </tbody>
         </table>
 
-        <div class="screenshot-placeholder">
-            <div class="screenshot-icon">📸</div>
-            <p>Screenshot: LLM Node inspector panel showing all configuration fields: Title, System Prompt, Human Prompt, Selected Tools, Max Tool Iterations, Structured Output toggle</p>
+        <div class="example-box">
+            <div class="example-label">ASL — Complete LLM Node Configuration</div>
+            <div class="code-block"><code>{
+  "id": "2",
+  "type": "LLMNode",
+  "label": "Alert Classifier",
+  "config": {
+    "title": "Alert Classifier",
+
+    <span class="comment">// --- Instructions ---</span>
+    "system_prompt": "You are a security alert triage specialist at a SOC.\nYou have deep expertise in network security, malware analysis,\nand incident classification.\n\nFor each alert, produce:\n1. Severity: critical / high / medium / low / informational\n2. Category: malware, intrusion, data-exfiltration,\n   misconfiguration, false-positive\n3. Confidence: 0.0 to 1.0\n\nIf confidence &lt; 0.7, classify severity as 'high' and explain why.\nNever classify as 'informational' unless confidence &gt; 0.9.",
+
+    "human_prompt": "Classify this alert: {alert_content}",
+
+    <span class="comment">// --- State keys ---</span>
+    "input_state_keys": ["alert_content"],
+    "output_state_keys": ["classification"],
+
+    <span class="comment">// --- Tools (Direct strategy = none) ---</span>
+    "selected_tools": [],
+
+    <span class="comment">// --- Iteration control ---</span>
+    "max_tool_iterations": 30,
+    "iteration_warning_message": "Wrap up your analysis without further tool calls.",
+
+    <span class="comment">// --- Structured Output ---</span>
+    "structured_output_schema": [
+      {
+        "name": "severity",
+        "type": "str",
+        "description": "Alert severity: critical, high, medium, low, or informational"
+      },
+      {
+        "name": "category",
+        "type": "str",
+        "description": "Alert category: malware, intrusion, data-exfiltration, misconfiguration, or false-positive"
+      },
+      {
+        "name": "confidence",
+        "type": "float",
+        "description": "Classification confidence from 0.0 to 1.0"
+      }
+    ]
+  }
+}</code></div>
+            <p>
+                Every configuration surface from this chapter is present: <strong>system_prompt</strong> (identity &amp; rules),
+                <strong>human_prompt</strong> (task input with template variable), <strong>selected_tools</strong>
+                (empty for Direct strategy), <strong>max_tool_iterations</strong> (safety limit),
+                and <strong>structured_output_schema</strong> (constraining the LLM's output format).
+            </p>
         </div>
 
 

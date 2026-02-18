@@ -406,9 +406,78 @@
             primitives in context, with examples.
         </p>
 
-        <div class="screenshot-placeholder">
-            <div class="screenshot-icon">📸</div>
-            <p>Screenshot: The Agentish visual editor canvas showing a simple workflow with Entry Point, LLM Node, Router Node, and two downstream LLM Nodes</p>
+        <div class="example-box">
+            <div class="example-label">ASL — Simple Workflow with All Core Primitives</div>
+            <div class="code-block"><code>{
+  "graph": {
+    "entrypoint": "1",
+    "nodes": [
+      {
+        "id": "1",
+        "type": "EntryPoint",
+        "label": "EntryPoint",
+        "config": { "title": "Entry Node", "initial_state": {} }
+      },
+      {
+        "id": "2",
+        "type": "LLMNode",
+        "label": "Alert Classifier",
+        "config": {
+          "title": "Alert Classifier",
+          "system_prompt": "You are a security alert triage specialist...",
+          "human_prompt": "Classify this alert: {alert_content}",
+          "selected_tools": [],
+          "max_tool_iterations": 30
+        }
+      },
+      {
+        "id": "3",
+        "type": "RouterBlock",
+        "label": "Category Router",
+        "config": {
+          "title": "Category Router",
+          "system_prompt": "Route the alert to the correct handler based on category.",
+          "router_values": ["malware", "intrusion"]
+        }
+      },
+      {
+        "id": "4",
+        "type": "LLMNode",
+        "label": "Malware Handler",
+        "config": {
+          "title": "Malware Handler",
+          "system_prompt": "You handle malware-related alerts...",
+          "human_prompt": "Investigate this malware alert: {alert_content}",
+          "selected_tools": ["decompile", "check_hash"],
+          "max_tool_iterations": 15
+        }
+      },
+      {
+        "id": "5",
+        "type": "LLMNode",
+        "label": "Intrusion Handler",
+        "config": {
+          "title": "Intrusion Handler",
+          "system_prompt": "You handle intrusion-related alerts...",
+          "human_prompt": "Investigate this intrusion alert: {alert_content}",
+          "selected_tools": ["check_ip", "search_logs"],
+          "max_tool_iterations": 15
+        }
+      }
+    ],
+    "edges": [
+      { "from": "1", "to": "2", "type": "NormalEdge" },
+      { "from": "2", "to": "3", "type": "NormalEdge" },
+      { "from": "3", "to": "4", "type": "ConditionalEdge", "condition": "malware" },
+      { "from": "3", "to": "5", "type": "ConditionalEdge", "condition": "intrusion" }
+    ]
+  }
+}</code></div>
+            <p>
+                This ASL defines an <strong>Entry Point</strong> → <strong>LLM Node</strong> → <strong>Router Node</strong> →
+                two downstream <strong>LLM Nodes</strong>. Notice how <code>NormalEdge</code> connects
+                sequential nodes, while <code>ConditionalEdge</code> connects the router to its targets.
+            </p>
         </div>
 
 

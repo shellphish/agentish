@@ -174,9 +174,67 @@
             No conditions, no branching.
         </p>
 
-        <div class="screenshot-placeholder">
-            <div class="screenshot-icon">📸</div>
-            <p>Screenshot: Agentish canvas showing a 3-node pipeline connected with NormalEdge connections</p>
+        <div class="example-box">
+            <div class="example-label">ASL — 3-Node Pipeline with NormalEdge Connections</div>
+            <div class="code-block"><code>{
+  "graph": {
+    "entrypoint": "1",
+    "state": {
+      "schema": {
+        "alert_content": "str",
+        "classification": "str",
+        "investigation": "str",
+        "response_action": "str"
+      }
+    },
+    "nodes": [
+      {
+        "id": "1", "type": "EntryPoint", "label": "EntryPoint",
+        "config": { "title": "Entry Node", "initial_state": {} }
+      },
+      {
+        "id": "2", "type": "LLMNode", "label": "Classifier",
+        "config": {
+          "title": "Classifier",
+          "system_prompt": "Classify the alert by category and severity.",
+          "human_prompt": "Classify this alert: {alert_content}",
+          "selected_tools": [],
+          "max_tool_iterations": 30
+        }
+      },
+      {
+        "id": "3", "type": "LLMNode", "label": "Investigator",
+        "config": {
+          "title": "Investigator",
+          "system_prompt": "Investigate the classified alert. Gather evidence.",
+          "human_prompt": "Investigation target: {alert_content}\nClassification: {classification}",
+          "selected_tools": ["check_ip", "search_logs", "check_hash"],
+          "max_tool_iterations": 15
+        }
+      },
+      {
+        "id": "4", "type": "LLMNode", "label": "Responder",
+        "config": {
+          "title": "Responder",
+          "system_prompt": "Based on the investigation, take appropriate action.",
+          "human_prompt": "Investigation results: {investigation}",
+          "selected_tools": ["block_ip", "create_ticket"],
+          "max_tool_iterations": 10
+        }
+      }
+    ],
+    "edges": [
+      { "from": "1", "to": "2", "type": "NormalEdge" },
+      { "from": "2", "to": "3", "type": "NormalEdge" },
+      { "from": "3", "to": "4", "type": "NormalEdge" }
+    ]
+  }
+}</code></div>
+            <p>
+                Every edge is a <code>NormalEdge</code> — &ldquo;when this node finishes, always
+                go to the next.&rdquo; No conditions, no branching. Entry → Classifier →
+                Investigator → Responder.
+            </p>
         </div>
 
 
@@ -341,9 +399,62 @@
             possible routing target.
         </p>
 
-        <div class="screenshot-placeholder">
-            <div class="screenshot-icon">📸</div>
-            <p>Screenshot: Agentish canvas showing a Router Node with ConditionalEdge connections to three downstream LLM Nodes</p>
+        <div class="example-box">
+            <div class="example-label">ASL — Router Node with ConditionalEdge Connections</div>
+            <div class="code-block"><code>{
+  "nodes": [
+    {
+      "id": "3", "type": "RouterBlock", "label": "Category Router",
+      "config": {
+        "title": "Category Router",
+        "input_state_keys": ["classification"],
+        "system_prompt": "Based on the alert classification, route to the appropriate specialist handler.\n\n- 'malware': suspicious binaries, PE files, shellcode\n- 'intrusion': unauthorized access, brute-force, lateral movement\n- 'misconfiguration': open ports, weak credentials, policy violations",
+        "router_values": ["malware", "intrusion", "misconfiguration"]
+      }
+    },
+    {
+      "id": "4", "type": "LLMNode", "label": "Malware Handler",
+      "config": {
+        "title": "Malware Handler",
+        "system_prompt": "You are a malware analysis specialist...",
+        "human_prompt": "Analyze this malware alert: {alert_content}",
+        "selected_tools": ["decompile", "check_hash", "run_sandbox"],
+        "max_tool_iterations": 20
+      }
+    },
+    {
+      "id": "5", "type": "LLMNode", "label": "Intrusion Handler",
+      "config": {
+        "title": "Intrusion Handler",
+        "system_prompt": "You are a network intrusion analyst...",
+        "human_prompt": "Investigate this intrusion alert: {alert_content}",
+        "selected_tools": ["check_ip", "search_logs"],
+        "max_tool_iterations": 15
+      }
+    },
+    {
+      "id": "6", "type": "LLMNode", "label": "Misconfiguration Handler",
+      "config": {
+        "title": "Misconfiguration Handler",
+        "system_prompt": "You are an infrastructure security analyst...",
+        "human_prompt": "Assess this misconfiguration alert: {alert_content}",
+        "selected_tools": ["check_config", "scan_ports"],
+        "max_tool_iterations": 10
+      }
+    }
+  ],
+  "edges": [
+    <span class="comment">// ConditionalEdge — router picks exactly one target</span>
+    { "from": "3", "to": "4", "type": "ConditionalEdge", "condition": "malware" },
+    { "from": "3", "to": "5", "type": "ConditionalEdge", "condition": "intrusion" },
+    { "from": "3", "to": "6", "type": "ConditionalEdge", "condition": "misconfiguration" }
+  ]
+}</code></div>
+            <p>
+                The <code>router_values</code> in the Router Node config list the possible outputs.
+                Each <code>ConditionalEdge</code> has a <code>condition</code> field matching one of those
+                values. At runtime, the router's LLM picks one value, and only that branch executes.
+            </p>
         </div>
 
 
@@ -599,9 +710,106 @@
             shape you draw <em>is</em> the topology.
         </p>
 
-        <div class="screenshot-placeholder">
-            <div class="screenshot-icon">📸</div>
-            <p>Screenshot: Agentish canvas showing a combined Pipeline + Router topology (the running example above)</p>
+        <div class="example-box">
+            <div class="example-label">ASL — Full Security Triage (Pipeline + Router Combined)</div>
+            <div class="code-block"><code>{
+  "graph": {
+    "entrypoint": "1",
+    "state": {
+      "schema": {
+        "alert_content": "str",
+        "classification": "str",
+        "investigation": "str",
+        "response_action": "str"
+      }
+    },
+    "nodes": [
+      {
+        "id": "1", "type": "EntryPoint", "label": "EntryPoint",
+        "config": { "title": "Entry Node", "initial_state": {} }
+      },
+      {
+        "id": "2", "type": "LLMNode", "label": "Classifier",
+        "config": {
+          "title": "Classifier",
+          "system_prompt": "Classify the security alert by category and severity.",
+          "human_prompt": "Classify: {alert_content}",
+          "selected_tools": [],
+          "max_tool_iterations": 30
+        }
+      },
+      {
+        "id": "3", "type": "RouterBlock", "label": "Category Router",
+        "config": {
+          "title": "Category Router",
+          "system_prompt": "Route the classified alert to the correct specialist.",
+          "router_values": ["malware", "intrusion", "misconfiguration"]
+        }
+      },
+      {
+        "id": "4", "type": "LLMNode", "label": "Malware Handler",
+        "config": {
+          "title": "Malware Handler",
+          "system_prompt": "Analyze malware alerts. Decompile suspicious binaries, check hashes.",
+          "human_prompt": "Malware alert: {alert_content}\nClassification: {classification}",
+          "selected_tools": ["decompile", "check_hash", "run_sandbox"],
+          "max_tool_iterations": 20
+        }
+      },
+      {
+        "id": "5", "type": "LLMNode", "label": "Intrusion Handler",
+        "config": {
+          "title": "Intrusion Handler",
+          "system_prompt": "Investigate intrusion alerts. Check IPs, search logs for lateral movement.",
+          "human_prompt": "Intrusion alert: {alert_content}\nClassification: {classification}",
+          "selected_tools": ["check_ip", "search_logs"],
+          "max_tool_iterations": 15
+        }
+      },
+      {
+        "id": "6", "type": "LLMNode", "label": "Misconfiguration Handler",
+        "config": {
+          "title": "Misconfiguration Handler",
+          "system_prompt": "Assess misconfigurations. Scan ports, review security policies.",
+          "human_prompt": "Misconfiguration alert: {alert_content}\nClassification: {classification}",
+          "selected_tools": ["check_config", "scan_ports"],
+          "max_tool_iterations": 10
+        }
+      },
+      {
+        "id": "7", "type": "LLMNode", "label": "Responder",
+        "config": {
+          "title": "Responder",
+          "system_prompt": "Based on the investigation, take appropriate response action.",
+          "human_prompt": "Investigation results: {investigation}\nTake action.",
+          "selected_tools": ["block_ip", "quarantine", "create_ticket"],
+          "max_tool_iterations": 10
+        }
+      }
+    ],
+    "edges": [
+      <span class="comment">// Pipeline: Entry → Classifier → Router</span>
+      { "from": "1", "to": "2", "type": "NormalEdge" },
+      { "from": "2", "to": "3", "type": "NormalEdge" },
+
+      <span class="comment">// Router: one branch activates</span>
+      { "from": "3", "to": "4", "type": "ConditionalEdge", "condition": "malware" },
+      { "from": "3", "to": "5", "type": "ConditionalEdge", "condition": "intrusion" },
+      { "from": "3", "to": "6", "type": "ConditionalEdge", "condition": "misconfiguration" },
+
+      <span class="comment">// Pipeline resumes: all handlers → Responder</span>
+      { "from": "4", "to": "7", "type": "NormalEdge" },
+      { "from": "5", "to": "7", "type": "NormalEdge" },
+      { "from": "6", "to": "7", "type": "NormalEdge" }
+    ]
+  }
+}</code></div>
+            <p>
+                The complete running example: a <strong>Pipeline</strong> (Entry → Classifier → Router →
+                … → Responder) combined with a <strong>Router</strong> that dispatches to one of three specialist
+                handlers. <code>NormalEdge</code> for static flow, <code>ConditionalEdge</code> for branching.
+                All seven nodes, all edge types, one coherent workflow.
+            </p>
         </div>
 
 
