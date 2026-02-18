@@ -3,39 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agentish | Coming Soon</title>
-    <style>
-        body {
-            background-color: #0f172a;
-            color: #f8fafc;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .container {
-            text-align: center;
-        }
-        h1 {
-            font-size: 3rem;
-            letter-spacing: -0.05em;
-            margin-bottom: 0.5rem;
-        }
-        p {
-            color: #94a3b8;
-            font-size: 1.2rem;
-        }
-        .dot {
-            color: #38bdf8;
-        }
-    </style>
+    <title>Agentish</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <h1>agentish<span class="dot">.</span>io</h1>
-        <p>Building the future of autonomous agency.</p>
-    </div>
+    <nav>
+        <a href="index.html" class="logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="index.html" class="active">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="documentation.html">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <section class="hero">
+            <h1>agentish<span class="dot">.</span></h1>
+            <p class="tagline">A visual framework for building autonomous AI agents.</p>
+            <p class="description">
+                Agentish is a node-based environment for designing, testing, and deploying
+                autonomous agent pipelines. Wire together LLM calls, tools, and decision logic
+                in an intuitive graph editor &mdash; then run them against real challenges.
+            </p>
+        </section>
+
+        <h2>Get Started</h2>
+        <div class="card-grid">
+            <a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener" class="card">
+                <h3>iCTF Competition</h3>
+                <p>
+                    The International Capture The Flag &mdash; a distributed, wide-area
+                    security exercise organized by Shellphish at UC&nbsp;Santa&nbsp;Barbara.
+                </p>
+                <span class="arrow">Visit ictf.cs.ucsb.edu &rarr;</span>
+            </a>
+            <a href="documentation.html" class="card">
+                <h3>Documentation</h3>
+                <p>
+                    Guides, API reference, and tutorials for building and deploying
+                    agent graphs with Agentish.
+                </p>
+                <span class="arrow">Read the docs &rarr;</span>
+            </a>
+        </div>
+
+        <h2>Features</h2>
+        <ul class="features">
+            <li>Visual node-based graph editor for agent pipelines</li>
+            <li>First-class MCP (Model Context Protocol) tool integration</li>
+            <li>Real-time execution and state inspection</li>
+            <li>Export &amp; import agent specifications as JSON</li>
+            <li>Built for security challenges and autonomous research</li>
+        </ul>
+
+        <h2>Quick Start</h2>
+        <div class="code-block">
+            <code>
+<span class="comment"># Clone the repository</span>
+$ git clone https://github.com/shellphish/agentish.git
+$ cd agentish
+
+<span class="comment"># Install dependencies</span>
+$ pip install -r requirements.txt
+
+<span class="comment"># Start the server</span>
+$ bash start_server.sh
+            </code>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
 </body>
 </html>

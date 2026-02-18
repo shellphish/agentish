@@ -1,0 +1,305 @@
+/* === Reset & Base === */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    background-color: #0a0a14;
+    color: #c8ccd4;
+    font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", "Courier New", monospace;
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* === Navigation === */
+nav {
+    background-color: #0d0d1a;
+    border-bottom: 1px solid #1e1e3a;
+    padding: 0.8rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+nav .logo {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    text-decoration: none;
+    letter-spacing: -0.03em;
+}
+
+nav .logo .dot {
+    color: #38bdf8;
+}
+
+nav .nav-links {
+    display: flex;
+    gap: 1.8rem;
+    list-style: none;
+}
+
+nav .nav-links a {
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.2s;
+    position: relative;
+}
+
+nav .nav-links a:hover,
+nav .nav-links a.active {
+    color: #7dd956;
+}
+
+nav .nav-links a::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: #7dd956;
+    transition: width 0.2s;
+}
+
+nav .nav-links a:hover::after,
+nav .nav-links a.active::after {
+    width: 100%;
+}
+
+/* === Main Content === */
+main {
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 3rem 2rem;
+    flex: 1;
+}
+
+/* === Hero Section === */
+.hero {
+    text-align: center;
+    padding: 4rem 0 3rem;
+    border-bottom: 1px solid #1e1e3a;
+    margin-bottom: 3rem;
+}
+
+.hero h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: -0.04em;
+    margin-bottom: 0.8rem;
+}
+
+.hero h1 .dot {
+    color: #38bdf8;
+}
+
+.hero .tagline {
+    font-size: 1.15rem;
+    color: #7dd956;
+    margin-bottom: 1.5rem;
+}
+
+.hero .description {
+    font-size: 0.95rem;
+    color: #8892a4;
+    max-width: 650px;
+    margin: 0 auto;
+    line-height: 1.8;
+}
+
+/* === Section Headings === */
+h2 {
+    color: #7dd956;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    margin-top: 2.5rem;
+}
+
+h3 {
+    color: #38bdf8;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.6rem;
+    margin-top: 1.5rem;
+}
+
+/* === Text & Links === */
+p {
+    margin-bottom: 1rem;
+    color: #c8ccd4;
+}
+
+a {
+    color: #38bdf8;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+a:hover {
+    color: #7dd3fc;
+    text-decoration: underline;
+}
+
+/* === Cards === */
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.card {
+    background: #0f0f1e;
+    border: 1px solid #1e1e3a;
+    border-radius: 8px;
+    padding: 1.8rem;
+    transition: border-color 0.2s, transform 0.2s;
+    text-decoration: none;
+    display: block;
+}
+
+.card:hover {
+    border-color: #7dd956;
+    transform: translateY(-2px);
+    text-decoration: none;
+}
+
+.card h3 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+}
+
+.card p {
+    color: #8892a4;
+    font-size: 0.9rem;
+    margin-bottom: 0;
+}
+
+.card .arrow {
+    color: #7dd956;
+    font-size: 0.85rem;
+    margin-top: 1rem;
+    display: block;
+}
+
+/* === Feature List === */
+.features {
+    list-style: none;
+    margin-top: 1rem;
+}
+
+.features li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #1a1a2e;
+    color: #c8ccd4;
+    font-size: 0.95rem;
+}
+
+.features li::before {
+    content: "→ ";
+    color: #7dd956;
+    font-weight: bold;
+}
+
+/* === Code Block === */
+.code-block {
+    background: #0d0d1a;
+    border: 1px solid #1e1e3a;
+    border-radius: 6px;
+    padding: 1.2rem 1.5rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    font-size: 0.88rem;
+    line-height: 1.6;
+}
+
+.code-block code {
+    color: #c8ccd4;
+}
+
+.code-block .comment {
+    color: #5c6370;
+}
+
+.code-block .keyword {
+    color: #c678dd;
+}
+
+.code-block .string {
+    color: #98c379;
+}
+
+/* === Footer === */
+footer {
+    border-top: 1px solid #1e1e3a;
+    padding: 1.5rem 2rem;
+    text-align: center;
+    font-size: 0.82rem;
+    color: #5c6370;
+}
+
+footer a {
+    color: #7dd956;
+}
+
+/* === Documentation Page === */
+.doc-placeholder {
+    text-align: center;
+    padding: 5rem 2rem;
+}
+
+.doc-placeholder .icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.doc-placeholder h2 {
+    color: #f1f5f9;
+    margin-top: 0;
+}
+
+.doc-placeholder p {
+    color: #5c6370;
+    font-size: 0.95rem;
+}
+
+/* === Responsive === */
+@media (max-width: 600px) {
+    nav {
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    .hero h1 {
+        font-size: 2rem;
+    }
+
+    .hero .tagline {
+        font-size: 1rem;
+    }
+
+    main {
+        padding: 2rem 1rem;
+    }
+
+    .card-grid {
+        grid-template-columns: 1fr;
+    }
+}
