@@ -4,6 +4,24 @@
 
 import { state } from './state.js';
 
+// ---------------------- HTML Escaping ----------------------
+
+/**
+ * Escapes a string so it is safe to interpolate into HTML.
+ * Converts &, <, >, ", ' and ` to their HTML entity equivalents.
+ * Use this for every piece of untrusted data placed inside innerHTML.
+ */
+export function escapeHTML(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;')
+        .replace(/`/g, '&#x60;');
+}
+
 // ---------------------- Toast Notifications ----------------------
 
 export function showToast(message, variant = "info") {
@@ -11,15 +29,27 @@ export function showToast(message, variant = "info") {
     if (!container) return;
 
     const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+
     const toast = document.createElement('div');
     toast.className = `toast toast-${variant}`;
-    toast.innerHTML = `
-        <span class="toast-icon">${icons[variant] || icons.info}</span>
-        <span class="toast-message">${message}</span>
-        <button class="toast-close">&times;</button>
-    `;
 
-    toast.querySelector('.toast-close').addEventListener('click', () => dismissToast(toast));
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'toast-icon';
+    iconSpan.textContent = icons[variant] || icons.info;
+
+    const msgSpan = document.createElement('span');
+    msgSpan.className = 'toast-message';
+    msgSpan.textContent = message;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'toast-close';
+    closeBtn.textContent = '×';
+
+    toast.appendChild(iconSpan);
+    toast.appendChild(msgSpan);
+    toast.appendChild(closeBtn);
+
+    closeBtn.addEventListener('click', () => dismissToast(toast));
     container.appendChild(toast);
 
     const delay = variant === 'error' ? 6000 : 4000;
@@ -75,15 +105,39 @@ export function inferTypeFromSchema(schemaValue) {
     return 'str';
 }
 
+// ---------------------- Prototype-Pollution Guard ----------------------
+
+/**
+ * Keys that must never be used as property names on plain objects.
+ * Writing obj["__proto__"], obj["constructor"], or obj["prototype"]
+ * can corrupt Object.prototype for the entire page.
+ */
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Returns true when `key` is safe to use as a bracket-notation property
+ * on a plain object.  Rejects the three prototype-pollution vectors and
+ * any non-string / empty value.
+ */
+export function isSafeKey(key) {
+    if (typeof key !== 'string' || key.length === 0) return false;
+    return !DANGEROUS_KEYS.has(key);
+}
+
 // ---------------------- Schema Helpers ----------------------
 
 export function normalizeSchemaToLowercase(schema) {
     if (!schema || typeof schema !== 'object') return {};
-    const normalized = {};
-    for (const [key, value] of Object.entries(schema)) {
-        normalized[key.toLowerCase()] = value;
+    // Use a null-prototype object as the accumulator so there is no
+    // prototype chain to pollute, then copy into a regular object at the end.
+    const safe = Object.create(null);
+    for (const key of Object.keys(schema)) {
+        if (!Object.prototype.hasOwnProperty.call(schema, key)) continue;
+        const lower = key.toLowerCase();
+        if (!isSafeKey(lower)) continue;
+        safe[lower] = schema[key];
     }
-    return normalized;
+    return Object.assign({}, safe);
 }
 
 export function renderStateSchemaDisplay() {
@@ -118,10 +172,17 @@ export function renderStateSchemaDisplay() {
     const tbody = document.createElement('tbody');
     entries.forEach(([varName, varType]) => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td style="padding: 6px 8px; border-bottom: 1px solid #1e293b; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; font-size: 0.75em; word-break: break-word; white-space: normal; line-height: 1.4;">${varName.toLowerCase()}</td>
-            <td style="padding: 6px 8px; border-bottom: 1px solid #1e293b; color: #94a3b8; font-family: 'JetBrains Mono', monospace; font-size: 0.75em; word-break: break-word; white-space: normal; line-height: 1.4;">${varType}</td>
-        `;
+
+        const tdName = document.createElement('td');
+        tdName.style.cssText = 'padding: 6px 8px; border-bottom: 1px solid #1e293b; color: #cbd5e1; font-family: \'JetBrains Mono\', monospace; font-size: 0.75em; word-break: break-word; white-space: normal; line-height: 1.4;';
+        tdName.textContent = varName.toLowerCase();
+
+        const tdType = document.createElement('td');
+        tdType.style.cssText = 'padding: 6px 8px; border-bottom: 1px solid #1e293b; color: #94a3b8; font-family: \'JetBrains Mono\', monospace; font-size: 0.75em; word-break: break-word; white-space: normal; line-height: 1.4;';
+        tdType.textContent = varType;
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdType);
         tbody.appendChild(tr);
     });
     table.appendChild(tbody);
