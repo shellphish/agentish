@@ -19,5 +19,6 @@ services:
       CHALLENGISH_CONFIG_PATH: /app/challengish.yml
     volumes:
       - ./challengish.yml:/app/challengish.yml:ro
+      - ../frontend:/app/frontend:ro
     ports:
       - "8000:8000"
