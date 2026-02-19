@@ -1,0 +1,243 @@
+{
+  "meta": {
+    "version": "2025.10",
+    "exported_at": "2026-02-18T20:00:00.000Z"
+  },
+  "graph": {
+    "version": 2,
+    "entrypoint": "1",
+    "state": {
+      "schema": {
+        "count": "int",
+        "messages": "Annotated[List[BaseMessage], lambda x, y: x + y]",
+        "alert_content": "str",
+        "classification": "str",
+        "investigation": "str",
+        "response_action": "str"
+      }
+    },
+    "nodes": [
+      {
+        "id": "1",
+        "type": "EntryPoint",
+        "label": "EntryPoint",
+        "config": {
+          "title": "Entry Node",
+          "initial_state": {
+            "alert_content": "str",
+            "classification": "str",
+            "investigation": "str",
+            "response_action": "str"
+          }
+        }
+      },
+      {
+        "id": "2",
+        "type": "LLMNode",
+        "label": "Classifier",
+        "config": {
+          "title": "Classifier",
+          "input_state_keys": ["alert_content"],
+          "output_state_keys": ["classification"],
+          "system_prompt": "You are a security alert classifier. Classify the alert by category and severity.",
+          "human_prompt": "Classify this alert: {alert_content}",
+          "structured_output_schema": [],
+          "selected_tools": [],
+          "max_tool_iterations": 30,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      },
+      {
+        "id": "3",
+        "type": "RouterBlock",
+        "label": "Category Router",
+        "config": {
+          "title": "Category Router",
+          "input_state_keys": ["classification"],
+          "system_prompt": "Route the classified alert to the correct specialist handler based on category.",
+          "router_values": [
+            { "node": "Malware Handler", "description": "Suspicious binaries, PE files, shellcode" },
+            { "node": "Intrusion Handler", "description": "Unauthorized access, brute-force, lateral movement" },
+            { "node": "Misconfiguration Handler", "description": "Open ports, weak credentials, policy violations" }
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "type": "LLMNode",
+        "label": "Malware Handler",
+        "config": {
+          "title": "Malware Handler",
+          "input_state_keys": ["alert_content", "classification"],
+          "output_state_keys": ["investigation"],
+          "system_prompt": "Analyze malware alerts. Decompile suspicious binaries, check hashes.",
+          "human_prompt": "Malware alert: {alert_content}\nClassification: {classification}",
+          "structured_output_schema": [],
+          "selected_tools": ["decompile", "check_hash", "run_sandbox"],
+          "max_tool_iterations": 20,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      },
+      {
+        "id": "5",
+        "type": "LLMNode",
+        "label": "Intrusion Handler",
+        "config": {
+          "title": "Intrusion Handler",
+          "input_state_keys": ["alert_content", "classification"],
+          "output_state_keys": ["investigation"],
+          "system_prompt": "Investigate intrusion alerts. Check IPs, search logs for lateral movement.",
+          "human_prompt": "Intrusion alert: {alert_content}\nClassification: {classification}",
+          "structured_output_schema": [],
+          "selected_tools": ["check_ip", "search_logs"],
+          "max_tool_iterations": 15,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      },
+      {
+        "id": "6",
+        "type": "LLMNode",
+        "label": "Misconfiguration Handler",
+        "config": {
+          "title": "Misconfiguration Handler",
+          "input_state_keys": ["alert_content", "classification"],
+          "output_state_keys": ["investigation"],
+          "system_prompt": "Assess misconfigurations. Scan ports, review security policies.",
+          "human_prompt": "Misconfiguration alert: {alert_content}\nClassification: {classification}",
+          "structured_output_schema": [],
+          "selected_tools": ["check_config", "scan_ports"],
+          "max_tool_iterations": 10,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      },
+      {
+        "id": "7",
+        "type": "LLMNode",
+        "label": "Responder",
+        "config": {
+          "title": "Responder",
+          "input_state_keys": ["investigation"],
+          "output_state_keys": ["response_action"],
+          "system_prompt": "Based on the investigation, take appropriate response action.",
+          "human_prompt": "Investigation results: {investigation}\nTake action.",
+          "structured_output_schema": [],
+          "selected_tools": ["block_ip", "quarantine", "create_ticket"],
+          "max_tool_iterations": 10,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      }
+    ],
+    "edges": [
+      { "from": "1", "to": "2", "target_slot": 0, "type": "NormalEdge" },
+      { "from": "2", "to": "3", "target_slot": 0, "type": "NormalEdge" },
+      { "from": "3", "to": "4", "target_slot": 0, "type": "ConditionalEdge", "condition": "out" },
+      { "from": "3", "to": "5", "target_slot": 0, "type": "ConditionalEdge", "condition": "out" },
+      { "from": "3", "to": "6", "target_slot": 0, "type": "ConditionalEdge", "condition": "out" },
+      { "from": "4", "to": "7", "target_slot": 0, "type": "NormalEdge" },
+      { "from": "5", "to": "7", "target_slot": 1, "type": "NormalEdge" },
+      { "from": "6", "to": "7", "target_slot": 2, "type": "NormalEdge" }
+    ],
+    "tools": {
+      "decompile": {
+        "name": "decompile",
+        "type": "mcp",
+        "description": "Decompile a function by name",
+        "arguments": [{ "name": "function_name", "type": "str", "required": true, "description": "Function name to decompile" }],
+        "mcp_server": "http://mcp_binary:8002",
+        "mcp_method": "GET /mcp/decompile",
+        "metadata": { "endpoint": "/mcp/decompile", "method": "GET", "server_name": "binary_analysis" },
+        "return_schema": { "disassembly": "str", "success": "bool" }
+      },
+      "check_hash": {
+        "name": "check_hash",
+        "type": "mcp",
+        "description": "Check a file hash against known malware databases",
+        "arguments": [{ "name": "hash", "type": "str", "required": true, "description": "File hash to check" }],
+        "mcp_server": "http://mcp_binary:8002",
+        "mcp_method": "GET /mcp/check_hash",
+        "metadata": { "endpoint": "/mcp/check_hash", "method": "GET", "server_name": "binary_analysis" },
+        "return_schema": { "result": "str", "success": "bool" }
+      },
+      "run_sandbox": {
+        "name": "run_sandbox",
+        "type": "mcp",
+        "description": "Run a binary in an isolated sandbox and observe behavior",
+        "arguments": [{ "name": "binary_path", "type": "str", "required": true, "description": "Path to the binary to analyze" }],
+        "mcp_server": "http://mcp_sandbox:8007",
+        "mcp_method": "POST /mcp/run_sandbox",
+        "metadata": { "endpoint": "/mcp/run_sandbox", "method": "POST", "server_name": "sandbox" },
+        "return_schema": { "behavior_report": "str", "success": "bool" }
+      },
+      "check_ip": {
+        "name": "check_ip",
+        "type": "mcp",
+        "description": "Check an IP address against threat intelligence databases",
+        "arguments": [{ "name": "ip_address", "type": "str", "required": true, "description": "IP address to check" }],
+        "mcp_server": "http://mcp_threat_intel:8005",
+        "mcp_method": "GET /mcp/check_ip",
+        "metadata": { "endpoint": "/mcp/check_ip", "method": "GET", "server_name": "threat_intel" },
+        "return_schema": { "reputation": "str", "success": "bool" }
+      },
+      "search_logs": {
+        "name": "search_logs",
+        "type": "mcp",
+        "description": "Search security logs for matching events",
+        "arguments": [{ "name": "query", "type": "str", "required": true, "description": "Search query for logs" }],
+        "mcp_server": "http://mcp_siem:8006",
+        "mcp_method": "GET /mcp/search_logs",
+        "metadata": { "endpoint": "/mcp/search_logs", "method": "GET", "server_name": "siem" },
+        "return_schema": { "events": "list", "success": "bool" }
+      },
+      "check_config": {
+        "name": "check_config",
+        "type": "mcp",
+        "description": "Check system configuration against security baselines",
+        "arguments": [{ "name": "hostname", "type": "str", "required": true, "description": "Host to check configuration" }],
+        "mcp_server": "http://mcp_config:8008",
+        "mcp_method": "GET /mcp/check_config",
+        "metadata": { "endpoint": "/mcp/check_config", "method": "GET", "server_name": "config_manager" },
+        "return_schema": { "violations": "list", "success": "bool" }
+      },
+      "scan_ports": {
+        "name": "scan_ports",
+        "type": "mcp",
+        "description": "Scan a host for open ports",
+        "arguments": [{ "name": "hostname", "type": "str", "required": true, "description": "Host to scan" }],
+        "mcp_server": "http://mcp_config:8008",
+        "mcp_method": "GET /mcp/scan_ports",
+        "metadata": { "endpoint": "/mcp/scan_ports", "method": "GET", "server_name": "config_manager" },
+        "return_schema": { "open_ports": "list", "success": "bool" }
+      },
+      "block_ip": {
+        "name": "block_ip",
+        "type": "mcp",
+        "description": "Block a malicious IP address at the firewall",
+        "arguments": [{ "name": "ip_address", "type": "str", "required": true, "description": "IP address to block" }],
+        "mcp_server": "http://mcp_firewall:8003",
+        "mcp_method": "POST /mcp/block_ip",
+        "metadata": { "endpoint": "/mcp/block_ip", "method": "POST", "server_name": "firewall" },
+        "return_schema": { "blocked": "bool", "success": "bool" }
+      },
+      "quarantine": {
+        "name": "quarantine",
+        "type": "mcp",
+        "description": "Quarantine an infected host from the network",
+        "arguments": [{ "name": "hostname", "type": "str", "required": true, "description": "Host to quarantine" }],
+        "mcp_server": "http://mcp_firewall:8003",
+        "mcp_method": "POST /mcp/quarantine",
+        "metadata": { "endpoint": "/mcp/quarantine", "method": "POST", "server_name": "firewall" },
+        "return_schema": { "quarantined": "bool", "success": "bool" }
+      },
+      "create_ticket": {
+        "name": "create_ticket",
+        "type": "mcp",
+        "description": "Create a ticket in the incident tracking system",
+        "arguments": [{ "name": "title", "type": "str", "required": true, "description": "Ticket title" }, { "name": "description", "type": "str", "required": true, "description": "Ticket description" }],
+        "mcp_server": "http://mcp_ticketing:8004",
+        "mcp_method": "POST /mcp/create_ticket",
+        "metadata": { "endpoint": "/mcp/create_ticket", "method": "POST", "server_name": "ticketing" },
+        "return_schema": { "ticket_id": "str", "success": "bool" }
+      }
+    }
+  }
+}
