@@ -582,6 +582,35 @@ h4 {
     max-width: 520px;
 }
 
+/* Excalidraw diagram screenshots */
+.illustration.img-ch1-simple-workflow {
+    max-width: 750px;
+}
+
+.illustration.img-ch2-template-prompts {
+    max-width: 560px;
+}
+
+.illustration.img-ch2-tool-assignment {
+    max-width: 750px;
+}
+
+.illustration.img-ch2-full-llm-config {
+    max-width: 600px;
+}
+
+.illustration.img-ch3-pipeline {
+    max-width: 750px;
+}
+
+.illustration.img-ch3-router {
+    max-width: 680px;
+}
+
+.illustration.img-ch3-combined-topology {
+    max-width: 800px;
+}
+
 /* === Responsive === */
 @media (max-width: 600px) {
     nav {
