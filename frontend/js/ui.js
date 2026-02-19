@@ -119,6 +119,8 @@ function initPaletteButtons() {
             e.preventDefault();
             const nodeType = e.dataTransfer.getData("nodeType");
             if (nodeType) {
+                // Force canvas to recalculate bounds before converting coordinates
+                state.canvas.resize();
                 const graphPos = state.canvas.convertEventToCanvasOffset(e);
                 const type = NODE_TYPE_MAP[nodeType];
                 if (type) {
