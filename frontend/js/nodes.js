@@ -68,25 +68,22 @@ function LLMNode() {
     this.serialize_widgets = true;
 
     this.onConnectionsChange = function (type, slot, isConnected) {
-        if (type === LiteGraph.INPUT && isConnected) {
-            const hasEmptySlot = this.inputs.some(input => !input.link);
+        if (type !== LiteGraph.INPUT) return;
+        const self = this;
+        if (isConnected) {
+            const hasEmptySlot = this.inputs.some(inp => !inp.link);
             if (!hasEmptySlot) {
-                const newSlotIndex = this.inputs.length;
-                const slotName = newSlotIndex === 0 ? "in" : `in${newSlotIndex + 1}`;
-                this.addInput(slotName, "flow");
-                if (state.graph) state.graph.setDirtyCanvas(true, true);
+                this.addInput(`in${this.inputs.length + 1}`, "flow");
             }
-        } else if (type === LiteGraph.INPUT && !isConnected) {
-            while (this.inputs.length > 1) {
-                const lastInput = this.inputs[this.inputs.length - 1];
-                if (!lastInput.link) {
-                    this.removeInput(this.inputs.length - 1);
-                } else {
-                    break;
-                }
+        } else {
+            while (this.inputs.length > 1 && !this.inputs[this.inputs.length - 1].link) {
+                this.removeInput(this.inputs.length - 1);
             }
-            if (state.graph) state.graph.setDirtyCanvas(true, true);
         }
+        setTimeout(() => {
+            self._recalcSize();
+            if (state.graph) state.graph.setDirtyCanvas(true, true);
+        }, 0);
     };
 
     const getToolsStartY = () => {
@@ -101,12 +98,12 @@ function LLMNode() {
     this._recalcSize = () => {
         const tools = this.properties.selected_tools || [];
         const n = tools.length;
-        if (n === 0) {
-            this.size[1] = 30;
-            return;
-        }
         const startY = getToolsStartY();
-        this.size[1] = Math.max(60, startY + 18 + n * 14 + 10);
+        if (n === 0) {
+            this.size[1] = Math.max(30, startY + 10);
+        } else {
+            this.size[1] = Math.max(60, startY + 18 + n * 14 + 10);
+        }
     };
 
     const renderSelectedTools = (ctx) => {
