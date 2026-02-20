@@ -16,7 +16,6 @@ import { renderInspector } from './inspector.js';
 
 function EntryPointNode() {
     this.title = "Entry Node";
-    this.size = [220, 80];
     this.color = "#334155";
     this.bgcolor = "#1E293B";
     this.resizable = false;
@@ -44,7 +43,6 @@ EntryPointNode.title_color = "#000000";
 
 function LLMNode() {
     this.title = "LLM Node";
-    this.size = [220, 150];
     this.color = "#334155";
     this.bgcolor = "#1E293B";
     this.properties = {
@@ -100,13 +98,11 @@ function LLMNode() {
         const tools = this.properties.selected_tools || [];
         const n = tools.length;
         if (n === 0) return;
-        // measure the widest tool name to set node width
         const canvas = document.createElement('canvas');
         const ctx2 = canvas.getContext('2d');
         ctx2.font = "11px 'Inter', sans-serif";
         const maxNameWidth = tools.reduce((m, t) => Math.max(m, ctx2.measureText(t).width), 0);
         this.size[0] = Math.max(220, Math.ceil(maxNameWidth) + 32);
-        // height: startY + header(18) + lines(n*14) + bottom padding(10)
         const startY = getToolsStartY();
         this.size[1] = Math.max(60, startY + 18 + n * 14 + 10);
     };
@@ -150,6 +146,10 @@ function LLMNode() {
         renderSelectedTools(ctx);
     };
 
+    this.onAdded = function () {
+        this.size = [200, 30];
+    };
+
     this.onConfigure = function () {
         recalcSize();
     };
@@ -187,7 +187,6 @@ LLMNode.title_color = "#000000";
 
 function RouterBlockNode() {
     this.title = "Router Block";
-    this.size = [220, 100];
     this.color = "#334155";
     this.bgcolor = "#1E293B";
     this.properties = {
@@ -222,7 +221,6 @@ RouterBlockNode.title_color = "#000000";
 
 function WorkerNode() {
     this.title = "Worker Node";
-    this.size = [220, 120];
     this.color = "#334155";
     this.bgcolor = "#1E293B";
     this.properties = {
@@ -298,6 +296,10 @@ function WorkerNode() {
         ctx.fillStyle = "#10B981";
         ctx.fillRect(0, 0, this.size[0], 3);
         renderSelectedTools(ctx);
+    };
+
+    this.onAdded = function () {
+        this.size = [200, 30];
     };
 
     this.onConfigure = function () {
@@ -412,14 +414,14 @@ export function ensureSingleEntry(node) {
     return true;
 }
 
-export function createNode(kind) {
+export function createNode(kind, pos) {
     const type = NODE_TYPE_MAP[kind];
     if (!type) return;
 
     const node = LiteGraph.createNode(type);
     if (!node) return;
 
-    node.pos = randomCanvasPosition();
+    node.pos = pos || randomCanvasPosition();
     state.graph.add(node);
     ensureSingleEntry(node);
     state.canvas.selectNode(node);

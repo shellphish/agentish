@@ -107,6 +107,18 @@ function renderToolDropList(def, node, wrapper) {
 
     function commit(newList) {
         node.properties[def.key] = newList;
+        var n = newList.length;
+        if (n === 0) {
+            node.size = [200, 30];
+        } else {
+            var slotH = LiteGraph.NODE_SLOT_HEIGHT || 20;
+            var rows = Math.max(
+                node.inputs ? node.inputs.length : 1,
+                node.outputs ? node.outputs.length : 0
+            );
+            var startY = rows * slotH + 8;
+            node.size[1] = Math.max(60, startY + 18 + n * 14 + 10);
+        }
         state.graph.setDirtyCanvas(true, true);
         renderInspector(node);
     }
