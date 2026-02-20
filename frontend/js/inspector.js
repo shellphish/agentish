@@ -107,6 +107,7 @@ function renderToolDropList(def, node, wrapper) {
 
     function commit(newList) {
         node.properties[def.key] = newList;
+        if (node._recalcSize) node._recalcSize();
         state.graph.setDirtyCanvas(true, true);
         renderInspector(node);
     }

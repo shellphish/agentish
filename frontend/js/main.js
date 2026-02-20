@@ -106,7 +106,11 @@ function initializeEditor() {
         graph.start();
         updateSummary();
 
-        window.addEventListener('resize', () => { canvas.resize(); });
+        // ResizeObserver fires on initial observe (catching first layout)
+        // and on every subsequent size change — keeps canvas pixel buffer
+        // in sync with CSS display size so click coords match rendering.
+        const ro = new ResizeObserver(() => { canvas.resize(); });
+        ro.observe(document.getElementById('main-canvas'));
 
         if (ASL_DEBUG) console.log("=== Initialization complete ===");
     } catch (error) {

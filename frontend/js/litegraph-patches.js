@@ -124,7 +124,6 @@ export function patchNodeRendering() {
         node._wrappedTitleLines = titleData.lines;
         node._titleHeight = title_height;
 
-        const originalTitleHeight = LiteGraph.NODE_TITLE_HEIGHT;
         const originalTitle = node.title;
         const hasOwnCtorTitle = node.constructor ? Object.prototype.hasOwnProperty.call(node.constructor, "title") : false;
         const originalCtorTitle = node.constructor ? node.constructor.title : undefined;
@@ -135,13 +134,18 @@ export function patchNodeRendering() {
         if (node.constructor) node.constructor.title = "";
         node.getTitle = () => "";
 
-        LiteGraph.NODE_TITLE_HEIGHT = title_height;
+        // Suppress the default title-box indicator (a circle drawn mid-title-bar
+        // by LiteGraph for round-shaped nodes) — it overlaps our title text.
+        const originalOnDrawTitleBox = node.onDrawTitleBox;
+        node.onDrawTitleBox = function() {};
 
+        // Use original title height for slot positioning, not the wrapped title height
         originalDrawNodeShape.call(this, node, ctx, size, fgcolor, bgcolor, selected, mouse_over);
 
+        node.onDrawTitleBox = originalOnDrawTitleBox;
         drawWrappedTitle(ctx, this, node);
 
-        LiteGraph.NODE_TITLE_HEIGHT = originalTitleHeight;
+        // Restore original state
         node.title = originalTitle;
         if (node.constructor) {
             if (hasOwnCtorTitle) {
@@ -173,6 +177,24 @@ export function patchNodeRendering() {
             node.bgcolor = originalBgcolor;
         } else {
             originalDrawNode.call(this, node, ctx);
+        }
+
+        // Input slots are drawn without a stroke in LiteGraph; add one to match
+        // the black outline that output slots already receive.
+        if (node.inputs && node.inputs.length) {
+            ctx.save();
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1;
+            const slotPos = [0, 0];
+            for (let i = 0; i < node.inputs.length; i++) {
+                const slot = node.inputs[i];
+                if (slot.type === LiteGraph.EVENT || slot.shape === LiteGraph.BOX_SHAPE) continue;
+                const pos = node.getConnectionPos(true, i, slotPos);
+                ctx.beginPath();
+                ctx.arc(pos[0] - node.pos[0], pos[1] - node.pos[1], 4, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.restore();
         }
     };
 
