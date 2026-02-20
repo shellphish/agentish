@@ -27,6 +27,10 @@ function EntryPointNode() {
     this.widgets_up = true;
     this.serialize_widgets = true;
 
+    this.onAdded = function () {
+        this.size = [200, 30];
+    };
+
     this.onDrawForeground = function (ctx) {
         ctx.fillStyle = "#3B82F6";
         ctx.fillRect(0, 0, this.size[0], 3);
@@ -94,15 +98,13 @@ function LLMNode() {
         return numRows * slotHeight + 8;
     };
 
-    const recalcSize = () => {
+    this._recalcSize = () => {
         const tools = this.properties.selected_tools || [];
         const n = tools.length;
-        if (n === 0) return;
-        const canvas = document.createElement('canvas');
-        const ctx2 = canvas.getContext('2d');
-        ctx2.font = "11px 'Inter', sans-serif";
-        const maxNameWidth = tools.reduce((m, t) => Math.max(m, ctx2.measureText(t).width), 0);
-        this.size[0] = Math.max(220, Math.ceil(maxNameWidth) + 32);
+        if (n === 0) {
+            this.size[1] = 30;
+            return;
+        }
         const startY = getToolsStartY();
         this.size[1] = Math.max(60, startY + 18 + n * 14 + 10);
     };
@@ -150,8 +152,12 @@ function LLMNode() {
         this.size = [200, 30];
     };
 
+    this.computeSize = function () {
+        return this.size;
+    };
+
     this.onConfigure = function () {
-        recalcSize();
+        this._recalcSize();
     };
 
     this._addTool = (toolName) => {
@@ -165,7 +171,7 @@ function LLMNode() {
             return false;
         }
         this.properties.selected_tools.push(toolName);
-        recalcSize();
+        this._recalcSize();
         state.graph.setDirtyCanvas(true, true);
         if (state.canvas.selected_nodes && state.canvas.selected_nodes[this.id]) {
             renderInspector(this);
@@ -209,6 +215,10 @@ function RouterBlockNode() {
         }
     };
 
+    this.onAdded = function () {
+        this.size = [200, 30];
+    };
+
     this.onDrawForeground = function (ctx) {
         ctx.fillStyle = "#A855F7";
         ctx.fillRect(0, 0, this.size[0], 3);
@@ -246,15 +256,13 @@ function WorkerNode() {
         return numRows * slotHeight + 8;
     };
 
-    const recalcSize = () => {
+    this._recalcSize = () => {
         const tools = this.properties.selected_tools || [];
         const n = tools.length;
-        if (n === 0) return;
-        const canvas = document.createElement('canvas');
-        const ctx2 = canvas.getContext('2d');
-        ctx2.font = "11px 'Inter', sans-serif";
-        const maxNameWidth = tools.reduce((m, t) => Math.max(m, ctx2.measureText(t).width), 0);
-        this.size[0] = Math.max(220, Math.ceil(maxNameWidth) + 32);
+        if (n === 0) {
+            this.size[1] = 30;
+            return;
+        }
         const startY = getToolsStartY();
         this.size[1] = Math.max(60, startY + 18 + n * 14 + 10);
     };
@@ -302,8 +310,12 @@ function WorkerNode() {
         this.size = [200, 30];
     };
 
+    this.computeSize = function () {
+        return this.size;
+    };
+
     this.onConfigure = function () {
-        recalcSize();
+        this._recalcSize();
     };
 
     this._addTool = (toolName) => {
@@ -317,7 +329,7 @@ function WorkerNode() {
             return false;
         }
         this.properties.selected_tools.push(toolName);
-        recalcSize();
+        this._recalcSize();
         state.graph.setDirtyCanvas(true, true);
         if (state.canvas.selected_nodes && state.canvas.selected_nodes[this.id]) {
             renderInspector(this);
