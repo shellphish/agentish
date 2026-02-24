@@ -183,6 +183,25 @@ export function getConnectedNodesForRouter(node) {
     return connectedNodes;
 }
 
+/**
+ * Formats a raw slot name for display.
+ *   "next" -> "Next"
+ *   "in"   -> "In" (or "In (1)" when the node has multiple input slots)
+ *   "in2"  -> "In (2)"
+ *   "out"  -> "Out" (or "Out (1)" when the node has multiple output slots)
+ */
+export function formatSlotName(name, slotCount) {
+    const match = name.match(/^([a-zA-Z]+?)(\d+)?$/);
+    if (!match) return name;
+
+    const base = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+    const num = match[2] ? parseInt(match[2], 10) : null;
+
+    if (num !== null) return `${base} (${num})`;
+    if (slotCount > 1) return `${base} (1)`;
+    return base;
+}
+
 export function syncRouterValues(node) {
     if (node.type !== "asl/router") return;
 

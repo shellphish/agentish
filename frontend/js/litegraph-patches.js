@@ -3,7 +3,9 @@
 // =====================================================
 // These monkey-patch LiteGraph prototypes for custom
 // arrow rendering, dark-themed nodes, and disabled
-// context menus. No internal module dependencies.
+// context menus.
+
+import { formatSlotName } from './utils.js';
 
 export function patchConnectionArrows() {
     if (!window.LGraphCanvas || window.LGraphCanvas.prototype._aslArrowPatched) {
@@ -162,6 +164,20 @@ export function patchNodeRendering() {
     };
 
     proto.drawNode = function (node, ctx) {
+        // Set display labels for slots
+        if (node.inputs) {
+            const count = node.inputs.length;
+            for (let i = 0; i < count; i++) {
+                node.inputs[i].label = formatSlotName(node.inputs[i].name, count);
+            }
+        }
+        if (node.outputs) {
+            const count = node.outputs.length;
+            for (let i = 0; i < count; i++) {
+                node.outputs[i].label = formatSlotName(node.outputs[i].name, count);
+            }
+        }
+
         const accentColor = nodeAccents[node.type];
 
         if (accentColor) {
