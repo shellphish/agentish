@@ -91,6 +91,10 @@ export function patchNodeRendering() {
         return { lines, height: requiredHeight };
     }
 
+    // Left padding must clear the LiteGraph title-box circle
+    // (centered at x = title_height/2, radius = 5).
+    const TITLE_TEXT_LEFT = 26;
+
     function drawWrappedTitle(ctx, canvas, node) {
         if (!node._wrappedTitleLines || node._wrappedTitleLines.length === 0) {
             return;
@@ -110,14 +114,14 @@ export function patchNodeRendering() {
         let y = -titleHeight + 8;
         const lineHeight = 16;
         node._wrappedTitleLines.forEach((line) => {
-            ctx.fillText(line, 10, y);
+            ctx.fillText(line, TITLE_TEXT_LEFT, y);
             y += lineHeight;
         });
         ctx.restore();
     }
 
     proto.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
-        const maxWidth = node.size[0] - 20;
+        const maxWidth = node.size[0] - TITLE_TEXT_LEFT - 10;
         const titleData = calculateWrappedTitle(ctx, node, maxWidth);
         const title_height = titleData.height;
 
