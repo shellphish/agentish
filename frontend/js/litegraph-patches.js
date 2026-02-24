@@ -143,9 +143,33 @@ export function patchNodeRendering() {
 
         LiteGraph.NODE_TITLE_HEIGHT = title_height;
 
-        originalDrawNodeShape.call(this, node, ctx, size, fgcolor, bgcolor, selected, mouse_over);
+        // Suppress built-in selection outline (has a 6px gap); we draw our own below
+        originalDrawNodeShape.call(this, node, ctx, size, fgcolor, bgcolor, false, mouse_over);
 
         drawWrappedTitle(ctx, this, node);
+
+        // Draw tight selection outline with no gap
+        if (selected) {
+            var shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
+            var area = [-1, -title_height - 1, size[0] + 2, size[1] + title_height + 2];
+            if (node.onBounding) node.onBounding(area);
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            if (shape === LiteGraph.BOX_SHAPE) {
+                ctx.rect(area[0], area[1], area[2], area[3]);
+            } else if (shape === LiteGraph.ROUND_SHAPE || (shape === LiteGraph.CARD_SHAPE && node.flags.collapsed)) {
+                ctx.roundRect(area[0], area[1], area[2], area[3], [this.round_radius]);
+            } else if (shape === LiteGraph.CARD_SHAPE) {
+                ctx.roundRect(area[0], area[1], area[2], area[3], [this.round_radius, this.round_radius, 0, 0]);
+            } else if (shape === LiteGraph.CIRCLE_SHAPE) {
+                ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 1, 0, Math.PI * 2);
+            }
+            ctx.strokeStyle = LiteGraph.NODE_BOX_OUTLINE_COLOR;
+            ctx.stroke();
+            ctx.strokeStyle = fgcolor;
+            ctx.globalAlpha = 1;
+        }
 
         LiteGraph.NODE_TITLE_HEIGHT = originalTitleHeight;
         node.title = originalTitle;
