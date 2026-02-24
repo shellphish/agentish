@@ -369,7 +369,6 @@ export function createNode(kind) {
 
     node.pos = randomCanvasPosition();
     state.graph.add(node);
-    ensureSingleEntry(node);
     state.canvas.selectNode(node);
     updateSummary();
 }

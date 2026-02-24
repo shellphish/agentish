@@ -11,7 +11,7 @@ import {
     renderStateSchemaDisplay,
     updateSummary
 } from './utils.js';
-import { ensureSingleEntry, createNode } from './nodes.js';
+import { createNode } from './nodes.js';
 import { renderInspector, renderEmptyInspector } from './inspector.js';
 import { serializeToASL, configureFromASL, downloadASL, downloadLayout, viewASL } from './serialization.js';
 import {
@@ -70,7 +70,6 @@ function initKeyboardShortcuts() {
                 newNode.size = [...copiedNode.size];
                 newNode.pos = [copiedNode.pos[0] + 30, copiedNode.pos[1] + 30];
                 state.graph.add(newNode);
-                ensureSingleEntry(newNode);
                 state.canvas.selectNode(newNode);
                 updateSummary();
                 showToast("Node cloned", "success");
@@ -126,7 +125,6 @@ function initPaletteButtons() {
                     if (node) {
                         node.pos = [graphPos[0], graphPos[1]];
                         state.graph.add(node);
-                        ensureSingleEntry(node);
                         state.canvas.selectNode(node);
                         updateSummary();
                     }
