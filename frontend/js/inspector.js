@@ -641,6 +641,9 @@ export function renderInspector(node) {
 
     const formDefs = NODE_FORMS[node.type] || [];
     formDefs.forEach((def) => {
+        // Skip hidden fields (functionality preserved, just not shown)
+        if (def.hidden) return;
+
         // Handle conditional rendering
         if (def.conditional) {
             if (def.conditional.field && def.conditional.value !== undefined) {

@@ -45,7 +45,7 @@ export const TOOL_TEMPLATE_ADDITION = `def tool_implementation(a: int, b: int, s
 
 export const NODE_FORMS = {
     "asl/entry": [
-        { key: "title", label: "Display name", type: "text", placeholder: "Entry Node" },
+        { key: "title", label: "Display name", type: "text", placeholder: "Entry Node", hidden: true },
         {
             key: "initial_state",
             label: "Initial State Variables",
