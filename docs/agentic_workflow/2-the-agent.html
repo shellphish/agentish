@@ -8,7 +8,7 @@
 </head>
 <body>
     <nav>
-        <a href="../index.html" class="logo">agentish<span class="dot">.</span></a>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
         <ul class="nav-links">
             <li><a href="../index.html">Home</a></li>
             <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
@@ -287,6 +287,8 @@ Classify this alert."</span>
             <a href="5-information-flow.html">Chapter 5</a>).
         </p>
 
+        <img src="images/ch2_template_prompts.png" alt="Template variables in prompts — system_prompt and human_prompt with {alert_content} and {previous_analysis} placeholders" class="illustration img-ch2-template-prompts">
+
         <div class="example-box">
             <div class="example-label">ASL — LLM Node with Template Variables in Prompts</div>
             <div class="code-block"><code>{
@@ -478,6 +480,8 @@ mcp_tools:
             Catalog</strong> sidebar. You assign tools to nodes by selecting them in the
             node&rsquo;s inspector panel under <strong>Selected Tools</strong>.
         </p>
+
+        <img src="images/ch2_tool_assignment.png" alt="Tool assignment across agents — Classifier with no tools, Malware Analyst with 3 tools, Responder with 3 tools" class="illustration img-ch2-tool-assignment">
 
         <div class="example-box">
             <div class="example-label">ASL — Tool Assignment Across Specialized Agents</div>
@@ -737,6 +741,8 @@ Output: <span class="string">{"severity": "high", "category": "intrusion", "conf
                 </tr>
             </tbody>
         </table>
+
+        <img src="images/ch2_full_llm_config.png" alt="Complete LLM Node configuration showing all fields — title, prompts, state keys, tools, iteration control, and structured output schema" class="illustration img-ch2-full-llm-config">
 
         <div class="example-box">
             <div class="example-label">ASL — Complete LLM Node Configuration</div>

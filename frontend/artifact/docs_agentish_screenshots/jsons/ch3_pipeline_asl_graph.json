@@ -1,0 +1,141 @@
+{
+  "meta": {
+    "version": "2025.10",
+    "exported_at": "2026-02-18T20:00:00.000Z"
+  },
+  "graph": {
+    "version": 2,
+    "entrypoint": "1",
+    "state": {
+      "schema": {
+        "count": "int",
+        "messages": "Annotated[List[BaseMessage], lambda x, y: x + y]",
+        "alert_content": "str",
+        "classification": "str",
+        "investigation": "str",
+        "response_action": "str"
+      }
+    },
+    "nodes": [
+      {
+        "id": "1",
+        "type": "EntryPoint",
+        "label": "EntryPoint",
+        "config": {
+          "title": "Entry Node",
+          "initial_state": {
+            "alert_content": "str",
+            "classification": "str",
+            "investigation": "str",
+            "response_action": "str"
+          }
+        }
+      },
+      {
+        "id": "2",
+        "type": "LLMNode",
+        "label": "Classifier",
+        "config": {
+          "title": "Classifier",
+          "input_state_keys": ["alert_content"],
+          "output_state_keys": ["classification"],
+          "system_prompt": "You are a security alert classifier. Classify the alert by category and severity.",
+          "human_prompt": "Classify this alert: {alert_content}",
+          "structured_output_schema": [],
+          "selected_tools": [],
+          "max_tool_iterations": 30,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      },
+      {
+        "id": "3",
+        "type": "LLMNode",
+        "label": "Investigator",
+        "config": {
+          "title": "Investigator",
+          "input_state_keys": ["alert_content", "classification"],
+          "output_state_keys": ["investigation"],
+          "system_prompt": "You are a security investigator. Investigate the classified alert. Gather evidence using your tools.",
+          "human_prompt": "Investigation target: {alert_content}\nClassification: {classification}",
+          "structured_output_schema": [],
+          "selected_tools": ["check_ip", "search_logs", "check_hash"],
+          "max_tool_iterations": 15,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      },
+      {
+        "id": "4",
+        "type": "LLMNode",
+        "label": "Responder",
+        "config": {
+          "title": "Responder",
+          "input_state_keys": ["investigation"],
+          "output_state_keys": ["response_action"],
+          "system_prompt": "You are a security incident responder. Based on the investigation, take appropriate action.",
+          "human_prompt": "Investigation results: {investigation}\n\nTake appropriate response action.",
+          "structured_output_schema": [],
+          "selected_tools": ["block_ip", "create_ticket"],
+          "max_tool_iterations": 10,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      }
+    ],
+    "edges": [
+      { "from": "1", "to": "2", "target_slot": 0, "type": "NormalEdge" },
+      { "from": "2", "to": "3", "target_slot": 0, "type": "NormalEdge" },
+      { "from": "3", "to": "4", "target_slot": 0, "type": "NormalEdge" }
+    ],
+    "tools": {
+      "check_ip": {
+        "name": "check_ip",
+        "type": "mcp",
+        "description": "Check an IP address against threat intelligence databases",
+        "arguments": [{ "name": "ip_address", "type": "str", "required": true, "description": "IP address to check" }],
+        "mcp_server": "http://mcp_threat_intel:8005",
+        "mcp_method": "GET /mcp/check_ip",
+        "metadata": { "endpoint": "/mcp/check_ip", "method": "GET", "server_name": "threat_intel" },
+        "return_schema": { "reputation": "str", "success": "bool" }
+      },
+      "search_logs": {
+        "name": "search_logs",
+        "type": "mcp",
+        "description": "Search security logs for matching events",
+        "arguments": [{ "name": "query", "type": "str", "required": true, "description": "Search query for logs" }],
+        "mcp_server": "http://mcp_siem:8006",
+        "mcp_method": "GET /mcp/search_logs",
+        "metadata": { "endpoint": "/mcp/search_logs", "method": "GET", "server_name": "siem" },
+        "return_schema": { "events": "list", "success": "bool" }
+      },
+      "check_hash": {
+        "name": "check_hash",
+        "type": "mcp",
+        "description": "Check a file hash against known malware databases",
+        "arguments": [{ "name": "hash", "type": "str", "required": true, "description": "File hash to check" }],
+        "mcp_server": "http://mcp_binary:8002",
+        "mcp_method": "GET /mcp/check_hash",
+        "metadata": { "endpoint": "/mcp/check_hash", "method": "GET", "server_name": "binary_analysis" },
+        "return_schema": { "result": "str", "success": "bool" }
+      },
+      "block_ip": {
+        "name": "block_ip",
+        "type": "mcp",
+        "description": "Block a malicious IP address at the firewall",
+        "arguments": [{ "name": "ip_address", "type": "str", "required": true, "description": "IP address to block" }],
+        "mcp_server": "http://mcp_firewall:8003",
+        "mcp_method": "POST /mcp/block_ip",
+        "metadata": { "endpoint": "/mcp/block_ip", "method": "POST", "server_name": "firewall" },
+        "return_schema": { "blocked": "bool", "success": "bool" }
+      },
+      "create_ticket": {
+        "name": "create_ticket",
+        "type": "mcp",
+        "description": "Create a ticket in the incident tracking system",
+        "arguments": [{ "name": "title", "type": "str", "required": true, "description": "Ticket title" }, { "name": "description", "type": "str", "required": true, "description": "Ticket description" }],
+        "mcp_server": "http://mcp_ticketing:8004",
+        "mcp_method": "POST /mcp/create_ticket",
+        "metadata": { "endpoint": "/mcp/create_ticket", "method": "POST", "server_name": "ticketing" },
+        "return_schema": { "ticket_id": "str", "success": "bool" }
+      }
+    }
+  }
+}

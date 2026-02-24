@@ -16,7 +16,6 @@ import { renderInspector } from './inspector.js';
 
 function EntryPointNode() {
     this.title = "Entry Node";
-    this.size = [220, 80];
     this.color = "#334155";
     this.bgcolor = "#1E293B";
     this.resizable = false;
@@ -39,7 +38,6 @@ EntryPointNode.title_color = "#000000";
 
 function LLMNode() {
     this.title = "LLM Node";
-    this.size = [220, 140];
     this.color = "#334155";
     this.bgcolor = "#1E293B";
     this.properties = {
@@ -61,24 +59,41 @@ function LLMNode() {
     this.serialize_widgets = true;
 
     this.onConnectionsChange = function (type, slot, isConnected) {
-        if (type === LiteGraph.INPUT && isConnected) {
-            const hasEmptySlot = this.inputs.some(input => !input.link);
+        if (type !== LiteGraph.INPUT) return;
+        const self = this;
+        if (isConnected) {
+            const hasEmptySlot = this.inputs.some(inp => !inp.link);
             if (!hasEmptySlot) {
-                const newSlotIndex = this.inputs.length;
-                const slotName = newSlotIndex === 0 ? "in" : `in${newSlotIndex + 1}`;
-                this.addInput(slotName, "flow");
-                if (state.graph) state.graph.setDirtyCanvas(true, true);
+                this.addInput(`in${this.inputs.length + 1}`, "flow");
             }
-        } else if (type === LiteGraph.INPUT && !isConnected) {
-            while (this.inputs.length > 1) {
-                const lastInput = this.inputs[this.inputs.length - 1];
-                if (!lastInput.link) {
-                    this.removeInput(this.inputs.length - 1);
-                } else {
-                    break;
-                }
+        } else {
+            while (this.inputs.length > 1 && !this.inputs[this.inputs.length - 1].link) {
+                this.removeInput(this.inputs.length - 1);
             }
+        }
+        setTimeout(() => {
+            self._recalcSize();
             if (state.graph) state.graph.setDirtyCanvas(true, true);
+        }, 0);
+    };
+
+    const getToolsStartY = () => {
+        const slotHeight = LiteGraph.NODE_SLOT_HEIGHT || 20;
+        const numRows = Math.max(
+            this.inputs ? this.inputs.length : 1,
+            this.outputs ? this.outputs.length : 0
+        );
+        return numRows * slotHeight + 8;
+    };
+
+    this._recalcSize = () => {
+        const tools = this.properties.selected_tools || [];
+        const n = tools.length;
+        const startY = getToolsStartY();
+        if (n === 0) {
+            this.size[1] = Math.max(30, startY + 10);
+        } else {
+            this.size[1] = Math.max(60, startY + 18 + n * 14 + 10);
         }
     };
 
@@ -87,35 +102,48 @@ function LLMNode() {
         if (tools.length === 0) return;
 
         ctx.save();
-        ctx.fillStyle = "#94A3B8";
         ctx.font = "11px 'Inter', sans-serif";
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
-        const text = `🔧 ${tools.join(", ")}`;
-        const maxWidth = this.size[0] - 16;
-        const words = text.split(" ");
-        const lines = [];
-        let current = "";
-        words.forEach((word) => {
-            const tentative = current ? current + " " + word : word;
-            if (ctx.measureText(tentative).width > maxWidth) {
-                if (current) lines.push(current);
-                current = word;
-            } else {
-                current = tentative;
+
+        const maxWidth = this.size[0] - 24;
+        const lineHeight = 14;
+        let y = getToolsStartY();
+
+        ctx.fillStyle = "#64748B";
+        ctx.fillText("🔧 tools", 8, y);
+        y += 18;
+
+        ctx.fillStyle = "#94A3B8";
+        tools.forEach((tool) => {
+            let label = tool;
+            if (ctx.measureText(label).width > maxWidth) {
+                while (label.length > 1 && ctx.measureText(label + "…").width > maxWidth) {
+                    label = label.slice(0, -1);
+                }
+                label += "…";
             }
+            ctx.fillText(label, 8, y);
+            y += lineHeight;
         });
-        if (current) lines.push(current);
-        let offsetY = this.size[1] - 35;
-        lines.forEach((line) => {
-            ctx.fillText(line, 8, offsetY);
-            offsetY += 13;
-        });
+
         ctx.restore();
     };
 
     this.onDrawForeground = function (ctx) {
         renderSelectedTools(ctx);
+    };
+
+    this.onAdded = function () {
+        this.size = [200, 30];
+    };
+
+    this.computeSize = function () {
+        return this.size;
+    };
+
+    this.onConfigure = function () {
+        this._recalcSize();
     };
 
     this._addTool = (toolName) => {
@@ -129,9 +157,7 @@ function LLMNode() {
             return false;
         }
         this.properties.selected_tools.push(toolName);
-        const minHeight = 120;
-        const toolsHeight = Math.ceil(this.properties.selected_tools.length / 2) * 15;
-        this.size[1] = Math.max(minHeight, minHeight + toolsHeight);
+        this._recalcSize();
         state.graph.setDirtyCanvas(true, true);
         if (state.canvas.selected_nodes && state.canvas.selected_nodes[this.id]) {
             renderInspector(this);
@@ -153,7 +179,6 @@ LLMNode.title_color = "#000000";
 
 function RouterBlockNode() {
     this.title = "Router Block";
-    this.size = [220, 100];
     this.color = "#334155";
     this.bgcolor = "#1E293B";
     this.properties = {
@@ -184,7 +209,6 @@ RouterBlockNode.title_color = "#000000";
 
 function WorkerNode() {
     this.title = "Worker Node";
-    this.size = [220, 120];
     this.color = "#334155";
     this.bgcolor = "#1E293B";
     this.properties = {
@@ -201,40 +225,73 @@ function WorkerNode() {
     this.widgets_up = true;
     this.serialize_widgets = true;
 
+    const getToolsStartY = () => {
+        const slotHeight = LiteGraph.NODE_SLOT_HEIGHT || 20;
+        const numRows = Math.max(
+            this.inputs ? this.inputs.length : 1,
+            this.outputs ? this.outputs.length : 0
+        );
+        return numRows * slotHeight + 8;
+    };
+
+    this._recalcSize = () => {
+        const tools = this.properties.selected_tools || [];
+        const n = tools.length;
+        if (n === 0) {
+            this.size[1] = 30;
+            return;
+        }
+        const startY = getToolsStartY();
+        this.size[1] = Math.max(60, startY + 18 + n * 14 + 10);
+    };
+
     const renderSelectedTools = (ctx) => {
         const tools = this.properties.selected_tools || [];
         if (tools.length === 0) return;
 
         ctx.save();
-        ctx.fillStyle = "#94A3B8";
         ctx.font = "11px 'Inter', sans-serif";
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
-        const text = `🔧 ${tools.join(", ")}`;
-        const maxWidth = this.size[0] - 16;
-        const words = text.split(" ");
-        const lines = [];
-        let current = "";
-        words.forEach((word) => {
-            const tentative = current ? current + " " + word : word;
-            if (ctx.measureText(tentative).width > maxWidth) {
-                if (current) lines.push(current);
-                current = word;
-            } else {
-                current = tentative;
+
+        const maxWidth = this.size[0] - 24;
+        const lineHeight = 14;
+        let y = getToolsStartY();
+
+        ctx.fillStyle = "#64748B";
+        ctx.fillText("🔧 tools", 8, y);
+        y += 18;
+
+        ctx.fillStyle = "#94A3B8";
+        tools.forEach((tool) => {
+            let label = tool;
+            if (ctx.measureText(label).width > maxWidth) {
+                while (label.length > 1 && ctx.measureText(label + "…").width > maxWidth) {
+                    label = label.slice(0, -1);
+                }
+                label += "…";
             }
+            ctx.fillText(label, 8, y);
+            y += lineHeight;
         });
-        if (current) lines.push(current);
-        let offsetY = this.size[1] - 35;
-        lines.forEach((line) => {
-            ctx.fillText(line, 8, offsetY);
-            offsetY += 13;
-        });
+
         ctx.restore();
     };
 
     this.onDrawForeground = function (ctx) {
         renderSelectedTools(ctx);
+    };
+
+    this.onAdded = function () {
+        this.size = [200, 30];
+    };
+
+    this.computeSize = function () {
+        return this.size;
+    };
+
+    this.onConfigure = function () {
+        this._recalcSize();
     };
 
     this._addTool = (toolName) => {
@@ -248,9 +305,7 @@ function WorkerNode() {
             return false;
         }
         this.properties.selected_tools.push(toolName);
-        const minHeight = 120;
-        const toolsHeight = Math.ceil(this.properties.selected_tools.length / 2) * 15;
-        this.size[1] = Math.max(minHeight, minHeight + toolsHeight);
+        this._recalcSize();
         state.graph.setDirtyCanvas(true, true);
         if (state.canvas.selected_nodes && state.canvas.selected_nodes[this.id]) {
             renderInspector(this);
@@ -347,14 +402,14 @@ export function ensureSingleEntry(node) {
     return true;
 }
 
-export function createNode(kind) {
+export function createNode(kind, pos) {
     const type = NODE_TYPE_MAP[kind];
     if (!type) return;
 
     const node = LiteGraph.createNode(type);
     if (!node) return;
 
-    node.pos = randomCanvasPosition();
+    node.pos = pos || randomCanvasPosition();
     state.graph.add(node);
     state.canvas.selectNode(node);
     updateSummary();

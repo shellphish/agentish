@@ -1,0 +1,54 @@
+{
+  "meta": {
+    "version": "2025.10",
+    "exported_at": "2026-02-18T20:00:00.000Z"
+  },
+  "graph": {
+    "version": 2,
+    "entrypoint": "1",
+    "state": {
+      "schema": {
+        "count": "int",
+        "messages": "Annotated[List[BaseMessage], lambda x, y: x + y]",
+        "alert_content": "str",
+        "previous_analysis": "str",
+        "classification": "str"
+      }
+    },
+    "nodes": [
+      {
+        "id": "1",
+        "type": "EntryPoint",
+        "label": "EntryPoint",
+        "config": {
+          "title": "Entry Node",
+          "initial_state": {
+            "alert_content": "str",
+            "previous_analysis": "str",
+            "classification": "str"
+          }
+        }
+      },
+      {
+        "id": "2",
+        "type": "LLMNode",
+        "label": "Alert Classifier",
+        "config": {
+          "title": "Alert Classifier",
+          "input_state_keys": ["alert_content", "previous_analysis"],
+          "output_state_keys": ["classification"],
+          "system_prompt": "You are a security analyst. Analyze the alert and classify it.\n\nFor each alert, produce:\n1. Severity: critical / high / medium / low / informational\n2. Category: malware, intrusion, misconfiguration, false-positive\n3. Confidence: 0.0 to 1.0\n\nIf confidence < 0.7, classify severity as 'high' and explain why.",
+          "human_prompt": "Alert details: {alert_content}\n\nPrevious analysis from upstream agent: {previous_analysis}\n\nClassify this alert.",
+          "structured_output_schema": [],
+          "selected_tools": [],
+          "max_tool_iterations": 30,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      }
+    ],
+    "edges": [
+      { "from": "1", "to": "2", "target_slot": 0, "type": "NormalEdge" }
+    ],
+    "tools": {}
+  }
+}

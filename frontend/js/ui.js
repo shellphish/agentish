@@ -118,17 +118,10 @@ function initPaletteButtons() {
             e.preventDefault();
             const nodeType = e.dataTransfer.getData("nodeType");
             if (nodeType) {
+                // Force canvas to recalculate bounds before converting coordinates
+                state.canvas.resize();
                 const graphPos = state.canvas.convertEventToCanvasOffset(e);
-                const type = NODE_TYPE_MAP[nodeType];
-                if (type) {
-                    const node = LiteGraph.createNode(type);
-                    if (node) {
-                        node.pos = [graphPos[0], graphPos[1]];
-                        state.graph.add(node);
-                        state.canvas.selectNode(node);
-                        updateSummary();
-                    }
-                }
+                createNode(nodeType, [graphPos[0], graphPos[1]]);
             }
         });
     }

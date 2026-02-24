@@ -4,7 +4,7 @@
 
 import { state } from './state.js';
 import { ASL_DEBUG } from './constants.js';
-import { showToast } from './utils.js';
+import { showToast, escapeHTML, isSafeKey } from './utils.js';
 
 // =====================================================
 // TOOL REGISTRY (sidebar list)
@@ -28,20 +28,51 @@ export function renderToolList() {
         const toolType = toolDef.type === 'custom' ? '⚙️' : '🔌';
         const typeLabel = toolDef.type === 'custom' ? 'Custom' : 'MCP';
 
-        toolItem.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: start;">
-                <div style="flex: 1;">
-                    <div class="tool-name">${toolType} ${toolName}</div>
-                    <div class="tool-desc">${toolDef.description || 'No description'}</div>
-                    <div class="tool-type-label">${typeLabel}</div>
-                </div>
-                <div class="tool-actions">
-                    ${toolDef.type === 'custom' ? `<button class="btn-tool-action edit btn-tool-edit" data-tool="${toolName}">Edit</button>` : ''}
-                    ${toolDef.type === 'custom' ? `<button class="btn-tool-action delete btn-tool-delete" data-tool="${toolName}">×</button>` : ''}
-                </div>
-            </div>
-        `;
+        // Outer flex row
+        const row = document.createElement('div');
+        row.style.cssText = 'display: flex; justify-content: space-between; align-items: start;';
 
+        // Left info column
+        const info = document.createElement('div');
+        info.style.flex = '1';
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'tool-name';
+        nameDiv.textContent = `${toolType} ${toolName}`;
+
+        const descDiv = document.createElement('div');
+        descDiv.className = 'tool-desc';
+        descDiv.textContent = toolDef.description || 'No description';
+
+        const typeDiv = document.createElement('div');
+        typeDiv.className = 'tool-type-label';
+        typeDiv.textContent = typeLabel;
+
+        info.appendChild(nameDiv);
+        info.appendChild(descDiv);
+        info.appendChild(typeDiv);
+        row.appendChild(info);
+
+        // Right actions column
+        const actions = document.createElement('div');
+        actions.className = 'tool-actions';
+
+        if (toolDef.type === 'custom') {
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn-tool-action edit btn-tool-edit';
+            editBtn.dataset.tool = toolName;
+            editBtn.textContent = 'Edit';
+            actions.appendChild(editBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-tool-action delete btn-tool-delete';
+            deleteBtn.dataset.tool = toolName;
+            deleteBtn.textContent = '×';
+            actions.appendChild(deleteBtn);
+        }
+
+        row.appendChild(actions);
+        toolItem.appendChild(row);
         toolList.appendChild(toolItem);
     }
 
@@ -99,26 +130,49 @@ export function addArgumentRow(argData = null) {
     const row = document.createElement('div');
     row.className = 'argument-row';
 
-    row.innerHTML = `
-        <input type="text" class="arg-name" placeholder="arg_name" value="${argData?.name || ''}">
-        <select class="arg-type">
-            <option value="str" ${argData?.type === 'str' ? 'selected' : ''}>str</option>
-            <option value="int" ${argData?.type === 'int' ? 'selected' : ''}>int</option>
-            <option value="float" ${argData?.type === 'float' ? 'selected' : ''}>float</option>
-            <option value="bool" ${argData?.type === 'bool' ? 'selected' : ''}>bool</option>
-            <option value="dict" ${argData?.type === 'dict' ? 'selected' : ''}>dict</option>
-            <option value="list" ${argData?.type === 'list' ? 'selected' : ''}>list</option>
-            <option value="Any" ${argData?.type === 'Any' ? 'selected' : ''}>Any</option>
-        </select>
-        <label>
-            <input type="checkbox" class="arg-required" ${argData?.required ? 'checked' : ''}>
-            Required
-        </label>
-        <input type="text" class="arg-description" placeholder="Description" value="${argData?.description || ''}">
-        <button type="button" class="btn-remove-arg">×</button>
-    `;
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'arg-name';
+    nameInput.placeholder = 'arg_name';
+    nameInput.value = argData?.name || '';
 
-    row.querySelector('.btn-remove-arg').addEventListener('click', () => row.remove());
+    const typeSelect = document.createElement('select');
+    typeSelect.className = 'arg-type';
+    ['str', 'int', 'float', 'bool', 'dict', 'list', 'Any'].forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        if (argData?.type === t) opt.selected = true;
+        typeSelect.appendChild(opt);
+    });
+
+    const requiredLabel = document.createElement('label');
+    const requiredCheckbox = document.createElement('input');
+    requiredCheckbox.type = 'checkbox';
+    requiredCheckbox.className = 'arg-required';
+    requiredCheckbox.checked = Boolean(argData?.required);
+    requiredLabel.appendChild(requiredCheckbox);
+    requiredLabel.appendChild(document.createTextNode(' Required'));
+
+    const descInput = document.createElement('input');
+    descInput.type = 'text';
+    descInput.className = 'arg-description';
+    descInput.placeholder = 'Description';
+    descInput.value = argData?.description || '';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-remove-arg';
+    removeBtn.textContent = '×';
+
+    removeBtn.addEventListener('click', () => row.remove());
+
+    row.appendChild(nameInput);
+    row.appendChild(typeSelect);
+    row.appendChild(requiredLabel);
+    row.appendChild(descInput);
+    row.appendChild(removeBtn);
+
     argsContainer.appendChild(row);
 }
 
@@ -224,10 +278,16 @@ export function renderFunctionCatalog() {
 
         const toolType = toolDef.type === 'custom' ? '⚙️' : '🔌';
 
-        item.innerHTML = `
-            <div style="font-weight: 600; font-size: 0.9em;">${toolType} ${toolName}</div>
-            <div style="font-size: 0.75em;">${toolDef.description || 'No description'}</div>
-        `;
+        const nameDiv = document.createElement('div');
+        nameDiv.style.cssText = 'font-weight: 600; font-size: 0.9em;';
+        nameDiv.textContent = `${toolType} ${toolName}`;
+
+        const descDiv = document.createElement('div');
+        descDiv.style.cssText = 'font-size: 0.75em;';
+        descDiv.textContent = toolDef.description || 'No description';
+
+        item.appendChild(nameDiv);
+        item.appendChild(descDiv);
 
         item.addEventListener('dragstart', (e) => {
             e.dataTransfer.setData('tool-name', toolName);
@@ -269,7 +329,9 @@ export async function hydrateMcpTools() {
         let imported = 0;
         (toolData.tools || []).forEach((tool) => {
             if (!tool?.name) return;
-            if (state.globalTools[tool.name]) return;
+            // Reject dangerous keys that would pollute Object.prototype
+            if (!isSafeKey(tool.name)) return;
+            if (Object.prototype.hasOwnProperty.call(state.globalTools, tool.name)) return;
             state.globalTools[tool.name] = { ...tool, type: tool.type || 'mcp' };
             imported += 1;
         });

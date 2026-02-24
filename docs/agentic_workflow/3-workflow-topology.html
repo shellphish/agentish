@@ -8,7 +8,7 @@
 </head>
 <body>
     <nav>
-        <a href="../index.html" class="logo">agentish<span class="dot">.</span></a>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
         <ul class="nav-links">
             <li><a href="../index.html">Home</a></li>
             <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
@@ -173,6 +173,8 @@
             A NormalEdge means &ldquo;after this node finishes, always go to the connected node.&rdquo;
             No conditions, no branching.
         </p>
+
+        <img src="images/ch3_pipeline.png" alt="Pipeline topology — EntryPoint → Classifier → Investigator → Responder connected with NormalEdge" class="illustration img-ch3-pipeline">
 
         <div class="example-box">
             <div class="example-label">ASL — 3-Node Pipeline with NormalEdge Connections</div>
@@ -398,6 +400,8 @@
             editor with a distinct visual style. Each ConditionalEdge represents one
             possible routing target.
         </p>
+
+        <img src="images/ch3_router.png" alt="Router topology — Category Router with ConditionalEdge fan-out to Malware Handler, Intrusion Handler, and Misconfig Handler" class="illustration img-ch3-router">
 
         <div class="example-box">
             <div class="example-label">ASL — Router Node with ConditionalEdge Connections</div>
@@ -709,6 +713,8 @@
             add nodes, drag from output slots to input slots to create edges. The graph
             shape you draw <em>is</em> the topology.
         </p>
+
+        <img src="images/ch3_combined_topology.png" alt="Combined topology — full security triage workflow with pipeline, router fan-out, and fan-in sections" class="illustration img-ch3-combined-topology">
 
         <div class="example-box">
             <div class="example-label">ASL — Full Security Triage (Pipeline + Router Combined)</div>

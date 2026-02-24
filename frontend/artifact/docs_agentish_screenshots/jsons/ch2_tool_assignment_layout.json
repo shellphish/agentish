@@ -1,0 +1,155 @@
+{
+  "nodes": [
+    {
+      "id": 1,
+      "type": "asl/entry",
+      "pos": [200, 220],
+      "size": { "0": 140, "1": 26 },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "next",
+          "type": "flow",
+          "links": [1],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "title": "Entry Node",
+        "initial_state": {
+          "alert_content": "str",
+          "classification": "str",
+          "investigation": "str",
+          "response_action": "str"
+        }
+      },
+      "color": "#334155",
+      "bgcolor": "#1E293B"
+    },
+    {
+      "id": 2,
+      "type": "asl/llm",
+      "pos": [430, 220],
+      "size": { "0": 140, "1": 46 },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        { "name": "in", "type": "flow", "link": 1 }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "flow",
+          "links": [2],
+          "slot_index": 0
+        }
+      ],
+      "title": "Classifier",
+      "properties": {
+        "title": "Classifier",
+        "output_key": "llm_output",
+        "input_state_keys": ["alert_content"],
+        "output_state_keys": ["classification"],
+        "system_prompt": "You are a security alert classifier. Classify the alert by category and severity.\n\nNo tools needed — classification is a pure reasoning task.",
+        "human_prompt": "Classify this alert: {alert_content}",
+        "structured_output_enabled": false,
+        "structured_output_schema": [],
+        "selected_tools": [],
+        "max_tool_iterations": 30,
+        "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+      },
+      "color": "#334155",
+      "bgcolor": "#1E293B"
+    },
+    {
+      "id": 3,
+      "type": "asl/llm",
+      "pos": [660, 220],
+      "size": { "0": 160, "1": 46 },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        { "name": "in", "type": "flow", "link": 2 }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "flow",
+          "links": [3],
+          "slot_index": 0
+        }
+      ],
+      "title": "Malware Analyst",
+      "properties": {
+        "title": "Malware Analyst",
+        "output_key": "llm_output",
+        "input_state_keys": ["alert_content", "classification"],
+        "output_state_keys": ["investigation"],
+        "system_prompt": "You are a malware analysis specialist. Decompile suspicious binaries, check file hashes against known malware databases, and list function signatures.",
+        "human_prompt": "Investigate this malware alert: {alert_content}\nClassification: {classification}",
+        "structured_output_enabled": false,
+        "structured_output_schema": [],
+        "selected_tools": ["decompile", "list_functions", "check_hash"],
+        "max_tool_iterations": 15,
+        "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+      },
+      "color": "#334155",
+      "bgcolor": "#1E293B"
+    },
+    {
+      "id": 4,
+      "type": "asl/llm",
+      "pos": [910, 220],
+      "size": { "0": 140, "1": 46 },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        { "name": "in", "type": "flow", "link": 3 }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "flow",
+          "links": null
+        }
+      ],
+      "title": "Responder",
+      "properties": {
+        "title": "Responder",
+        "output_key": "llm_output",
+        "input_state_keys": ["investigation"],
+        "output_state_keys": ["response_action"],
+        "system_prompt": "You are a security incident responder. Based on the investigation, take appropriate response action: block malicious IPs, quarantine infected hosts, or create tickets for follow-up.",
+        "human_prompt": "Investigation results: {investigation}\n\nTake appropriate response action.",
+        "structured_output_enabled": false,
+        "structured_output_schema": [],
+        "selected_tools": ["block_ip", "quarantine", "create_ticket"],
+        "max_tool_iterations": 10,
+        "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+      },
+      "color": "#334155",
+      "bgcolor": "#1E293B"
+    }
+  ],
+  "links": [
+    [1, 1, 0, 2, 0, "flow"],
+    [2, 2, 0, 3, 0, "flow"],
+    [3, 3, 0, 4, 0, "flow"]
+  ],
+  "groups": [],
+  "config": {
+    "state_schema": {
+      "count": "int",
+      "messages": "Annotated[List[BaseMessage], lambda x, y: x + y]",
+      "alert_content": "str",
+      "classification": "str",
+      "investigation": "str",
+      "response_action": "str"
+    }
+  }
+}

@@ -10,7 +10,8 @@ import {
     normalizeSchemaToLowercase,
     renderStateSchemaDisplay,
     updateSummary,
-    randomCanvasPosition
+    randomCanvasPosition,
+    isSafeKey
 } from './utils.js';
 import { normalizeNodeProperties } from './nodes.js';
 import { renderToolList, renderFunctionCatalog } from './tools.js';
@@ -101,14 +102,24 @@ export function serializeToASL() {
 export function configureFromASL(asl) {
     state.graph.clear();
     const { graph: graphData } = asl;
-
+    //console.log("Configuring graph from ASL data:", graphData);
     state.appState.schema = normalizeSchemaToLowercase(graphData?.state?.schema || {});
     state.appState.schemaRaw = JSON.stringify(state.appState.schema, null, 2);
     renderStateSchemaDisplay();
     state.appState.entrypointId = null;
 
-    // Load tools
-    state.globalTools = graphData?.tools || {};
+    // Load tools — never assign the raw parsed object directly.
+    // Iterate with an explicit hasOwnProperty guard and a safe-key check
+    // to prevent prototype pollution via __proto__ / constructor / prototype keys.
+    state.globalTools = {};
+    const rawTools = graphData?.tools;
+    if (rawTools && typeof rawTools === 'object' && !Array.isArray(rawTools)) {
+        for (const key of Object.keys(rawTools)) {
+            if (!Object.prototype.hasOwnProperty.call(rawTools, key)) continue;
+            if (!isSafeKey(key)) continue;
+            state.globalTools[key] = rawTools[key];
+        }
+    }
     renderToolList();
     renderFunctionCatalog();
 
