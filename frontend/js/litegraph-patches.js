@@ -129,6 +129,7 @@ export function patchNodeRendering() {
 
         node._wrappedTitleLines = titleData.lines;
         node._titleHeight = title_height;
+        node._renderWidth = size[0];
 
         const originalTitleHeight = LiteGraph.NODE_TITLE_HEIGHT;
         const originalTitle = node.title;
@@ -147,6 +148,29 @@ export function patchNodeRendering() {
         originalDrawNodeShape.call(this, node, ctx, size, fgcolor, bgcolor, false, mouse_over);
 
         drawWrappedTitle(ctx, this, node);
+
+        // Draw accent bar clipped to the node shape so it respects rounded corners
+        const accentColor = nodeAccents[node.type];
+        if (accentColor) {
+            ctx.save();
+            ctx.beginPath();
+            var shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
+            var shapeW = size[0] + 1;
+            var shapeH = size[1] + title_height;
+            if (shape === LiteGraph.BOX_SHAPE) {
+                ctx.rect(0, -title_height, shapeW, shapeH);
+            } else if (shape === LiteGraph.ROUND_SHAPE || (shape === LiteGraph.CARD_SHAPE && node.flags.collapsed)) {
+                ctx.roundRect(0, -title_height, shapeW, shapeH, [this.round_radius]);
+            } else if (shape === LiteGraph.CARD_SHAPE) {
+                ctx.roundRect(0, -title_height, shapeW, shapeH, [this.round_radius, this.round_radius, 0, 0]);
+            }
+            ctx.clip();
+            ctx.fillStyle = accentColor;
+            // When collapsed body is 0-height, place bar at bottom of title area
+            var barY = node.flags.collapsed ? -3 : 0;
+            ctx.fillRect(0, barY, shapeW, 3);
+            ctx.restore();
+        }
 
         // Draw tight selection outline with no gap
         if (selected) {

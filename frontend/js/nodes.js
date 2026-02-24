@@ -28,11 +28,6 @@ function EntryPointNode() {
     this.widgets_up = true;
     this.serialize_widgets = true;
 
-    this.onDrawForeground = function (ctx) {
-        ctx.fillStyle = "#3B82F6";
-        ctx.fillRect(0, 0, this.size[0], 3);
-    };
-
     this.onOutputClick = function (slot_index) {
         if (ASL_DEBUG) console.log("Entry Node output clicked:", slot_index);
     };
@@ -120,8 +115,6 @@ function LLMNode() {
     };
 
     this.onDrawForeground = function (ctx) {
-        ctx.fillStyle = "#F59E0B";
-        ctx.fillRect(0, 0, this.size[0], 3);
         renderSelectedTools(ctx);
     };
 
@@ -183,10 +176,6 @@ function RouterBlockNode() {
         }
     };
 
-    this.onDrawForeground = function (ctx) {
-        ctx.fillStyle = "#A855F7";
-        ctx.fillRect(0, 0, this.size[0], 3);
-    };
 }
 RouterBlockNode.title = "Router Block";
 RouterBlockNode.title_color = "#000000";
@@ -245,8 +234,6 @@ function WorkerNode() {
     };
 
     this.onDrawForeground = function (ctx) {
-        ctx.fillStyle = "#10B981";
-        ctx.fillRect(0, 0, this.size[0], 3);
         renderSelectedTools(ctx);
     };
 
