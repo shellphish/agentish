@@ -1,0 +1,99 @@
+# =============================================================================
+# challengish.yml — MCP Tool Configuration for Agentish
+# =============================================================================
+#
+# This file defines the MCP (Model Context Protocol) servers and their tool
+# routes that will be available in the Agentish visual workflow editor.
+#
+# The agentish backend (server_agentish.py) reads this file at startup and
+# populates the "Function Catalog" sidebar in the UI, allowing users to
+# drag tools onto LLM/Worker nodes.
+#
+# Set the path via environment variable:
+#   CHALLENGISH_CONFIG_PATH=./challengish.yml python backend/server_agentish.py
+#
+# =============================================================================
+
+# Challenge metadata (informational, not parsed by agentish server)
+challenge_name: "Where is Waldo?"
+challenge_id: "where-is-waldo"
+description: |
+  Waldo is hiding in a famous US city.
+  
+  You can query two MCP servers:
+  - `waldo_landmarks`: returns three landmarks near Waldo's location (no state given).
+  - `guess_state`: returns the flag if you guess the US state correctly.
+
+# ---------------------------------------------------------------------------
+# mcp_servers:  List of MCP server definitions
+#
+# Each server represents a containerized service that exposes tool endpoints
+# over HTTP. The agentish UI reads these definitions to populate the tool
+# catalog; the compiled agent code uses them to make actual HTTP calls.
+#
+# Required fields per server:
+#   name           - Unique identifier for this server
+#   port           - Port the server listens on
+#   internal_host  - Docker network hostname (used in compiled agent code)
+#
+# Optional fields:
+#   enabled        - true/false (default: true). Set false to hide from UI.
+#   routes         - List of tool endpoint definitions (see below)
+# ---------------------------------------------------------------------------
+mcp_servers:
+  - name: "mcp_landmarks"
+    port: 7001
+    internal_host: "mcp_landmarks"
+    enabled: true
+
+    # -----------------------------------------------------------------------
+    # routes:  List of tool endpoints on this MCP server
+    #
+    # Each route becomes a tool in the Agentish UI's Function Catalog.
+    # When the compiled agent calls a tool, it sends an HTTP request to:
+    #   http://<internal_host>:<port><endpoint>
+    #
+    # Required fields per route:
+    #   function    - Tool name (must be a valid Python identifier)
+    #   endpoint    - HTTP path on the MCP server
+    #   method      - HTTP method: GET or POST
+    #
+    # Optional fields:
+    #   description    - Human-readable description shown in the UI
+    #   arguments      - List of argument definitions (see below)
+    #   return_schema  - Dict describing the response shape
+    # -----------------------------------------------------------------------
+    routes:
+
+      # --- Tool: waldo_landmarks (no arguments, GET) ---
+      - function: "waldo_landmarks"
+        endpoint: "/mcp/waldo_landmarks"
+        method: "GET"
+        description: "Returns three landmarks near Waldo's current location"
+        arguments: []
+        return_schema:
+          success: "bool"
+          landmarks: "list"
+          message: "str"
+
+  - name: "mcp_flag"
+    port: 7002
+    internal_host: "mcp_flag"
+    enabled: true
+
+    routes:
+
+      # --- Tool: guess_state (1 required arg, POST) ---
+      - function: "guess_state"
+        endpoint: "/mcp/guess_state"
+        method: "POST"
+        description: "Guess which US state Waldo is hiding in. Returns the flag if correct."
+        arguments:
+          - name: "state"
+            type: "str"
+            required: true
+            description: "Full name of the US state (e.g., 'California', 'New York')"
+        return_schema:
+          success: "bool"
+          flag: "str"
+          message: "str"
