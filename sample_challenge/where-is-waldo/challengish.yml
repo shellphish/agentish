@@ -65,16 +65,16 @@ mcp_servers:
     # -----------------------------------------------------------------------
     routes:
 
-      # --- Tool: waldo_landmarks (no arguments, GET) ---
+      # --- Tool: waldo_landmarks (no arguments, JSON-RPC tools/call) ---
       - function: "waldo_landmarks"
-        endpoint: "/mcp/waldo_landmarks"
-        method: "GET"
+        endpoint: "/rpc"
+        method: "JSONRPC"
         description: "Returns three landmarks near Waldo's current location"
         arguments: []
         return_schema:
-          success: "bool"
-          landmarks: "list"
-          message: "str"
+          content:
+            - type: "str"
+              text: "str"
 
   - name: "mcp_flag"
     port: 7002
@@ -83,10 +83,10 @@ mcp_servers:
 
     routes:
 
-      # --- Tool: guess_state (1 required arg, POST) ---
+      # --- Tool: guess_state (1 required arg, JSON-RPC tools/call) ---
       - function: "guess_state"
-        endpoint: "/mcp/guess_state"
-        method: "POST"
+        endpoint: "/rpc"
+        method: "JSONRPC"
         description: "Guess which US state Waldo is hiding in. Returns the flag if correct."
         arguments:
           - name: "state"
@@ -94,6 +94,6 @@ mcp_servers:
             required: true
             description: "Full name of the US state (e.g., 'California', 'New York')"
         return_schema:
-          success: "bool"
-          flag: "str"
-          message: "str"
+          content:
+            - type: "str"
+              text: "str"
