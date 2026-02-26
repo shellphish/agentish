@@ -1,0 +1,156 @@
+# =============================================================================
+# challengish.yml — MCP Tool Configuration for Agentish
+# =============================================================================
+#
+# This file defines the MCP (Model Context Protocol) servers and their tool
+# routes that will be available in the Agentish visual workflow editor.
+#
+# The agentish backend (server_agentish.py) reads this file at startup and
+# populates the "Function Catalog" sidebar in the UI, allowing users to
+# drag tools onto LLM/Worker nodes.
+#
+# Set the path via environment variable:
+#   CHALLENGISH_CONFIG_PATH=./challengish.yml python backend/server_agentish.py
+#
+# =============================================================================
+
+# Challenge metadata (informational, not parsed by agentish server)
+challenge_name: "Agentic Binary Reversing"
+challenge_id: "baby-rev"
+description: |
+  Reverse engineer the provided binary to discover the secret password.
+
+  The binary has multi-stage validation using XOR encryption.
+  Use the available MCP tools to analyze functions, disassembly,
+  and call graphs to understand the validation logic.
+
+# ---------------------------------------------------------------------------
+# mcp_servers:  List of MCP server definitions
+#
+# Each server represents a containerized service that exposes tool endpoints
+# over HTTP. The agentish UI reads these definitions to populate the tool
+# catalog; the compiled agent code uses them to make actual HTTP calls.
+#
+# Required fields per server:
+#   name           - Unique identifier for this server
+#   port           - Port the server listens on
+#   internal_host  - Docker network hostname (used in compiled agent code)
+#
+# Optional fields:
+#   enabled        - true/false (default: true). Set false to hide from UI.
+#   routes         - List of tool endpoint definitions (see below)
+# ---------------------------------------------------------------------------
+mcp_servers:
+  - name: "mcp_binary"
+    port: 8002
+    internal_host: "mcp_binary"
+    enabled: true
+
+    # -----------------------------------------------------------------------
+    # routes:  List of tool endpoints on this MCP server
+    #
+    # Each route becomes a tool in the Agentish UI's Function Catalog.
+    # When the compiled agent calls a tool, it sends an HTTP request to:
+    #   http://<internal_host>:<port><endpoint>
+    #
+    # Required fields per route:
+    #   function    - Tool name (must be a valid Python identifier)
+    #   endpoint    - HTTP path on the MCP server
+    #   method      - HTTP method: GET or POST
+    #
+    # Optional fields:
+    #   description    - Human-readable description shown in the UI
+    #   arguments      - List of argument definitions (see below)
+    #   return_schema  - Dict describing the response shape
+    # -----------------------------------------------------------------------
+    routes:
+
+      # --- Tool: list_functions (no arguments) ---
+      - function: "list_functions"
+        endpoint: "/rpc"
+        method: "JSONRPC"
+        description: "List all discovered functions from the challenge binary"
+        arguments: []
+        return_schema:
+          content:
+            - type: "str"
+              text: "str"
+
+      # --- Tool: get_disassembly_by_function (1 required arg) ---
+      - function: "get_disassembly_by_function"
+        endpoint: "/rpc"
+        method: "JSONRPC"
+        description: "Fetch the disassembly for a specific function name"
+        arguments:
+          - name: "function"
+            type: "str"
+            required: true
+            description: "Function name/signature to get disassembly for"
+        return_schema:
+          content:
+            - type: "str"
+              text: "str"
+
+      # --- Tool: get_caller_callee_mapping (1 required arg) ---
+      - function: "get_caller_callee_mapping"
+        endpoint: "/rpc"
+        method: "JSONRPC"
+        description: "Return which functions the given caller function invokes"
+        arguments:
+          - name: "function_signature"
+            type: "str"
+            required: true
+            description: "Caller function name"
+        return_schema:
+          content:
+            - type: "str"
+              text: "str"
+
+      # --- Tool: get_callee_caller_mapping (1 required arg) ---
+      - function: "get_callee_caller_mapping"
+        endpoint: "/rpc"
+        method: "JSONRPC"
+        description: "Return which functions call the provided callee function"
+        arguments:
+          - name: "function_signature"
+            type: "str"
+            required: true
+            description: "Callee function name"
+        return_schema:
+          content:
+            - type: "str"
+              text: "str"
+
+      # --- Tool: run_challenge (1 required arg) ---
+      - function: "run_challenge"
+        endpoint: "/rpc"
+        method: "JSONRPC"
+        description: "Execute the challenge binary with a candidate password"
+        arguments:
+          - name: "input"
+            type: "str"
+            required: true
+            description: "Password to test against the binary"
+        return_schema:
+          content:
+            - type: "str"
+              text: "str"
+
+      # --- Tool: run_python (1 required arg, 1 optional arg) ---
+      - function: "run_python"
+        endpoint: "/rpc"
+        method: "JSONRPC"
+        description: "Execute a Python snippet inside the challenge sandbox"
+        arguments:
+          - name: "code"
+            type: "str"
+            required: true
+            description: "Python source to execute"
+          - name: "stdin"
+            type: "str"
+            required: false
+            description: "Optional STDIN for the script"
+        return_schema:
+          content:
+            - type: "str"
+              text: "str"
