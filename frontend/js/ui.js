@@ -273,7 +273,7 @@ function initImportHandlers() {
             const zip = new JSZip();
             const contents = await zip.loadAsync(file);
 
-            let aslFile = contents.file("asl_spec.json") || contents.file("asl_graph.json");
+            let aslFile = contents.file("asl_spec.json") || contents.file("asl_graph.json") || contents.file("asl.json");
 
             if (aslFile) {
                 const aslContent = await aslFile.async("string");
