@@ -1,0 +1,94 @@
+{
+  "meta": {
+    "version": "2025.10",
+    "exported_at": "2026-02-18T20:00:00.000Z"
+  },
+  "graph": {
+    "version": 2,
+    "entrypoint": "1",
+    "state": {
+      "schema": {
+        "count": "int",
+        "messages": "Annotated[List[BaseMessage], lambda x, y: x + y]",
+        "alert_content": "str",
+        "classification": "str"
+      }
+    },
+    "nodes": [
+      {
+        "id": "1",
+        "type": "EntryPoint",
+        "label": "EntryPoint",
+        "config": {
+          "title": "Entry Node",
+          "initial_state": {
+            "alert_content": "str",
+            "classification": "str"
+          }
+        }
+      },
+      {
+        "id": "2",
+        "type": "LLMNode",
+        "label": "Alert Classifier",
+        "config": {
+          "title": "Alert Classifier",
+          "input_state_keys": ["alert_content"],
+          "output_state_keys": ["classification"],
+          "system_prompt": "You are a security alert triage specialist at a SOC. You have deep expertise in network security, malware analysis, and incident classification.\n\nFor each alert, produce:\n1. Severity: critical / high / medium / low / informational\n2. Category: malware, intrusion, data-exfiltration, misconfiguration, false-positive\n3. Confidence: 0.0 to 1.0\n\nIf confidence < 0.7, classify severity as 'high' and explain why.\nNever classify as 'informational' unless confidence > 0.9.",
+          "human_prompt": "Classify this alert: {alert_content}",
+          "structured_output_schema": [
+            {
+              "name": "severity",
+              "type": "str",
+              "description": "Alert severity: critical, high, medium, low, or informational"
+            },
+            {
+              "name": "category",
+              "type": "str",
+              "description": "Alert category: malware, intrusion, data-exfiltration, misconfiguration, or false-positive"
+            },
+            {
+              "name": "confidence",
+              "type": "float",
+              "description": "Classification confidence from 0.0 to 1.0"
+            },
+            {
+              "name": "reasoning",
+              "type": "str",
+              "description": "2-3 sentences explaining the classification decision"
+            }
+          ],
+          "selected_tools": ["check_ip", "check_domain"],
+          "max_tool_iterations": 10,
+          "iteration_warning_message": "Wrap up your analysis. Provide your final classification without further tool calls."
+        }
+      }
+    ],
+    "edges": [
+      { "from": "1", "to": "2", "target_slot": 0, "type": "NormalEdge" }
+    ],
+    "tools": {
+      "check_ip": {
+        "name": "check_ip",
+        "type": "mcp",
+        "description": "Check an IP address against threat intelligence databases",
+        "arguments": [{ "name": "ip_address", "type": "str", "required": true, "description": "IP address to check" }],
+        "mcp_server": "http://mcp_threat_intel:8005",
+        "mcp_method": "GET /mcp/check_ip",
+        "metadata": { "endpoint": "/mcp/check_ip", "method": "GET", "server_name": "threat_intel" },
+        "return_schema": { "reputation": "str", "success": "bool" }
+      },
+      "check_domain": {
+        "name": "check_domain",
+        "type": "mcp",
+        "description": "Check a domain against threat intelligence databases",
+        "arguments": [{ "name": "domain", "type": "str", "required": true, "description": "Domain to check" }],
+        "mcp_server": "http://mcp_threat_intel:8005",
+        "mcp_method": "GET /mcp/check_domain",
+        "metadata": { "endpoint": "/mcp/check_domain", "method": "GET", "server_name": "threat_intel" },
+        "return_schema": { "reputation": "str", "success": "bool" }
+      }
+    }
+  }
+}

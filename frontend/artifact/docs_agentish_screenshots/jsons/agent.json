@@ -1,0 +1,72 @@
+{
+  "nodes": [
+    {
+      "id": "2",
+      "type": "LLMNode",
+      "label": "Classifier",
+      "config": {
+        "title": "Classifier",
+        "selected_tools": [],
+        "max_tool_iterations": 30
+      }
+    },
+    {
+      "id": "4",
+      "type": "LLMNode",
+      "label": "Malware Analyst",
+      "config": {
+        "title": "Malware Analyst",
+        "selected_tools": [
+          "decompile",
+          "list_functions",
+          "check_hash"
+        ],
+        "max_tool_iterations": 15
+      }
+    },
+    {
+      "id": "6",
+      "type": "LLMNode",
+      "label": "Responder",
+      "config": {
+        "title": "Responder",
+        "selected_tools": [
+          "block_ip",
+          "quarantine",
+          "create_ticket"
+        ],
+        "max_tool_iterations": 10
+      }
+    }
+  ],
+  "tools": {
+    "decompile": {
+      "name": "decompile",
+      "type": "mcp",
+      "description": "Decompile a function by name",
+      "arguments": [
+        {
+          "name": "function_name",
+          "type": "str",
+          "required": true
+        }
+      ],
+      "mcp_server": "http://mcp_binary:8002",
+      "mcp_method": "GET /mcp/decompile"
+    },
+    "check_hash": {
+      "name": "check_hash",
+      "type": "mcp",
+      "description": "Check a file hash against known malware databases",
+      "arguments": [
+        {
+          "name": "hash",
+          "type": "str",
+          "required": true
+        }
+      ],
+      "mcp_server": "http://mcp_binary:8002",
+      "mcp_method": "GET /mcp/check_hash"
+    }
+  }
+}

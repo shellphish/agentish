@@ -1,0 +1,175 @@
+{
+  "meta": {
+    "version": "2025.10",
+    "exported_at": "2026-02-18T20:00:00.000Z"
+  },
+  "graph": {
+    "version": 2,
+    "entrypoint": "1",
+    "state": {
+      "schema": {
+        "count": "int",
+        "messages": "Annotated[List[BaseMessage], lambda x, y: x + y]",
+        "alert_content": "str",
+        "classification": "str",
+        "investigation": "str"
+      }
+    },
+    "nodes": [
+      {
+        "id": "1",
+        "type": "EntryPoint",
+        "label": "EntryPoint",
+        "config": {
+          "title": "Entry Node",
+          "initial_state": {
+            "alert_content": "str",
+            "classification": "str",
+            "investigation": "str"
+          }
+        }
+      },
+      {
+        "id": "2",
+        "type": "RouterBlock",
+        "label": "Category Router",
+        "config": {
+          "title": "Category Router",
+          "input_state_keys": ["classification"],
+          "system_prompt": "Based on the alert classification, route to the appropriate specialist handler.\n\n- 'malware': suspicious binaries, PE files, shellcode\n- 'intrusion': unauthorized access, brute-force, lateral movement\n- 'misconfiguration': open ports, weak credentials, policy violations",
+          "router_values": [
+            { "node": "Malware Handler", "description": "Suspicious binaries, PE files, shellcode, malicious downloads" },
+            { "node": "Intrusion Handler", "description": "Unauthorized access, brute-force attacks, lateral movement" },
+            { "node": "Misconfiguration Handler", "description": "Open ports, weak credentials, policy violations" }
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "type": "LLMNode",
+        "label": "Malware Handler",
+        "config": {
+          "title": "Malware Handler",
+          "input_state_keys": ["alert_content", "classification"],
+          "output_state_keys": ["investigation"],
+          "system_prompt": "You are a malware analysis specialist. Decompile suspicious binaries, check file hashes, and run sandboxed analysis.",
+          "human_prompt": "Analyze this malware alert: {alert_content}",
+          "structured_output_schema": [],
+          "selected_tools": ["decompile", "check_hash", "run_sandbox"],
+          "max_tool_iterations": 20,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      },
+      {
+        "id": "4",
+        "type": "LLMNode",
+        "label": "Intrusion Handler",
+        "config": {
+          "title": "Intrusion Handler",
+          "input_state_keys": ["alert_content", "classification"],
+          "output_state_keys": ["investigation"],
+          "system_prompt": "You are a network intrusion analyst. Check source IPs, search security logs for lateral movement patterns.",
+          "human_prompt": "Investigate this intrusion alert: {alert_content}",
+          "structured_output_schema": [],
+          "selected_tools": ["check_ip", "search_logs"],
+          "max_tool_iterations": 15,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      },
+      {
+        "id": "5",
+        "type": "LLMNode",
+        "label": "Misconfiguration Handler",
+        "config": {
+          "title": "Misconfiguration Handler",
+          "input_state_keys": ["alert_content", "classification"],
+          "output_state_keys": ["investigation"],
+          "system_prompt": "You are an infrastructure security analyst. Assess misconfiguration alerts, scan for open ports, and review security policies.",
+          "human_prompt": "Assess this misconfiguration alert: {alert_content}",
+          "structured_output_schema": [],
+          "selected_tools": ["check_config", "scan_ports"],
+          "max_tool_iterations": 10,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      }
+    ],
+    "edges": [
+      { "from": "1", "to": "2", "target_slot": 0, "type": "NormalEdge" },
+      { "from": "2", "to": "3", "target_slot": 0, "type": "ConditionalEdge", "condition": "out" },
+      { "from": "2", "to": "4", "target_slot": 0, "type": "ConditionalEdge", "condition": "out" },
+      { "from": "2", "to": "5", "target_slot": 0, "type": "ConditionalEdge", "condition": "out" }
+    ],
+    "tools": {
+      "decompile": {
+        "name": "decompile",
+        "type": "mcp",
+        "description": "Decompile a function by name",
+        "arguments": [{ "name": "function_name", "type": "str", "required": true, "description": "Function name to decompile" }],
+        "mcp_server": "http://mcp_binary:8002",
+        "mcp_method": "GET /mcp/decompile",
+        "metadata": { "endpoint": "/mcp/decompile", "method": "GET", "server_name": "binary_analysis" },
+        "return_schema": { "disassembly": "str", "success": "bool" }
+      },
+      "check_hash": {
+        "name": "check_hash",
+        "type": "mcp",
+        "description": "Check a file hash against known malware databases",
+        "arguments": [{ "name": "hash", "type": "str", "required": true, "description": "File hash to check" }],
+        "mcp_server": "http://mcp_binary:8002",
+        "mcp_method": "GET /mcp/check_hash",
+        "metadata": { "endpoint": "/mcp/check_hash", "method": "GET", "server_name": "binary_analysis" },
+        "return_schema": { "result": "str", "success": "bool" }
+      },
+      "run_sandbox": {
+        "name": "run_sandbox",
+        "type": "mcp",
+        "description": "Run a binary in an isolated sandbox and observe behavior",
+        "arguments": [{ "name": "binary_path", "type": "str", "required": true, "description": "Path to the binary to analyze" }],
+        "mcp_server": "http://mcp_sandbox:8007",
+        "mcp_method": "POST /mcp/run_sandbox",
+        "metadata": { "endpoint": "/mcp/run_sandbox", "method": "POST", "server_name": "sandbox" },
+        "return_schema": { "behavior_report": "str", "success": "bool" }
+      },
+      "check_ip": {
+        "name": "check_ip",
+        "type": "mcp",
+        "description": "Check an IP address against threat intelligence databases",
+        "arguments": [{ "name": "ip_address", "type": "str", "required": true, "description": "IP address to check" }],
+        "mcp_server": "http://mcp_threat_intel:8005",
+        "mcp_method": "GET /mcp/check_ip",
+        "metadata": { "endpoint": "/mcp/check_ip", "method": "GET", "server_name": "threat_intel" },
+        "return_schema": { "reputation": "str", "success": "bool" }
+      },
+      "search_logs": {
+        "name": "search_logs",
+        "type": "mcp",
+        "description": "Search security logs for matching events",
+        "arguments": [{ "name": "query", "type": "str", "required": true, "description": "Search query for logs" }],
+        "mcp_server": "http://mcp_siem:8006",
+        "mcp_method": "GET /mcp/search_logs",
+        "metadata": { "endpoint": "/mcp/search_logs", "method": "GET", "server_name": "siem" },
+        "return_schema": { "events": "list", "success": "bool" }
+      },
+      "check_config": {
+        "name": "check_config",
+        "type": "mcp",
+        "description": "Check system configuration against security baselines",
+        "arguments": [{ "name": "hostname", "type": "str", "required": true, "description": "Host to check configuration" }],
+        "mcp_server": "http://mcp_config:8008",
+        "mcp_method": "GET /mcp/check_config",
+        "metadata": { "endpoint": "/mcp/check_config", "method": "GET", "server_name": "config_manager" },
+        "return_schema": { "violations": "list", "success": "bool" }
+      },
+      "scan_ports": {
+        "name": "scan_ports",
+        "type": "mcp",
+        "description": "Scan a host for open ports",
+        "arguments": [{ "name": "hostname", "type": "str", "required": true, "description": "Host to scan" }],
+        "mcp_server": "http://mcp_config:8008",
+        "mcp_method": "GET /mcp/scan_ports",
+        "metadata": { "endpoint": "/mcp/scan_ports", "method": "GET", "server_name": "config_manager" },
+        "return_schema": { "open_ports": "list", "success": "bool" }
+      }
+    }
+  }
+}

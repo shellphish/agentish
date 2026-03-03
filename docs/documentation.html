@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation | Agentish</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo"><img src="agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <section class="hero" style="padding: 3rem 0 2rem;">
+            <h1>Documentation</h1>
+            <p class="description">Choose a documentation section below to get started.</p>
+        </section>
+
+        <!-- Agentish Section -->
+        <h2>Agentish</h2>
+        <p>Learn about the Agentish visual workflow framework and the agentic concepts behind it.</p>
+        <div class="card-grid">
+            <a href="docs-agentish.html" class="card">
+                <h3>Agentish Framework</h3>
+                <p>
+                    Setup, architecture, the visual editor, ASL format, compiler pipeline,
+                    and how to build &amp; export agent workflows.
+                </p>
+                <span class="arrow">Read &rarr;</span>
+            </a>
+            <a href="agentic_workflow/index.html" class="card">
+                <h3>Agentic Workflow</h3>
+                <p>
+                    A 7-chapter guide &mdash; from foundations to building complete
+                    multi-agent systems. Covers agents, topology, control flow,
+                    information flow, validation, and output patterns.
+                </p>
+                <span class="arrow">Read &rarr;</span>
+            </a>
+        </div>
+
+        <!-- iCTF Section -->
+        <h2>iCTF</h2>
+        <p>Documentation for the International Capture The Flag competition powered by Agentish.</p>
+        <div class="card-grid">
+            <a href="docs-ictf-authors.html" class="card">
+                <h3>Challenge Authors</h3>
+                <p>
+                    How to create challenges, define MCP tool servers,
+                    write <code>challengish.yml</code> configs, and deploy with Docker.
+                </p>
+                <span class="arrow">Read &rarr;</span>
+            </a>
+            <a href="docs-ictf-participants.html" class="card">
+                <h3>Participants</h3>
+                <p>
+                    How to use Agentish to build agent workflows for the iCTF,
+                    export bundles, and submit solutions.
+                </p>
+                <span class="arrow">Read &rarr;</span>
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

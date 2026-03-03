@@ -1,0 +1,103 @@
+{
+  "meta": {
+    "version": "2025.10",
+    "exported_at": "2026-02-18T20:00:00.000Z"
+  },
+  "graph": {
+    "version": 2,
+    "entrypoint": "1",
+    "state": {
+      "schema": {
+        "count": "int",
+        "messages": "Annotated[List[BaseMessage], lambda x, y: x + y]",
+        "alert_content": "str",
+        "classification": "str",
+        "investigation": "str"
+      }
+    },
+    "nodes": [
+      {
+        "id": "1",
+        "type": "EntryPoint",
+        "label": "EntryPoint",
+        "config": {
+          "title": "Entry Node",
+          "initial_state": {
+            "alert_content": "str",
+            "classification": "str",
+            "investigation": "str"
+          }
+        }
+      },
+      {
+        "id": "2",
+        "type": "LLMNode",
+        "label": "Alert Classifier",
+        "config": {
+          "title": "Alert Classifier",
+          "input_state_keys": ["alert_content"],
+          "output_state_keys": ["classification"],
+          "system_prompt": "You are a security alert triage specialist at a SOC. You have deep expertise in network security, malware analysis, and incident classification.\n\nFor each alert, produce:\n1. Severity: critical / high / medium / low / informational\n2. Category: malware, intrusion, data-exfiltration, misconfiguration, false-positive\n3. Confidence: 0.0 to 1.0",
+          "human_prompt": "Classify this alert: {alert_content}",
+          "structured_output_schema": [],
+          "selected_tools": [],
+          "max_tool_iterations": 30,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      },
+      {
+        "id": "3",
+        "type": "RouterBlock",
+        "label": "Category Router",
+        "config": {
+          "title": "Category Router",
+          "input_state_keys": ["classification"],
+          "system_prompt": "Route the alert to the correct handler based on category.",
+          "router_values": [
+            { "node": "Malware Handler", "description": "Suspicious binaries, PE files, shellcode" },
+            { "node": "Intrusion Handler", "description": "Unauthorized access, brute-force, lateral movement" }
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "type": "LLMNode",
+        "label": "Malware Handler",
+        "config": {
+          "title": "Malware Handler",
+          "input_state_keys": ["alert_content", "classification"],
+          "output_state_keys": ["investigation"],
+          "system_prompt": "You handle malware-related alerts. Analyze suspicious binaries, check file hashes, and determine threat level.",
+          "human_prompt": "Investigate this malware alert: {alert_content}",
+          "structured_output_schema": [],
+          "selected_tools": ["decompile", "check_hash"],
+          "max_tool_iterations": 15,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      },
+      {
+        "id": "5",
+        "type": "LLMNode",
+        "label": "Intrusion Handler",
+        "config": {
+          "title": "Intrusion Handler",
+          "input_state_keys": ["alert_content", "classification"],
+          "output_state_keys": ["investigation"],
+          "system_prompt": "You handle intrusion-related alerts. Check source IPs, search logs, and identify unauthorized access patterns.",
+          "human_prompt": "Investigate this intrusion alert: {alert_content}",
+          "structured_output_schema": [],
+          "selected_tools": ["check_ip", "search_logs"],
+          "max_tool_iterations": 15,
+          "iteration_warning_message": "You are close to the tool iteration limit. Wrap up soon without more tool calls."
+        }
+      }
+    ],
+    "edges": [
+      { "from": "1", "to": "2", "target_slot": 0, "type": "NormalEdge" },
+      { "from": "2", "to": "3", "target_slot": 0, "type": "NormalEdge" },
+      { "from": "3", "to": "4", "target_slot": 0, "type": "ConditionalEdge", "condition": "out" },
+      { "from": "3", "to": "5", "target_slot": 0, "type": "ConditionalEdge", "condition": "out" }
+    ],
+    "tools": {}
+  }
+}

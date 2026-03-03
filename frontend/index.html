@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ASL Builder · Agent Specification Language</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Chivo:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="litegraph.css" />
+        <link rel="stylesheet" href="styles.css" />
+        <script>window.CHALLENGE_BASE = '{{CHALLENGE_BASE}}';</script>
+    </head>
+    <body>
+        <div class="app-shell">
+            <header class="topbar">
+                <div class="brand">
+                    <img
+                        src="artifact/agentish_logo_vector.svg"
+                        alt="Agentish — Visual AI Agent Builder"
+                        class="brand-logo"
+                    />
+                    <div class="sr-only">ASL Builder · LangGraph-ready agent layouts for the iCTF</div>
+                </div>
+                <div class="top-actions">
+                    <input type="file" id="file-input" accept="application/json" hidden />
+                    <input type="file" id="file-input-asl" accept="application/json" hidden />
+                    <input type="file" id="file-input-layout" accept="application/json" hidden />
+                    <input type="file" id="file-input-bundle" accept=".zip,application/zip" hidden />
+                    
+                    <div class="dropdown">
+                        <button class="btn btn-ghost dropdown-toggle" id="import-menu-btn">
+                            Import <span class="dropdown-arrow">▾</span>
+                        </button>
+                        <div class="dropdown-menu">
+                            <button class="dropdown-item" data-action="import-asl">ASL Specification</button>
+                            <button class="dropdown-item" data-action="import-layout">Layout</button>
+                            <button class="dropdown-item" data-action="import-bundle">Bundle (ZIP)</button>
+                            <button class="dropdown-item" data-action="import-auto">Auto-Detect</button>
+                        </div>
+                    </div>
+                    
+                    <div class="dropdown">
+                        <button class="btn btn-ghost dropdown-toggle" id="download-menu-btn">
+                            Download <span class="dropdown-arrow">▾</span>
+                        </button>
+                        <div class="dropdown-menu">
+                            <button class="dropdown-item" data-action="download-asl">ASL Specification</button>
+                            <button class="dropdown-item" data-action="download-layout">Layout</button>
+                            <button class="dropdown-item" data-action="download-bundle">Bundle (Complete)</button>
+                        </div>
+                    </div>
+                    
+                    <div class="dropdown">
+                        <button class="btn btn-ghost dropdown-toggle" id="view-menu-btn">
+                            View <span class="dropdown-arrow">▾</span>
+                        </button>
+                        <div class="dropdown-menu">
+                            <button class="dropdown-item" data-action="view-asl">ASL</button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="workspace">
+                <aside class="sidebar">
+                    <section class="sidebar-section" id="section-core-blocks">
+                        <div class="section-heading" data-toggle-section="section-core-blocks">
+                            <h2>Core Blocks <span class="section-chevron">▼</span></h2>
+                            <p>Drag blocks into the canvas to build your agent flow.</p>
+                        </div>
+                        <div class="section-body">
+                        <div class="block-grid">
+                            <button class="block" data-node-type="entry" draggable="true">
+                                <span class="block-icon">🚀</span>
+                                <span>
+                                    <strong>Entry Node</strong>
+                                    <small>Initialize state with count and messages.</small>
+                                </span>
+                            </button>
+                            <button class="block" data-node-type="llm" draggable="true">
+                                <span class="block-icon">🧠</span>
+                                <span>
+                                    <strong>LLM Node</strong>
+                                    <small>Invoke model with state messages.</small>
+                                </span>
+                            </button>
+                            <button class="block" data-node-type="router" draggable="true">
+                                <span class="block-icon">🔀</span>
+                                <span>
+                                    <strong>Router Node</strong>
+                                    <small>Route based on conditions (true/false).</small>
+                                </span>
+                            </button>
+                            <button class="block" data-node-type="worker" draggable="true">
+                                <span class="block-icon">👷</span>
+                                <span>
+                                    <strong>Worker Node</strong>
+                                    <small>Background task with no output edge.</small>
+                                </span>
+                            </button>
+                        </div>
+                        </div>
+                    </section>
+
+                    <section class="sidebar-section" id="section-function-catalog">
+                        <div class="section-heading" data-toggle-section="section-function-catalog">
+                            <h2>🔌 Function Catalog <span class="section-chevron">▼</span></h2>
+                            <p>Drag functions to Tool Nodes</p>
+                        </div>
+                        <div class="section-body">
+                        <div id="function-catalog">
+                            <!-- Function items will be populated here -->
+                        </div>
+                        </div>
+                    </section>
+
+                    <section class="sidebar-section" id="section-tool-registry">
+                        <div class="section-heading" data-toggle-section="section-tool-registry">
+                            <h2>🛠️ Tool Registry <span class="section-chevron">▼</span></h2>
+                        </div>
+                        <div class="section-body">
+                        <button class="btn btn-sm btn-primary" id="new-tool-btn">+ New Tool</button>
+                        <div id="tool-list">
+                            <!-- Tools will be populated here -->
+                        </div>
+                        </div>
+                    </section>
+                </aside>
+
+                <section class="canvas-area">
+                    <div class="canvas-wrapper">
+                        <canvas id="main-canvas"></canvas>
+                    </div>
+                </section>
+
+                <aside class="inspector">
+                    <section class="panel">
+                        <header>
+                            <h2>State schema</h2>
+                            <p>Shared memory signature available to every node.</p>
+                        </header>
+                        <div id="state-schema-display" class="state-schema-table-wrapper">
+                            <!-- State schema table will be rendered here -->
+                        </div>
+                    </section>
+
+                    <section class="panel" id="properties-panel">
+                        <header>
+                            <h2>Node inspector</h2>
+                            <p>Configure prompts, routing, and memory per block.</p>
+                        </header>
+                        <div id="node-properties" class="empty-state">
+                            <strong>No node selected.</strong>
+                            <p>Select a block to edit its behaviour.</p>
+                        </div>
+                    </section>
+
+                    <section class="panel small">
+                        <header>
+                            <h2>Graph summary</h2>
+                        </header>
+                        <dl class="summary" id="graph-summary">
+                            <div>
+                                <dt>Nodes</dt>
+                                <dd>0</dd>
+                            </div>
+                            <div>
+                                <dt>Edges</dt>
+                                <dd>0</dd>
+                            </div>
+                            <div>
+                                <dt>Entrypoint</dt>
+                                <dd>unset</dd>
+                            </div>
+                        </dl>
+                    </section>
+                </aside>
+            </main>
+        </div>
+
+        <!-- Bundle Download Status Modal -->
+        <div id="bundle-status-modal" class="modal-overlay hidden">
+            <div class="modal-panel">
+                <button id="close-bundle-modal" class="modal-close" aria-label="Close">&times;</button>
+                <h2>Bundle Download</h2>
+                <p class="modal-subtitle">Validating and creating your agent bundle...</p>
+
+                <div class="submit-step" data-step="validate">
+                    <div class="submit-step-header">
+                        <span>1. Validating ASL specification</span>
+                        <span class="status-badge">Pending</span>
+                    </div>
+                    <div class="submit-step-details"></div>
+                </div>
+
+                <div class="submit-step" data-step="download">
+                    <div class="submit-step-header">
+                        <span>2. Creating bundle</span>
+                        <span class="status-badge">Pending</span>
+                    </div>
+                    <div class="submit-step-details"></div>
+                </div>
+
+                <div id="bundle-info" class="hidden bundle-info-box">
+                    <p>
+                        <strong>Bundle ready!</strong> Upload to the sandbox at <a href="http://localhost:8001" target="_blank">http://localhost:8001</a> to execute.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Code Modal -->
+        <div id="code-modal" class="modal-generic-overlay">
+            <div class="modal-generic-panel">
+                <button id="close-modal" class="modal-generic-close">&times;</button>
+                <h2>Generated LangGraph Code</h2>
+                <pre id="generated-code" class="modal-code-block"></pre>
+                <div class="modal-btn-row">
+                    <button id="download-code-btn" class="modal-btn modal-btn-primary">💾 Download Code</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ASL View Modal -->
+        <div id="asl-view-modal" class="modal-generic-overlay">
+            <div class="modal-generic-panel">
+                <button id="close-asl-modal" class="modal-generic-close">&times;</button>
+                <h2>ASL Specification</h2>
+                <pre id="asl-content" class="modal-code-block"></pre>
+                <div class="modal-btn-row">
+                    <button id="copy-asl-btn" class="modal-btn modal-btn-primary">📋 Copy</button>
+                    <button id="download-asl-from-modal-btn" class="modal-btn modal-btn-success">💾 Download</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tool Editor Modal -->
+        <div id="tool-editor-modal" class="modal-generic-overlay">
+            <div class="modal-generic-panel modal-narrow">
+                <button id="close-tool-editor" class="modal-generic-close">&times;</button>
+                <h2>✨ Create Custom Tool</h2>
+                
+                <div class="tool-editor-field">
+                    <label>Tool Name</label>
+                    <input type="text" id="tool-name" placeholder="e.g., calculate_offset">
+                    <small>Must be a valid Python identifier</small>
+                </div>
+
+                <div class="tool-editor-field">
+                    <label>Description</label>
+                    <textarea id="tool-description" placeholder="Describe what this tool does..."></textarea>
+                </div>
+
+                <div class="tool-editor-field">
+                    <label>Arguments</label>
+                    <div id="tool-arguments">
+                        <!-- Arguments will be added here -->
+                    </div>
+                    <button id="add-argument-btn" class="btn-add-field">+ Add Argument</button>
+                </div>
+
+                <div class="tool-editor-field">
+                    <label>Return Schema (JSON)</label>
+                    <textarea id="tool-return-schema" class="mono-input" placeholder='{"result": "Any", "success": "bool"}'></textarea>
+                </div>
+
+                <div class="tool-editor-field">
+                    <label>Implementation (Python)</label>
+                    <select id="template-selector">
+                        <option value="">Select a template...</option>
+                        <option value="addition">Addition Example</option>
+                    </select>
+                    <div class="validate-syntax-wrapper">
+                        <button id="validate-syntax-btn" class="modal-btn modal-btn-primary btn-validate-syntax">Validate Syntax</button>
+                    </div>
+                    <textarea id="tool-implementation" class="mono-input tall-input" placeholder="def tool_implementation(...):"></textarea>
+                    <div id="syntax-feedback" class="syntax-feedback"></div>
+                </div>
+
+                <div class="modal-btn-row modal-btn-row--end">
+                    <button id="cancel-tool-btn" class="modal-btn modal-btn-ghost">Cancel</button>
+                    <button id="save-tool-btn" class="modal-btn modal-btn-primary">Save Tool</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notification Container -->
+        <div id="toast-container" class="toast-container"></div>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+        <script src="litegraph.min.js"></script>
+        <script type="module" src="js/main.js"></script>
+    </body>
+</html>
