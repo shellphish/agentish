@@ -191,15 +191,19 @@ export function downloadASL() {
     }
 }
 
+export function serializeToLayout() {
+    const serialized = state.graph.serialize();
+    return {
+        nodes: serialized.nodes || [],
+        links: serialized.links || [],
+        groups: serialized.groups || [],
+        config: { state_schema: state.appState.schema }
+    };
+}
+
 export function downloadLayout() {
     try {
-        const serialized = state.graph.serialize();
-        const layoutPayload = {
-            nodes: serialized.nodes || [],
-            links: serialized.links || [],
-            groups: serialized.groups || [],
-            config: { state_schema: state.appState.schema }
-        };
+        const layoutPayload = serializeToLayout();
         downloadFile("asl_layout.json", JSON.stringify(layoutPayload, null, 2));
         showToast("Layout downloaded", "success");
     } catch (err) {

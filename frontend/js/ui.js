@@ -13,7 +13,7 @@ import {
 } from './utils.js';
 import { ensureSingleEntry, createNode } from './nodes.js';
 import { renderInspector, renderEmptyInspector } from './inspector.js';
-import { serializeToASL, configureFromASL, downloadASL, downloadLayout, viewASL } from './serialization.js';
+import { serializeToASL, serializeToLayout, configureFromASL, downloadASL, downloadLayout, viewASL } from './serialization.js';
 import {
     openToolEditor,
     closeToolEditor,
@@ -274,30 +274,27 @@ function initImportHandlers() {
             const zip = new JSZip();
             const contents = await zip.loadAsync(file);
 
-            let aslFile = contents.file("asl_spec.json") || contents.file("asl_graph.json");
+            const layoutFile = contents.file("layout.json") || contents.file("asl_layout.json");
+            const aslFile = contents.file("asl.json") || contents.file("asl_spec.json") || contents.file("asl_graph.json");
 
-            if (aslFile) {
+            if (layoutFile) {
+                const layoutContent = await layoutFile.async("string");
+                const data = JSON.parse(layoutContent);
+                state.graph.configure(data);
+                if (data.extra?.stateSchema || data.config?.state_schema) {
+                    state.appState.schema = normalizeSchemaToLowercase(data.extra?.stateSchema || data.config?.state_schema);
+                    state.appState.schemaRaw = JSON.stringify(state.appState.schema, null, 2);
+                    renderStateSchemaDisplay();
+                }
+                updateSummary();
+                showToast("Bundle imported (Layout)", "success");
+            } else if (aslFile) {
                 const aslContent = await aslFile.async("string");
                 const data = JSON.parse(aslContent);
                 configureFromASL(data);
                 showToast("Bundle imported (ASL specification)", "success");
             } else {
-                let layoutFile = contents.file("layout.json") || contents.file("asl_layout.json");
-
-                if (layoutFile) {
-                    const layoutContent = await layoutFile.async("string");
-                    const data = JSON.parse(layoutContent);
-                    state.graph.configure(data);
-                    if (data.extra?.stateSchema || data.config?.state_schema) {
-                        state.appState.schema = normalizeSchemaToLowercase(data.extra?.stateSchema || data.config?.state_schema);
-                        state.appState.schemaRaw = JSON.stringify(state.appState.schema, null, 2);
-                        renderStateSchemaDisplay();
-                    }
-                    updateSummary();
-                    showToast("Bundle imported (Layout)", "success");
-                } else {
-                    throw new Error("Bundle does not contain asl_spec.json or layout.json");
-                }
+                throw new Error("Bundle does not contain layout.json or asl.json");
             }
         } catch (err) {
             showToast(`Failed to import bundle: ${err.message}`, "error");
@@ -437,12 +434,13 @@ async function handleBundleDownload() {
         // Step 2: Download
         updateBundleStep('download', 'in_progress', 'Creating bundle...');
         const asl = serializeToASL();
+        const layout = serializeToLayout();
 
         const base = window.CHALLENGE_BASE || '';
         const bundleResponse = await fetch(`${base}/api/bundle/download`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(asl)
+            body: JSON.stringify({ asl, layout })
         });
 
         if (!bundleResponse.ok) {
