@@ -146,10 +146,9 @@ function renderToolDropList(def, node, wrapper) {
 
 function renderOutputSchemaTable(def, node, wrapper) {
     const TYPE_OPTIONS = [
-        'str', 'int', 'float', 'bool', 'Any',
+        'str', 'int', 'float', 'bool',
         'List[str]', 'List[int]', 'List[float]', 'List[dict]',
-        'Dict[str, str]', 'Dict[str, int]', 'Dict[str, Any]',
-        'Optional[str]', 'Optional[int]', 'Optional[dict]'
+        'Dict[str, str]', 'Dict[str, int]', 'Dict[str, Any]'
     ];
 
     const schemaArray = node.properties[def.key] || [];
@@ -353,9 +352,7 @@ function renderInitialStateTable(def, node, wrapper) {
     const TYPE_OPTIONS = [
         'int', 'str', 'float', 'bool',
         'List[str]', 'List[int]', 'List[float]', 'List[dict]',
-        'Dict[str, str]', 'Dict[str, int]', 'Dict[str, Any]',
-        'Optional[str]', 'Optional[int]', 'Optional[dict]',
-        'Any'
+        'Dict[str, str]', 'Dict[str, int]', 'Dict[str, Any]'
     ];
 
     function validateUniqueNames() {
