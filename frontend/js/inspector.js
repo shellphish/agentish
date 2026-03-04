@@ -208,7 +208,9 @@ function renderOutputSchemaTable(def, node, wrapper) {
             const type = typeSelect.value;
             const description = descInput.value.trim();
             if (name && type && description) {
-                newSchema.push({ name, type, description });
+                const entry = { name, type, description };
+                if (row.dataset.fromState === 'true') entry.fromState = true;
+                newSchema.push(entry);
             }
         });
         node.properties[def.key] = newSchema;
@@ -220,6 +222,8 @@ function renderOutputSchemaTable(def, node, wrapper) {
 
     function createRow(field = null) {
         const tr = document.createElement('tr');
+        const fromState = field?.fromState === true;
+        if (fromState) tr.dataset.fromState = 'true';
 
         const tdName = document.createElement('td');
         const nameInput = document.createElement('input');
@@ -242,6 +246,10 @@ function renderOutputSchemaTable(def, node, wrapper) {
             if (field && field.type === type) option.selected = true;
             typeSelect.appendChild(option);
         });
+        if (fromState) {
+            typeSelect.disabled = true;
+            typeSelect.title = 'Type is inherited from the global state schema';
+        }
         typeSelect.addEventListener('change', updateNodeProperty);
         tdType.appendChild(typeSelect);
         tr.appendChild(tdType);
@@ -300,7 +308,7 @@ function renderOutputSchemaTable(def, node, wrapper) {
             const nameInput = row.querySelector('.field-name-input');
             if (nameInput && nameInput.value === fieldName) return;
         }
-        const newRow = createRow({ name: fieldName, type: fieldType, description: fieldDesc });
+        const newRow = createRow({ name: fieldName, type: fieldType, description: fieldDesc, fromState: true });
         tbody.appendChild(newRow);
         updateNodeProperty();
         validateUniqueNames();
