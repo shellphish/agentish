@@ -181,9 +181,163 @@ export function configureFromASL(asl) {
 
 // ---------------------- Quick Actions ----------------------
 
+// ---- Topology validator (mirrors guardian_check in agentish-ctf/compiler/validator_guardian.py) ----
+// Node types in exported ASL: "LLMNode", "RouterBlock", "WorkerNode", "EntryPoint"
+
+function _validateTopology(asl) {
+    const errors = [];
+    const warnings = [];
+
+    const graph = asl && asl.graph;
+    if (!graph) return { errors: ["No graph found in ASL."], warnings };
+
+    const nodes = graph.nodes || [];
+    const edges = graph.edges || [];
+    const entryId = graph.entrypoint != null ? String(graph.entrypoint) : null;
+
+    const llmIds    = new Set(nodes.filter(n => n.type === "LLMNode").map(n => String(n.id)));
+    const routerIds = new Set(nodes.filter(n => n.type === "RouterBlock").map(n => String(n.id)));
+    const workerIds = new Set(nodes.filter(n => n.type === "WorkerNode").map(n => String(n.id)));
+    const flowIds   = new Set([...llmIds, ...routerIds]);
+
+    const nodeById = new Map(nodes.map(n => [String(n.id), n]));
+    const label = (id) => {
+        const n = nodeById.get(String(id));
+        return n ? `'${n.label || id}' (id=${id})` : `(id=${id})`;
+    };
+
+    // Build flow adjacency list — skip worker-target edges (tool-binding only)
+    const flowAdj = new Map([...flowIds].map(id => [id, []]));
+    if (entryId) flowAdj.set(entryId, flowAdj.get(entryId) ?? []);
+
+    const hasIncoming       = new Map([...flowIds].map(id => [id, false]));
+    const workerHasIncoming = new Map([...workerIds].map(id => [id, false]));
+
+    for (const edge of edges) {
+        const fromId = String(edge.from);
+        const toId   = String(edge.to);
+
+        if (workerIds.has(toId)) {
+            workerHasIncoming.set(toId, true);
+            continue;
+        }
+        if (flowIds.has(toId)) {
+            hasIncoming.set(toId, true);
+        }
+        if (flowAdj.has(fromId)) {
+            flowAdj.get(fromId).push(toId);
+        }
+    }
+
+    // Check 4: Entry has outgoing edges
+    if (!entryId) {
+        errors.push("No entry node found in the graph.");
+    } else if ((flowAdj.get(entryId) || []).length === 0) {
+        errors.push("Entry node has no outgoing edges. The graph is empty.");
+    }
+
+    // Check 1: At least one terminal LLM node
+    const terminalLlms = [...llmIds].filter(id => (flowAdj.get(id) || []).length === 0);
+    if (terminalLlms.length === 0) {
+        errors.push(
+            "No terminal LLM node found. At least one LLM node must have no " +
+            "outgoing flow edge so the graph can reach END."
+        );
+    }
+
+    // Check 2a: No orphan LLM/Router nodes
+    for (const id of flowIds) {
+        if (!hasIncoming.get(id)) {
+            errors.push(`Node ${label(id)} has no incoming flow edge and is unreachable.`);
+        }
+    }
+
+    // Check 2b: Every Worker referenced by at least one LLM
+    for (const id of workerIds) {
+        if (!workerHasIncoming.get(id)) {
+            errors.push(
+                `Worker node ${label(id)} is not connected to any LLM node and will never be called.`
+            );
+        }
+    }
+
+    // Check 3: Router fanout >= 2
+    for (const id of routerIds) {
+        const outgoing = flowAdj.get(id) || [];
+        if (outgoing.length < 2) {
+            errors.push(
+                `Router node ${label(id)} has ${outgoing.length} outgoing flow edge(s). ` +
+                `Routers must have at least 2.`
+            );
+        }
+    }
+
+    // DFS cycle detection (white/gray/black coloring)
+    const WHITE = 0, GRAY = 1, BLACK = 2;
+    const color = new Map([...flowIds].map(id => [id, WHITE]));
+    const cycles = [];
+
+    function dfs(nodeId, path) {
+        color.set(nodeId, GRAY);
+        path.push(nodeId);
+        for (const neighbor of (flowAdj.get(nodeId) || [])) {
+            if (!color.has(neighbor)) continue;
+            if (color.get(neighbor) === GRAY) {
+                const cycleStart = path.indexOf(neighbor);
+                cycles.push(path.slice(cycleStart));
+            } else if (color.get(neighbor) === WHITE) {
+                dfs(neighbor, path);
+            }
+        }
+        path.pop();
+        color.set(nodeId, BLACK);
+    }
+
+    for (const id of flowIds) {
+        if (color.get(id) === WHITE) dfs(id, []);
+    }
+
+    // Classify cycles
+    for (const cycle of cycles) {
+        const cycleSet    = new Set(cycle);
+        const cycleLabels = cycle.map(label).join(", ");
+        const hasRouterInCycle = cycle.some(id => routerIds.has(id));
+
+        if (!hasRouterInCycle) {
+            errors.push(
+                `Infinite loop detected: [${cycleLabels}] contains no Router node and will loop forever.`
+            );
+        } else {
+            const routersInCycle = cycle.filter(id => routerIds.has(id));
+            const hasExit = routersInCycle.some(rid =>
+                (flowAdj.get(rid) || []).some(neighbor => !cycleSet.has(neighbor))
+            );
+            if (!hasExit) {
+                errors.push(
+                    `Infinite loop detected: [${cycleLabels}] contains a Router but all ` +
+                    `its outgoing edges stay within the cycle.`
+                );
+            } else {
+                warnings.push(
+                    `Cycle detected: [${cycleLabels}]. Contains a Router with an exit path. ` +
+                    `Ensure the Router has a clear exit condition.`
+                );
+            }
+        }
+    }
+
+    return { errors, warnings };
+}
+
 export function downloadASL() {
     try {
         const asl = serializeToASL();
+        const { errors, warnings } = _validateTopology(asl);
+        warnings.forEach(w => showToast(w, "warning"));
+        if (errors.length > 0) {
+            errors.forEach(e => showToast(e, "error"));
+            return;
+        }
         downloadFile("asl_graph.json", JSON.stringify(asl, null, 2));
         showToast("ASL specification downloaded", "success");
     } catch (err) {
