@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 3: The LLM Node | Agentish Framework</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentish Framework Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 3</span> The LLM Node</h1>
+            <p class="tagline">The core building block of every workflow</p>
+        </section>
+
+        <p>
+            The LLM Node is an AI agent powered by a Large Language Model. It reads state,
+            reasons about it, optionally calls tools, and writes its output back to state.
+            Most of your workflow design time will be spent configuring LLM Nodes.
+        </p>
+
+        <div class="callout">
+            <strong>Deep dive:</strong> For the theory behind agent configuration (model selection,
+            reasoning strategies, prompt engineering principles), see
+            <a href="../agentic_workflow/2-the-agent.html">Agentic Workflow &mdash; Chapter 2: The Agent</a>.
+        </div>
+
+        <!-- Inspector Fields -->
+        <h2>Inspector Fields</h2>
+        <p>Click on an LLM Node to see its configuration in the right panel:</p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Field</th><th>Purpose</th><th>Tips</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Node title</strong></td>
+                    <td>Display name on the canvas and in compiled code.</td>
+                    <td>Each node must have a <strong>unique</strong> title.</td>
+                </tr>
+                <tr>
+                    <td><strong>Input State</strong></td>
+                    <td>Which state variables to include in the LLM&rsquo;s context.</td>
+                    <td>Only check the variables this node actually needs. Less context = better focus.</td>
+                </tr>
+                <tr>
+                    <td><strong>Global state to update</strong></td>
+                    <td>Which state variables this node writes to after execution.</td>
+                    <td>The LLM&rsquo;s structured output fields map to these variables.</td>
+                </tr>
+                <tr>
+                    <td><strong>System prompt</strong></td>
+                    <td>The agent&rsquo;s identity, role, and behavioral rules. Stays constant.</td>
+                    <td>Include: who the agent is, what to focus on, constraints, output format.</td>
+                </tr>
+                <tr>
+                    <td><strong>Human prompt</strong></td>
+                    <td>The task input. Supports <code>{variable}</code> template syntax to inject state values.</td>
+                    <td>Use template variables to pass dynamic data from upstream nodes.</td>
+                </tr>
+                <tr>
+                    <td><strong>Output Schema</strong></td>
+                    <td>Defines structured output fields (name, type, description).</td>
+                    <td>Forces the LLM to return data in a predictable format. Maps to &ldquo;Global state to update.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td><strong>Selected tools</strong></td>
+                    <td>Which tools from the Function Catalog this node can call.</td>
+                    <td>Keep to 2&ndash;5 tools. More tools = more confusion for the LLM.</td>
+                </tr>
+                <tr>
+                    <td><strong>Max tool iterations</strong></td>
+                    <td>Safety limit on tool call loops. Visible only when tools are selected.</td>
+                    <td>Default is 30. Lower for simple tasks, higher for complex investigations.</td>
+                </tr>
+                <tr>
+                    <td><strong>Iteration warning message</strong></td>
+                    <td>Warning injected when approaching the tool limit.</td>
+                    <td>Tells the LLM to wrap up. Fires at ~80% of max iterations.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- The Terminal Node Rule -->
+        <h2>The Terminal Node Rule</h2>
+
+        <div class="callout callout-warning">
+            <strong>Rule:</strong> At least one LLM Node in your workflow must have
+            <strong>no outgoing flow edge</strong>. This is the terminal node &mdash; it
+            compiles to <code>goto = END</code>, which tells the graph &ldquo;we&rsquo;re done.&rdquo;
+        </div>
+
+        <p>
+            If every LLM Node connects to another node, execution can never finish.
+            The topology validator will block export with the error:
+        </p>
+        <div class="code-block"><code><span class="string">"No terminal LLM node found. At least one LLM node must have no
+outgoing flow edge so the graph can reach END."</span></code></div>
+
+        <p>
+            <strong>How to fix:</strong> Make sure your final LLM Node (the one that produces
+            the workflow&rsquo;s end result) has no outgoing edges. Its output slot should
+            be unconnected.
+        </p>
+
+        <!-- System Prompt Best Practices -->
+        <h2>Writing Good System Prompts</h2>
+        <p>
+            The system prompt is the highest-leverage configuration. A well-written prompt
+            can make a simple workflow outperform a complex one with poor prompts.
+        </p>
+
+        <h3>The Four Components</h3>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Component</th><th>What It Does</th><th>Example</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Identity</strong></td>
+                    <td>Establishes the agent&rsquo;s role and expertise.</td>
+                    <td><em>&ldquo;You are a senior binary reverse engineer.&rdquo;</em></td>
+                </tr>
+                <tr>
+                    <td><strong>Focus</strong></td>
+                    <td>Defines what to analyze or produce.</td>
+                    <td><em>&ldquo;Your task is to find the decryption key in the binary.&rdquo;</em></td>
+                </tr>
+                <tr>
+                    <td><strong>Constraints</strong></td>
+                    <td>Sets boundaries on behavior.</td>
+                    <td><em>&ldquo;Never guess. If unsure, say so explicitly.&rdquo;</em></td>
+                </tr>
+                <tr>
+                    <td><strong>Output format</strong></td>
+                    <td>Specifies the structure of the response.</td>
+                    <td><em>&ldquo;Return: 1) key found, 2) location in binary, 3) confidence.&rdquo;</em></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="callout">
+            <strong>Tip:</strong> Write your prompts in an external text editor
+            (e.g., <a href="https://notepad.link/" target="_blank" rel="noopener">notepad.link</a>)
+            where you have more space, then paste them into the inspector. The small textarea
+            in the inspector is not ideal for writing long prompts.
+        </div>
+
+        <!-- Template Variables -->
+        <h2>Template Variables</h2>
+        <p>
+            Both the system prompt and human prompt support <code>{variable_name}</code> syntax.
+            At runtime, these are replaced with the current value of that state variable.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Example</div>
+            <div class="code-block"><code><span class="keyword">Human Prompt:</span>
+<span class="string">"Analyze the following binary functions: {discovered_functions}
+
+Previous analysis: {analysis_result}
+
+Find the flag."</span>
+
+<span class="comment"># At runtime, if discovered_functions = "main, decrypt_flag, check_pw"</span>
+<span class="comment"># the LLM receives:</span>
+<span class="comment"># "Analyze the following binary functions: main, decrypt_flag, check_pw"</span></code></div>
+        </div>
+
+        <!-- Structured Output -->
+        <h2>Structured Output Schema</h2>
+        <p>
+            The Output Schema table lets you define fields that the LLM must return in a
+            structured format. Each field has a name, type, and description.
+        </p>
+        <p>
+            When the LLM finishes reasoning, its structured output values are written to the
+            corresponding state variables (as selected in &ldquo;Global state to update&rdquo;).
+            This is the primary mechanism for passing data between nodes.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Example: Output Schema for an Analyzer</div>
+            <div class="code-block"><code><span class="comment"># Output Schema fields:</span>
+Name: analysis_result    Type: str    Description: "The analysis findings"
+Name: confidence         Type: float  Description: "Confidence score 0.0-1.0"
+
+<span class="comment"># These values get written to the global state after the node runs.</span>
+<span class="comment"># The next node can read them via input_state_keys or template variables.</span></code></div>
+        </div>
+
+        <!-- Loop Mode -->
+        <h2>Loop Mode (Advanced)</h2>
+        <p>
+            When an LLM Node is the target of a loop (i.e., it has more than one incoming edge
+            &mdash; one from upstream and one from a Router back-edge), you must configure
+            <strong>loop mode</strong> to control how conversation history is managed across
+            iterations.
+        </p>
+        <p>
+            This field only appears in the inspector when the node has multiple incoming edges.
+            See <a href="7-loops.html">Chapter 7: Loops</a> for the full explanation.
+        </p>
+
+        <!-- ASL -->
+        <h2>ASL Representation</h2>
+        <div class="example-box">
+            <div class="example-label">ASL &mdash; Complete LLM Node</div>
+            <div class="code-block"><code>{
+  "id": "2",
+  "type": "LLMNode",
+  "label": "Analyzer",
+  "config": {
+    "title": "Analyzer",
+    "input_state_keys": ["discovered_functions"],
+    "output_state_keys": ["analysis_result"],
+    "system_prompt": "You are a binary reverse engineer...",
+    "human_prompt": "Analyze these functions: {discovered_functions}",
+    "structured_output_schema": [
+      { "name": "analysis_result", "type": "str",
+        "description": "The analysis findings" }
+    ],
+    "selected_tools": ["decompile_function", "list_functions"],
+    "max_tool_iterations": 15,
+    "iteration_warning_message": "Wrap up your analysis."
+  }
+}</code></div>
+        </div>
+
+        <!-- Summary -->
+        <h2>Chapter Summary</h2>
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>The LLM Node is the primary building block &mdash; an AI agent with prompts, tools, and structured output.</li>
+                <li>At least one LLM Node must have no outgoing edge (the terminal node rule).</li>
+                <li>Each node needs a <strong>unique title</strong>.</li>
+                <li>System prompts need four components: identity, focus, constraints, output format.</li>
+                <li>Template variables (<code>{var}</code>) inject state data into prompts at runtime.</li>
+                <li>Keep tools per node to 2&ndash;5 for best results.</li>
+            </ul>
+        </div>
+
+        <div class="chapter-nav">
+            <a href="2-entry-point.html" class="chapter-nav-prev">&larr; Chapter 2: The Entry Point</a>
+            <a href="4-router-node.html" class="chapter-nav-next">Chapter 4: The Router Node &rarr;</a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

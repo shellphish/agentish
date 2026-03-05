@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 11: Troubleshooting | Agentish Framework</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentish Framework Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 11</span> Troubleshooting</h1>
+            <p class="tagline">Common problems and how to fix them</p>
+        </section>
+
+        <p>
+            This chapter covers the most common issues you&rsquo;ll encounter when building
+            and running Agentish workflows, along with their solutions.
+        </p>
+
+        <!-- Export/Compilation Errors -->
+        <h2>Export &amp; Compilation Errors</h2>
+        <p>
+            These errors appear when you click &ldquo;Download Bundle&rdquo; or when the sandbox
+            compiles your ASL. They block execution until fixed.
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Error</th><th>Cause</th><th>Fix</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><em>&ldquo;Graph requires an Entry Point node.&rdquo;</em></td>
+                    <td>No Entry Point on the canvas.</td>
+                    <td>Right-click &rarr; add an Entry Point node.</td>
+                </tr>
+                <tr>
+                    <td><em>&ldquo;Entry node has no outgoing edges.&rdquo;</em></td>
+                    <td>Entry Point is disconnected.</td>
+                    <td>Connect the Entry Point&rsquo;s output to your first LLM or Router node.</td>
+                </tr>
+                <tr>
+                    <td><em>&ldquo;No terminal LLM node found.&rdquo;</em></td>
+                    <td>Every LLM Node has an outgoing edge &mdash; execution can never reach END.</td>
+                    <td>Ensure at least one LLM Node has its output slot unconnected.</td>
+                </tr>
+                <tr>
+                    <td><em>&ldquo;Node &lsquo;X&rsquo; has no incoming flow edge and is unreachable.&rdquo;</em></td>
+                    <td>An LLM or Router node is floating on the canvas with no incoming connections.</td>
+                    <td>Connect it to the graph or delete it if unused.</td>
+                </tr>
+                <tr>
+                    <td><em>&ldquo;Worker node &lsquo;X&rsquo; is not connected to any LLM node.&rdquo;</em></td>
+                    <td>A Worker exists but isn&rsquo;t connected as a tool to any LLM Node.</td>
+                    <td>Draw an edge from an LLM Node to the Worker, or delete the Worker.</td>
+                </tr>
+                <tr>
+                    <td><em>&ldquo;Router node &lsquo;X&rsquo; has N outgoing flow edge(s). Routers must have at least 2.&rdquo;</em></td>
+                    <td>A Router has fewer than 2 outputs.</td>
+                    <td>Add more Router Values and connect additional output edges.</td>
+                </tr>
+                <tr>
+                    <td><em>&ldquo;LLM node &lsquo;X&rsquo; has multiple incoming edges but &lsquo;loop_mode&rsquo; is not configured.&rdquo;</em></td>
+                    <td>A loop target LLM Node doesn&rsquo;t have loop_mode set.</td>
+                    <td>Click the node, set Loop mode to &ldquo;Fresh&rdquo; or &ldquo;Continue&rdquo; in the inspector.</td>
+                </tr>
+                <tr>
+                    <td><em>&ldquo;Infinite loop detected: cycle [...] contains no Router node.&rdquo;</em></td>
+                    <td>A cycle exists with no Router to control iteration.</td>
+                    <td>Add a Router Node in the cycle to decide when to exit.</td>
+                </tr>
+                <tr>
+                    <td><em>&ldquo;Infinite loop detected: cycle [...] contains a Router but all its outgoing edges stay within the cycle.&rdquo;</em></td>
+                    <td>The Router in a cycle has no exit path.</td>
+                    <td>Add an output edge from the Router to a node outside the cycle.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Infinite Loops -->
+        <h2>Infinite Loops at Runtime</h2>
+        <p>
+            Even with valid topology, your agent can loop forever at runtime if the Router
+            never chooses the exit path. Signs of a runtime infinite loop:
+        </p>
+        <ul class="features">
+            <li>The sandbox execution runs for a very long time (approaching the 10-minute timeout).</li>
+            <li>The <code>count</code> variable in the final state is unusually high.</li>
+            <li>Langfuse shows the same nodes executing repeatedly with similar outputs.</li>
+        </ul>
+
+        <h3>How to Fix</h3>
+        <ul class="features">
+            <li><strong>Improve the Router prompt.</strong> Add specific, measurable exit criteria. Example: &ldquo;After 3 iterations, always route to Finalizer.&rdquo;</li>
+            <li><strong>Add a feedback state variable.</strong> Give the loop target LLM new context on each iteration so it doesn&rsquo;t produce the same output.</li>
+            <li><strong>Lower ambiguity.</strong> If the Router prompt says &ldquo;route to Finalizer when done,&rdquo; the LLM may never think it&rsquo;s &ldquo;done.&rdquo; Be concrete: &ldquo;route to Finalizer when analysis_result is over 200 words and addresses all three areas.&rdquo;</li>
+        </ul>
+
+        <!-- Recursion Limits -->
+        <h2>Recursion Limits</h2>
+        <p>
+            LangGraph has a built-in recursion limit that caps the total number of node
+            executions in a single run. If your workflow exceeds this limit, execution stops
+            with a recursion error.
+        </p>
+        <p>
+            This typically happens with loops that iterate too many times or deeply nested
+            worker calls. The fix is the same as for infinite loops: improve exit conditions
+            and Router prompts.
+        </p>
+
+        <!-- Tool Iteration Limit Hit -->
+        <h2>Tool Iteration Limit Reached</h2>
+        <p>
+            If the LLM hits <code>max_tool_iterations</code> before completing its task,
+            it&rsquo;s forced to produce a final response. The output may be incomplete.
+        </p>
+
+        <h3>How to Fix</h3>
+        <ul class="features">
+            <li><strong>Increase the limit</strong> if the task genuinely requires many tool calls (e.g., investigating 20+ functions in a binary).</li>
+            <li><strong>Improve the system prompt</strong> to make the LLM more efficient. Tell it to prioritize the most promising leads instead of exhaustively checking everything.</li>
+            <li><strong>Customize the warning message</strong> to guide the LLM on how to wrap up: &ldquo;Focus on the functions most likely to contain the flag. Produce your best answer now.&rdquo;</li>
+            <li><strong>Split the work</strong> across multiple nodes or Worker nodes, each with its own tool budget.</li>
+        </ul>
+
+        <!-- Prompt Quality -->
+        <h2>Improving Prompt Quality</h2>
+        <p>
+            Most workflow failures trace back to prompt quality. The LLM does what you tell
+            it &mdash; if the prompt is vague, the output will be vague.
+        </p>
+
+        <h3>Common Prompt Problems</h3>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Problem</th><th>Symptom</th><th>Fix</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Too vague</td>
+                    <td>LLM produces generic, unhelpful output.</td>
+                    <td>Add specific instructions: what to analyze, what format to use, what to avoid.</td>
+                </tr>
+                <tr>
+                    <td>Too long</td>
+                    <td>LLM ignores parts of the prompt or gets confused.</td>
+                    <td>Trim to essentials. Use bullet points instead of paragraphs.</td>
+                </tr>
+                <tr>
+                    <td>Conflicting instructions</td>
+                    <td>LLM oscillates or produces inconsistent output.</td>
+                    <td>Review for contradictions. Prioritize instructions clearly.</td>
+                </tr>
+                <tr>
+                    <td>Missing output format</td>
+                    <td>LLM returns prose when you need structured data.</td>
+                    <td>Add an output format section. Use structured output schema.</td>
+                </tr>
+                <tr>
+                    <td>No constraints</td>
+                    <td>LLM hallucinates, guesses, or makes assumptions.</td>
+                    <td>Add explicit constraints: &ldquo;Never guess. Use tools to verify.&rdquo;</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="callout callout-key">
+            <strong>Tip:</strong> Write and iterate on prompts in an external text editor
+            with more screen space, then paste into the inspector. The small textarea in the
+            Agentish inspector is not ideal for long prompts. Try
+            <a href="https://notepad.link/" target="_blank" rel="noopener">notepad.link</a>
+            or any plain text editor.
+        </div>
+
+        <!-- Wrong Tool Selection -->
+        <h2>LLM Picks the Wrong Tool</h2>
+        <ul class="features">
+            <li><strong>Too many tools assigned.</strong> Reduce to 2&ndash;5 per node.</li>
+            <li><strong>Tool descriptions are ambiguous.</strong> The LLM reads tool descriptions to decide which to call. If two tools sound similar, the LLM may pick the wrong one. (Note: MCP tool descriptions come from the challenge and can&rsquo;t be edited, but you can guide the LLM via system prompt.)</li>
+            <li><strong>System prompt doesn&rsquo;t mention tools.</strong> Tell the LLM which tools to use and in what order. Example: &ldquo;First use list_functions to get an overview, then use decompile_function on the most promising targets.&rdquo;</li>
+        </ul>
+
+        <!-- State Issues -->
+        <h2>State Variable Issues</h2>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Problem</th><th>Cause</th><th>Fix</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Downstream node sees empty variable</td>
+                    <td>The upstream node didn&rsquo;t select the variable in &ldquo;Global state to update.&rdquo;</td>
+                    <td>Check that the upstream node&rsquo;s output_state_keys includes the variable.</td>
+                </tr>
+                <tr>
+                    <td>Variable has wrong value</td>
+                    <td>Two nodes write to the same variable (last-write-wins).</td>
+                    <td>Use separate variables for separate nodes.</td>
+                </tr>
+                <tr>
+                    <td>Template variable shows raw <code>{name}</code></td>
+                    <td>Variable name in the prompt doesn&rsquo;t match a state variable.</td>
+                    <td>Check spelling. Variable names are case-sensitive in state schema (lowercased).</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Timeout -->
+        <h2>Execution Timeout</h2>
+        <p>
+            The sandbox has a 10-minute timeout per execution. If your agent exceeds this:
+        </p>
+        <ul class="features">
+            <li>Check for infinite loops (see above).</li>
+            <li>Reduce <code>max_tool_iterations</code> on nodes that call many tools.</li>
+            <li>Simplify the workflow &mdash; fewer nodes, fewer loop iterations.</li>
+            <li>Use a faster model if available.</li>
+        </ul>
+
+        <!-- Summary -->
+        <h2>Chapter Summary</h2>
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>Export errors are caught by the topology validator &mdash; read the error message carefully, it tells you exactly what to fix.</li>
+                <li>Runtime infinite loops come from vague Router exit criteria &mdash; make them specific and measurable.</li>
+                <li>Most failures trace back to prompt quality. Write detailed, structured prompts in an external editor.</li>
+                <li>Keep tools to 2&ndash;5 per node and guide the LLM on which tools to use in the system prompt.</li>
+                <li>Read the final state and Langfuse traces to debug &mdash; trace problems backwards from the wrong output.</li>
+            </ul>
+        </div>
+
+        <div class="chapter-nav">
+            <a href="10-logging.html" class="chapter-nav-prev">&larr; Chapter 10: Logging</a>
+            <div></div>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

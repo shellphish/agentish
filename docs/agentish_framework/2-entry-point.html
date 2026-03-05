@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 2: The Entry Point | Agentish Framework</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentish Framework Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 2</span> The Entry Point</h1>
+            <p class="tagline">Every workflow starts here</p>
+        </section>
+
+        <h2>What is the Entry Point?</h2>
+        <p>
+            The Entry Point is the <strong>starting node</strong> of every Agentish workflow.
+            It is not an LLM &mdash; it does not reason or call tools. Its job is to:
+        </p>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;"><strong>Define the state schema</strong> &mdash; declare what variables your workflow uses.</li>
+            <li style="padding-left: 0.5rem;"><strong>Bootstrap execution</strong> &mdash; pass control to the first LLM or Router node.</li>
+        </ol>
+
+        <div class="callout callout-warning">
+            <strong>Rule:</strong> Every workflow must have exactly <strong>one</strong> Entry Point.
+            Attempting to export a graph without an Entry Point will produce an error.
+        </div>
+
+        <h2>Configuration</h2>
+        <p>Click on the Entry Point node to open its inspector. It has two fields:</p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Field</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Display name</strong></td>
+                    <td>A label for the node on the canvas. Cosmetic only.</td>
+                </tr>
+                <tr>
+                    <td><strong>Initial State Variables</strong></td>
+                    <td>
+                        A table where you define additional state variables beyond the
+                        two built-in ones (<code>count</code> and <code>messages</code>).
+                        Each variable has a name and a type.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Built-in State Variables</h2>
+        <p>
+            Every workflow automatically includes two state variables that you do not need
+            to define:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Variable</th><th>Type</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>count</code></td>
+                    <td><code>int</code></td>
+                    <td>A general-purpose counter. Incremented automatically by node execution.</td>
+                </tr>
+                <tr>
+                    <td><code>messages</code></td>
+                    <td><code>Annotated[List[BaseMessage], ...]</code></td>
+                    <td>The global message log. Every node appends its conversation history here using an append reducer (messages are never overwritten, only added to).</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Defining Your Own State Variables</h2>
+        <p>
+            Most workflows need additional state variables &mdash; these are how your agents
+            communicate with each other. For example, if one LLM node produces an
+            <code>analysis_result</code> and another needs to read it, you define
+            <code>analysis_result</code> as a state variable here.
+        </p>
+
+        <p>
+            Use the &ldquo;Initial State Variables&rdquo; table in the inspector to add them.
+            For each variable, you specify a <strong>name</strong> and a <strong>type</strong>.
+            See <a href="8-state.html">Chapter 8: State</a> for the full data type reference
+            and guidance on when to use each type.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Example: Binary Analysis Workflow State</div>
+            <div class="code-block"><code><span class="comment"># Initial State Variables defined in Entry Point:</span>
+
+analysis_result     <span class="keyword">str</span>      <span class="comment"># The LLM's analysis of the binary</span>
+final_report        <span class="keyword">str</span>      <span class="comment"># The polished final output</span>
+routing_reason      <span class="keyword">str</span>      <span class="comment"># Why the Router made its decision</span>
+discovered_functions <span class="keyword">str</span>     <span class="comment"># List of functions found in binary</span></code></div>
+        </div>
+
+        <h2>The Entry Point Must Have an Outgoing Edge</h2>
+        <p>
+            An Entry Point with no outgoing edge means your graph is empty &mdash; execution
+            has nowhere to go. The topology validator will block export if the Entry Point
+            is disconnected.
+        </p>
+        <p>
+            Connect the Entry Point&rsquo;s output slot to the first LLM or Router node in
+            your workflow.
+        </p>
+
+        <h2>ASL Representation</h2>
+        <div class="example-box">
+            <div class="example-label">ASL &mdash; Entry Point Node</div>
+            <div class="code-block"><code>{
+  "id": "1",
+  "type": "EntryPoint",
+  "label": "EntryPoint",
+  "config": {
+    "title": "Entry Node",
+    "initial_state": {
+      "analysis_result": "str",
+      "final_report": "str",
+      "routing_reason": "str"
+    }
+  }
+}</code></div>
+            <p>
+                The <code>initial_state</code> object maps variable names to their types.
+                These, combined with the built-in <code>count</code> and <code>messages</code>,
+                form the complete global state schema.
+            </p>
+        </div>
+
+        <!-- Summary -->
+        <h2>Chapter Summary</h2>
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>Every workflow needs exactly one Entry Point.</li>
+                <li>The Entry Point defines the state schema &mdash; the variables your agents use to communicate.</li>
+                <li><code>count</code> and <code>messages</code> are built-in; you add your own variables in the inspector.</li>
+                <li>The Entry Point must have at least one outgoing edge.</li>
+            </ul>
+        </div>
+
+        <div class="chapter-nav">
+            <a href="1-overview.html" class="chapter-nav-prev">&larr; Chapter 1: Overview</a>
+            <a href="3-llm-node.html" class="chapter-nav-next">Chapter 3: The LLM Node &rarr;</a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

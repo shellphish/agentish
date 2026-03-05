@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 5: The Worker Node | Agentish Framework</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentish Framework Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 5</span> The Worker Node</h1>
+            <p class="tagline">Subtask delegation and specialized tool execution</p>
+        </section>
+
+        <p>
+            A Worker Node is a <strong>subtask agent</strong>. Unlike LLM Nodes which participate
+            in the main execution flow, Workers are called <em>by</em> an LLM Node as a tool.
+            The LLM decides when to invoke the Worker, the Worker does its job, and returns
+            the result back to the calling LLM.
+        </p>
+
+        <h2>How Workers Differ from LLM Nodes</h2>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Aspect</th><th>LLM Node</th><th>Worker Node</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Flow participation</strong></td>
+                    <td>Part of the main execution graph. Has flow edges (in and out).</td>
+                    <td>Not part of flow. Connected to an LLM Node as a tool binding.</td>
+                </tr>
+                <tr>
+                    <td><strong>Invocation</strong></td>
+                    <td>Runs when execution reaches it via an edge.</td>
+                    <td>Runs when the parent LLM decides to call it (like a tool).</td>
+                </tr>
+                <tr>
+                    <td><strong>Output</strong></td>
+                    <td>Writes to state variables via structured output.</td>
+                    <td>Returns a fixed format: <code>{result: str, success: bool}</code>.</td>
+                </tr>
+                <tr>
+                    <td><strong>State access</strong></td>
+                    <td>Reads via input_state_keys, writes via output_state_keys.</td>
+                    <td>Has its own system prompt and tools but returns only result + success.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>When to Use Workers</h2>
+        <ul class="features">
+            <li><strong>Complex tool tasks</strong> &mdash; When a tool call requires multi-step reasoning (e.g., &ldquo;decompile the function, analyze the code, find the key&rdquo;), delegate to a Worker instead of making the parent LLM do it all.</li>
+            <li><strong>Isolation</strong> &mdash; Workers have their own conversation context. They don&rsquo;t pollute the parent LLM&rsquo;s context window with tool call details.</li>
+            <li><strong>Specialization</strong> &mdash; Give the Worker a focused system prompt and a narrow set of tools for one specific job.</li>
+        </ul>
+
+        <h2>Inspector Fields</h2>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Field</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Node title</strong></td>
+                    <td>Display name. Must be unique. This becomes the tool name the parent LLM sees.</td>
+                </tr>
+                <tr>
+                    <td><strong>Description</strong></td>
+                    <td>Brief description of what the Worker does. Shown to the parent LLM as the tool description.</td>
+                </tr>
+                <tr>
+                    <td><strong>System prompt</strong></td>
+                    <td>Instructions for the Worker&rsquo;s reasoning.</td>
+                </tr>
+                <tr>
+                    <td><strong>Selected tools</strong></td>
+                    <td>Tools the Worker can use to complete its subtask.</td>
+                </tr>
+                <tr>
+                    <td><strong>Max tool iterations</strong></td>
+                    <td>Safety limit on the Worker&rsquo;s tool loop.</td>
+                </tr>
+                <tr>
+                    <td><strong>Iteration warning message</strong></td>
+                    <td>Warning when approaching the tool limit.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Connecting Workers</h2>
+        <p>
+            To connect a Worker to an LLM Node, draw an edge <strong>from the LLM Node&rsquo;s
+            output to the Worker&rsquo;s input</strong>. This does not create a flow edge &mdash;
+            it creates a <strong>tool binding</strong>. The Worker appears as an available tool
+            in the parent LLM&rsquo;s tool list.
+        </p>
+
+        <div class="callout callout-warning">
+            <strong>Rule:</strong> Every Worker must be connected to at least one LLM Node.
+            An unconnected Worker will never be called. The topology validator will produce:
+        </div>
+        <div class="code-block"><code><span class="string">"Worker node 'Recon Agent' (id=5) is not connected to any LLM
+node and will never be called."</span></code></div>
+
+        <h2>ASL Representation</h2>
+        <div class="example-box">
+            <div class="example-label">ASL &mdash; Worker Node</div>
+            <div class="code-block"><code>{
+  "id": "5",
+  "type": "WorkerNode",
+  "label": "Recon Agent",
+  "config": {
+    "title": "Recon Agent",
+    "description": "Performs reconnaissance on the target binary.",
+    "system_prompt": "You are a reconnaissance agent. Use the available
+tools to enumerate functions, strings, and imports in the binary.
+Return a summary of your findings.",
+    "selected_tools": ["list_functions", "check_strings"],
+    "max_tool_iterations": 10,
+    "iteration_warning_message": "Wrap up reconnaissance."
+  }
+}</code></div>
+        </div>
+
+        <!-- Summary -->
+        <h2>Chapter Summary</h2>
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>Workers are subtask agents invoked by LLM Nodes as tools.</li>
+                <li>They return a fixed <code>{result, success}</code> format.</li>
+                <li>Use Workers for complex tool tasks that benefit from isolation and specialization.</li>
+                <li>Every Worker must be connected to at least one LLM Node.</li>
+                <li>The Worker&rsquo;s title becomes the tool name the parent LLM sees.</li>
+            </ul>
+        </div>
+
+        <div class="chapter-nav">
+            <a href="4-router-node.html" class="chapter-nav-prev">&larr; Chapter 4: The Router Node</a>
+            <a href="6-connecting-nodes.html" class="chapter-nav-next">Chapter 6: Connecting Nodes &rarr;</a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

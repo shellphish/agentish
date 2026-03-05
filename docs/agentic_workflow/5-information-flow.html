@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 5: Information Flow | Agentic Workflow | Agentish</title>
+    <title>Chapter 5: Information Flow | Agentic Workflow</title>
     <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
@@ -45,56 +45,46 @@
         </p>
 
         <p>
-            Agentish takes a different approach: <strong>one global state, shared by all
-            nodes.</strong> Every node reads from and writes to the same <code>GlobalState</code>
+            The recommended approach is <strong>one shared state, accessible by all
+            nodes.</strong> Every node reads from and writes to the same state
             dictionary. No copying, no synchronization, no handoff logic.
         </p>
 
-        <div class="code-block"><code><span class="comment"># Every node receives the same GlobalState object:</span>
-<span class="keyword">def</span> llm_2_node(global_state: GlobalState) -> Command:
+        <div class="code-block"><code><span class="comment"># Every node receives the same shared state:</span>
+<span class="keyword">def</span> investigator(state):
     <span class="comment"># Read shared data</span>
-    alert_text = global_state.get(<span class="string">"alert_text"</span>, <span class="string">""</span>)
-    classification = global_state.get(<span class="string">"classification"</span>, <span class="string">""</span>)
+    alert_text = state.get(<span class="string">"alert_text"</span>, <span class="string">""</span>)
+    classification = state.get(<span class="string">"classification"</span>, <span class="string">""</span>)
+
+    <span class="comment"># ... perform investigation ...</span>
 
     <span class="comment"># Write results back to the same shared state</span>
-    <span class="keyword">return</span> Command(
-        update={
-            <span class="string">"investigation_result"</span>: <span class="string">"Found suspicious IP 10.0.0.5..."</span>,
-            <span class="string">"messages"</span>: [response]
-        },
-        goto=<span class="string">"llm_3_node"</span>
-    )</code></div>
+    state[<span class="string">"investigation_result"</span>] = <span class="string">"Found suspicious IP 10.0.0.5..."</span></code></div>
 
 
         <!-- ============================================================== -->
         <!-- 5.2 GLOBALSTATE DEEP DIVE                                       -->
         <!-- ============================================================== -->
-        <h2>5.2 &mdash; GlobalState: The Shared Blackboard</h2>
+        <h2>5.2 &mdash; The Shared State: A Blackboard Architecture</h2>
 
         <p>
-            The <code>GlobalState</code> is a Python <code>TypedDict</code> &mdash; a dictionary
-            with typed fields. You define the fields when you design your workflow. Each
-            field has a name and a type.
+            The shared state is a typed dictionary &mdash; each field has a name and a type.
+            You define the fields when you design your workflow. At runtime, every node
+            reads from and writes to this same dictionary.
         </p>
 
-        <div class="code-block"><code><span class="keyword">class</span> GlobalState(TypedDict):
-    <span class="string">"""Global state shared across all nodes in the workflow."""</span>
+        <div class="code-block"><code><span class="comment"># Example shared state schema:</span>
 
-    <span class="comment"># ── User-defined fields ──</span>
-    count: Annotated[int, operator.add]                                <span class="comment"># Counter</span>
-    messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y: x + y]         <span class="comment"># Chat history</span>
-    alert_text: str                                                    <span class="comment"># The input alert</span>
-    classification: str                                                <span class="comment"># Classifier output</span>
-    severity: str                                                      <span class="comment"># Severity level</span>
+<span class="comment"># ── User-defined fields ──</span>
+alert_text: str                        <span class="comment"># The input alert</span>
+classification: str                    <span class="comment"># Classifier output</span>
+severity: str                          <span class="comment"># Severity level</span>
 
-    <span class="comment"># ── Auto-generated per-node fields ──</span>
-    node_2_messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y: x + y]  <span class="comment"># Node 2's conversation</span>
-    node_2_llm_calls: Annotated[int, operator.add]                     <span class="comment"># Node 2's LLM call count</span>
-    node_2_tool_iteration_count: int                                   <span class="comment"># Node 2's tool loop counter</span>
-    <span class="comment"># ... repeated for each node ...</span>
-
-    <span class="comment"># ── Router fields ──</span>
-    routing_reason: Optional[str]                                      <span class="comment"># Why the router chose this path</span></code></div>
+<span class="comment"># ── Framework-managed fields ──</span>
+count: int (additive)                  <span class="comment"># Execution counter</span>
+messages: List[Message] (append-only)  <span class="comment"># Chat history</span>
+per_node_messages: List[Message]       <span class="comment"># Per-agent conversation history</span>
+routing_reason: str                    <span class="comment"># Why the router chose this path</span></code></div>
 
         <p>
             There are three categories of fields:
@@ -107,21 +97,67 @@
             <tbody>
                 <tr>
                     <td><strong>User-defined</strong></td>
-                    <td>You, when designing the workflow in Agentish</td>
+                    <td>You, when designing the workflow</td>
                     <td><code>alert_text</code>, <code>classification</code>, <code>severity</code></td>
                 </tr>
                 <tr>
-                    <td><strong>Auto-generated per-node</strong></td>
-                    <td>The compiler, based on nodes in the graph</td>
-                    <td><code>node_2_messages</code>, <code>node_2_llm_calls</code>, <code>node_2_tool_iteration_count</code></td>
+                    <td><strong>Framework-managed per-node</strong></td>
+                    <td>The framework, based on nodes in the graph</td>
+                    <td>Per-node message history, LLM call counts, tool iteration counters</td>
                 </tr>
                 <tr>
                     <td><strong>Router tracking</strong></td>
-                    <td>The compiler, if routers exist</td>
+                    <td>The framework, if routers exist</td>
                     <td><code>routing_reason</code></td>
                 </tr>
             </tbody>
         </table>
+
+
+        <h3>Data Type Reference</h3>
+        <p>
+            When defining state variables, each type has specific behavior in terms
+            of how values are stored and merged:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Type</th><th>Python Type</th><th>Merge Semantics</th><th>When to Use</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>str</code></td>
+                    <td><code>str</code></td>
+                    <td><strong>Last-write-wins.</strong> Later writes replace earlier ones.</td>
+                    <td>Analysis results, reports, reasoning text, flags. Most common type.</td>
+                </tr>
+                <tr>
+                    <td><code>int</code></td>
+                    <td><code>int</code></td>
+                    <td><strong>Last-write-wins</strong> for user-defined fields. The built-in <code>count</code> uses <code>Annotated[int, operator.add]</code> (additive reducer).</td>
+                    <td>Counters, scores, numeric identifiers.</td>
+                </tr>
+                <tr>
+                    <td><code>float</code></td>
+                    <td><code>float</code></td>
+                    <td><strong>Last-write-wins.</strong></td>
+                    <td>Confidence scores, probabilities, thresholds.</td>
+                </tr>
+                <tr>
+                    <td><code>Annotated[List[BaseMessage], ...]</code></td>
+                    <td><code>List[BaseMessage]</code></td>
+                    <td><strong>Append reducer.</strong> New items are concatenated onto the existing list. Items are never removed.</td>
+                    <td>The built-in <code>messages</code> field. Also used for per-node message tracking (<code>node_X_messages</code>). You typically do not create new fields with this type.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="callout callout-warning">
+            <strong>Last-write-wins pitfall:</strong> If two nodes write to the same <code>str</code>
+            variable, only the last writer&rsquo;s value survives. Design your state schema so
+            each variable has exactly one writer, or use separate variables.
+        </div>
+
 
 
         <!-- ============================================================== -->
@@ -145,38 +181,38 @@
         <div class="code-block"><code><span class="comment"># No reducer — last write wins:</span>
 classification: str
 
-<span class="comment"># Node A writes: {"classification": "malware"}</span>
-<span class="comment"># Node B writes: {"classification": "phishing"}</span>
-<span class="comment"># Final value: "phishing" (Node B's value overwrites Node A's)</span></code></div>
+<span class="comment"># Agent A writes: classification = "malware"</span>
+<span class="comment"># Agent B writes: classification = "phishing"</span>
+<span class="comment"># Final value: "phishing" (Agent B's value overwrites Agent A's)</span></code></div>
 
-        <h3>Fields With <code>operator.add</code> Reducer: Accumulate</h3>
+        <h3>Fields With Additive Reducer: Accumulate</h3>
 
-        <div class="code-block"><code><span class="comment"># With operator.add reducer — values accumulate:</span>
-count: Annotated[int, operator.add]
+        <div class="code-block"><code><span class="comment"># With additive reducer — values accumulate:</span>
+count: int (additive)
 
 <span class="comment"># Starting value: count = 0</span>
-<span class="comment"># Node A writes: {"count": 1}    → LangGraph computes: 0 + 1 = 1</span>
-<span class="comment"># Node B writes: {"count": 1}    → LangGraph computes: 1 + 1 = 2</span>
-<span class="comment"># Final value: 2 ✓</span></code></div>
+<span class="comment"># Agent A writes: count += 1    → system computes: 0 + 1 = 1</span>
+<span class="comment"># Agent B writes: count += 1    → system computes: 1 + 1 = 2</span>
+<span class="comment"># Final value: 2</span></code></div>
 
         <h3>Fields With List Reducer: Append</h3>
 
         <div class="code-block"><code><span class="comment"># With list concatenation reducer — items append:</span>
-messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y: x + y]
+messages: List[Message] (append-only)
 
 <span class="comment"># Starting value: messages = []</span>
-<span class="comment"># Node A writes: {"messages": [AIMessage("Hello")]}</span>
-<span class="comment">#   → LangGraph computes: [] + [AIMessage("Hello")]</span>
+<span class="comment"># Agent A writes: messages += [AIMessage("Hello")]</span>
+<span class="comment">#   → system computes: [] + [AIMessage("Hello")]</span>
 <span class="comment">#   = [AIMessage("Hello")]</span>
-<span class="comment"># Node B writes: {"messages": [AIMessage("World")]}</span>
-<span class="comment">#   → LangGraph computes: [AIMessage("Hello")] + [AIMessage("World")]</span>
+<span class="comment"># Agent B writes: messages += [AIMessage("World")]</span>
+<span class="comment">#   → system computes: [AIMessage("Hello")] + [AIMessage("World")]</span>
 <span class="comment">#   = [AIMessage("Hello"), AIMessage("World")]</span></code></div>
 
         <div class="callout callout-warning">
             <strong>⚠️ The &ldquo;counter bug&rdquo;:</strong> If <code>count</code> uses
             <code>operator.add</code> but your node writes
-            <code>{"count": old_value + 1}</code> instead of <code>{"count": 1}</code>,
-            you&rsquo;ll double-count. With a reducer, nodes should return
+            <code>old_value + 1</code> instead of just <code>1</code>,
+            you&rsquo;ll double-count. With a reducer, agents should return
             <strong>increments</strong> (the delta), not <strong>totals</strong> (the absolute value).
         </div>
 
@@ -195,18 +231,18 @@ messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y:
                 </tr>
                 <tr>
                     <td><code>count</code></td>
-                    <td><code>operator.add</code></td>
+                    <td>Additive</td>
                     <td>Add to existing value</td>
                     <td>The increment: <code>1</code></td>
                 </tr>
                 <tr>
                     <td><code>messages</code></td>
-                    <td><code>lambda x, y: x + y</code></td>
+                    <td>Append (list concatenation)</td>
                     <td>Append to existing list</td>
                     <td>New items: <code>[msg]</code></td>
                 </tr>
                 <tr>
-                    <td><code>node_X_tool_iteration_count</code></td>
+                    <td><code>tool_iteration_count</code></td>
                     <td>None (last write wins)</td>
                     <td>Replace the value</td>
                     <td>The new absolute count: <code>5</code></td>
@@ -221,7 +257,7 @@ messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y:
         <h2>5.4 &mdash; Messages: The Conversation Thread</h2>
 
         <p>
-            The most important field in GlobalState is <code>messages</code>. It&rsquo;s the
+            The most important field in the shared state is <code>messages</code>. It&rsquo;s the
             shared conversation history &mdash; a chronological list of all messages
             exchanged across all nodes.
         </p>
@@ -262,15 +298,15 @@ messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y:
             There are <strong>two</strong> message lists in play:
         </p>
 
-        <div class="code-block"><code><span class="comment"># Global messages — the full conversation across all nodes:</span>
-messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y: x + y]
+        <div class="code-block"><code><span class="comment"># Global messages — the full conversation across all agents:</span>
+messages: List[Message] (append-only)
 
-<span class="comment"># Per-node messages — this specific node's conversation:</span>
-node_2_messages: Annotated[List[BaseMessage], <span class="keyword">lambda</span> x, y: x + y]</code></div>
+<span class="comment"># Per-agent messages — this specific agent's conversation:</span>
+agent_messages: List[Message] (append-only)</code></div>
 
         <p>
-            Why both? Each LLM Node builds its prompt from its <strong>own</strong> message
-            history (<code>node_X_messages</code>), not the global one. This keeps each
+            Why both? Each agent builds its prompt from its <strong>own</strong> message
+            history (per-agent messages), not the global one. This keeps each
             agent&rsquo;s context focused. But the node also writes to the global
             <code>messages</code> list so downstream nodes can see what happened upstream.
         </p>
@@ -310,19 +346,19 @@ node_3_messages = [
         <h2>5.5 &mdash; Template Variables</h2>
 
         <p>
-            How does an agent access specific GlobalState fields in its prompt?
+            How does an agent access specific shared state fields in its prompt?
             Through <strong>template variables</strong> &mdash; placeholders in curly braces
             that get replaced with actual values at run time.
         </p>
 
-        <div class="code-block"><code><span class="comment"># In the Agentish editor, you write:</span>
+        <div class="code-block"><code><span class="comment"># In your agent's prompt template:</span>
 <span class="string">"Investigate this {classification} alert. The raw alert text is:
 {alert_text}
 
 Previous analysis: {investigation_result}"</span>
 
-<span class="comment"># At runtime, Agentish renders the template against GlobalState:</span>
-render_template(prompt_text, global_state)
+<span class="comment"># At runtime, the system renders the template against the shared state:</span>
+render_template(prompt_text, state)
 
 <span class="comment"># Result:</span>
 <span class="string">"Investigate this Intrusion alert. The raw alert text is:
@@ -336,7 +372,7 @@ Previous analysis: {investigation_result}"</span>
         </p>
 
         <ul class="features">
-            <li>If the variable exists in GlobalState, it&rsquo;s replaced with the current value.</li>
+            <li>If the variable exists in the shared state, it&rsquo;s replaced with the current value.</li>
             <li>If the variable doesn&rsquo;t exist yet, the placeholder stays as literal text (no crash).</li>
             <li>Template variables work in both the <strong>system prompt</strong> and the <strong>human prompt</strong>.</li>
             <li>The variable name must exactly match a field name in the state schema.</li>
@@ -368,7 +404,7 @@ Previous analysis: {investigation_result}"</span>
 
         <h3>Pattern 2: Named Fields</h3>
         <p>
-            Agents write to and read from specific named fields in GlobalState
+            Agents write to and read from specific named fields in the shared state
             (e.g., <code>classification</code>, <code>severity</code>). Explicit and
             type-safe. Good for structured handoffs.
         </p>
@@ -384,11 +420,9 @@ Previous analysis: {investigation_result}"</span>
         <div class="example-box">
             <div class="example-label">Running Example: All Three Patterns Combined</div>
             <div class="code-block"><code><span class="comment"># Classifier writes classification to a named field:</span>
-Command(update={
-    <span class="string">"classification"</span>: <span class="string">"intrusion"</span>,          <span class="comment"># Pattern 2: Named field</span>
-    <span class="string">"severity"</span>: <span class="string">"high"</span>,                     <span class="comment"># Pattern 2: Named field</span>
-    <span class="string">"messages"</span>: [AIMessage(<span class="string">"It's an intrusion"</span>)]  <span class="comment"># Pattern 1: Message relay</span>
-})
+state[<span class="string">"classification"</span>] = <span class="string">"intrusion"</span>          <span class="comment"># Pattern 2: Named field</span>
+state[<span class="string">"severity"</span>] = <span class="string">"high"</span>                     <span class="comment"># Pattern 2: Named field</span>
+state[<span class="string">"messages"</span>].append(AIMessage(<span class="string">"It's an intrusion"</span>))  <span class="comment"># Pattern 1: Message relay</span>
 
 <span class="comment"># Investigator's prompt uses template variables:</span>
 system_prompt = <span class="string">"You are investigating a {classification} alert   # Pattern 3: Template injection</span>
@@ -406,11 +440,11 @@ system_prompt = <span class="string">"You are investigating a {classification} a
         <div class="callout callout-key">
             <strong>Key Takeaways:</strong>
             <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
-                <li>Agentish uses a <strong>single GlobalState</strong> shared by all nodes. No per-agent private state.</li>
-                <li>GlobalState is a Python <code>TypedDict</code> with user-defined fields, auto-generated per-node fields, and router fields.</li>
-                <li><strong>Reducers</strong> define how updates merge: <code>operator.add</code> for counters (return increments), list concatenation for messages (return new items), or no reducer (last write wins).</li>
-                <li>Each node has <strong>two message lists</strong>: the global <code>messages</code> (full history) and per-node <code>node_X_messages</code> (focused context).</li>
-                <li><strong>Template variables</strong> (<code>{field_name}</code>) inject GlobalState values into prompts at runtime. Missing fields stay as literal text.</li>
+                <li>Use a <strong>single shared state</strong> accessible by all agents. No per-agent private state.</li>
+                <li>The shared state has user-defined fields, framework-managed per-agent fields, and router fields.</li>
+                <li><strong>Reducers</strong> define how updates merge: additive for counters (return increments), list concatenation for messages (return new items), or no reducer (last write wins).</li>
+                <li>Each agent has <strong>two message lists</strong>: the global <code>messages</code> (full history) and per-agent messages (focused context).</li>
+                <li><strong>Template variables</strong> (<code>{field_name}</code>) inject shared state values into prompts at runtime. Missing fields stay as literal text.</li>
                 <li>Three data passing patterns: message relay, named fields, and template injection. Use them together.</li>
             </ul>
         </div>

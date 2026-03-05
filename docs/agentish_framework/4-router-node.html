@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 4: The Router Node | Agentish Framework</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentish Framework Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 4</span> The Router Node</h1>
+            <p class="tagline">Conditional branching powered by an LLM</p>
+        </section>
+
+        <p>
+            The Router Node is an LLM-powered decision maker. It reads state, reasons about
+            which path to take, and sends execution to one of its targets. Unlike a simple
+            if/else, the Router uses an LLM to make the decision &mdash; so it can handle
+            nuanced, context-dependent routing.
+        </p>
+
+        <div class="callout">
+            <strong>Deep dive:</strong> For conditional flow theory and the Command pattern, see
+            <a href="../agentic_workflow/4-control-flow.html">Agentic Workflow &mdash; Chapter 4: Control Flow</a>.
+        </div>
+
+        <h2>How It Works</h2>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;">The Router reads the state variables you select (Input State).</li>
+            <li style="padding-left: 0.5rem;">Its system prompt tells it what criteria to use for routing.</li>
+            <li style="padding-left: 0.5rem;">It produces a structured output selecting one of the defined <strong>Router Values</strong>.</li>
+            <li style="padding-left: 0.5rem;">Execution follows the matching ConditionalEdge to the target node.</li>
+        </ol>
+
+        <h2>Inspector Fields</h2>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Field</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Node title</strong></td>
+                    <td>Display name. Must be unique.</td>
+                </tr>
+                <tr>
+                    <td><strong>Input State</strong></td>
+                    <td>State variables to include in the Router&rsquo;s context for decision making.</td>
+                </tr>
+                <tr>
+                    <td><strong>System prompt</strong></td>
+                    <td>Instructions for the routing decision. Should clearly describe when to choose each option.</td>
+                </tr>
+                <tr>
+                    <td><strong>Router Values</strong></td>
+                    <td>
+                        A table of routing options. Each row has a <strong>node name</strong>
+                        (matching a connected target node&rsquo;s title) and a <strong>description</strong>
+                        (explaining when to pick this option).
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>The Minimum Two-Output Rule</h2>
+        <div class="callout callout-warning">
+            <strong>Rule:</strong> A Router must have at least <strong>2 outgoing edges</strong>.
+            A Router with only one output is functionally identical to a direct edge &mdash;
+            there&rsquo;s no decision to make. The topology validator will block export with:
+        </div>
+        <div class="code-block"><code><span class="string">"Router node 'My Router' (id=3) has 1 outgoing flow edge(s).
+Routers must have at least 2."</span></code></div>
+
+        <h2>Router Values and Edge Matching</h2>
+        <p>
+            Each Router Value corresponds to one output slot on the node. The <strong>node name</strong>
+            in the Router Values table must match the <strong>title</strong> of the target node
+            connected to that output slot.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Example: Analysis Router</div>
+            <div class="code-block"><code><span class="keyword">Router Values:</span>
+
+Node: <span class="string">"Malware Analyst"</span>
+Description: <span class="string">"Choose this when the alert appears to involve malware
+(suspicious binaries, known malware hashes, obfuscated code)."</span>
+
+Node: <span class="string">"Network Investigator"</span>
+Description: <span class="string">"Choose this when the alert involves network anomalies
+(unusual traffic, port scanning, suspicious connections)."</span>
+
+Node: <span class="string">"False Positive Handler"</span>
+Description: <span class="string">"Choose this when the alert appears to be benign
+(normal system behavior, known safe processes)."</span></code></div>
+        </div>
+
+        <h2>Writing Good Router Prompts</h2>
+        <p>
+            The Router&rsquo;s system prompt should give clear criteria for each routing option.
+            Be specific about what conditions lead to each choice. Vague prompts lead to
+            inconsistent routing.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Good Router System Prompt</div>
+            <div class="code-block"><code><span class="string">"You are a routing agent. Based on the analysis_result, decide:
+
+- Route to 'Orchestrator' if the analysis is incomplete, too short
+  (under 200 words), or explicitly says more work is needed.
+- Route to 'Finalizer' if the analysis is comprehensive, addresses
+  all aspects of the problem, and is ready for final formatting.
+
+When in doubt, route to Orchestrator for another iteration."</span></code></div>
+        </div>
+
+        <h2>Routers and Loops</h2>
+        <p>
+            Routers are the <strong>only way to create loops</strong> in Agentish. When a Router
+            has an output edge that points back to an earlier node in the graph, that creates
+            a cycle. The Router&rsquo;s LLM decides whether to loop again or exit.
+        </p>
+        <p>
+            See <a href="7-loops.html">Chapter 7: Loops</a> for how to properly configure
+            looping workflows, including loop mode and exit conditions.
+        </p>
+
+        <h2>ASL Representation</h2>
+        <div class="example-box">
+            <div class="example-label">ASL &mdash; Router Node with Edges</div>
+            <div class="code-block"><code><span class="comment">// The Router node:</span>
+{
+  "id": "3",
+  "type": "RouterBlock",
+  "label": "Category Router",
+  "config": {
+    "title": "Category Router",
+    "input_state_keys": ["analysis_result"],
+    "system_prompt": "Route based on the analysis category...",
+    "router_values": [
+      { "node": "Malware Analyst",
+        "description": "Alert involves malware indicators." },
+      { "node": "Network Investigator",
+        "description": "Alert involves network anomalies." }
+    ]
+  }
+}
+
+<span class="comment">// Conditional edges from the Router:</span>
+{ "from": "3", "to": "4", "type": "ConditionalEdge",
+  "condition": "Malware Analyst" }
+{ "from": "3", "to": "5", "type": "ConditionalEdge",
+  "condition": "Network Investigator" }</code></div>
+        </div>
+
+        <!-- Summary -->
+        <h2>Chapter Summary</h2>
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>The Router is an LLM-powered conditional branch &mdash; it decides which path to take.</li>
+                <li>Must have at least 2 outgoing edges.</li>
+                <li>Router Values map to output slots &mdash; the node name must match the target&rsquo;s title.</li>
+                <li>Routers are the only way to create loops (back-edges) in Agentish.</li>
+                <li>Write specific routing criteria in the system prompt.</li>
+            </ul>
+        </div>
+
+        <div class="chapter-nav">
+            <a href="3-llm-node.html" class="chapter-nav-prev">&larr; Chapter 3: The LLM Node</a>
+            <a href="5-worker-node.html" class="chapter-nav-next">Chapter 5: The Worker Node &rarr;</a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

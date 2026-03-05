@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 7: Putting It All Together | Agentic Workflow | Agentish</title>
+    <title>Chapter 7: Putting It All Together | Agentic Workflow</title>
     <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
@@ -125,15 +125,15 @@
                                                        └───────────┘
 
 <span class="keyword">Edges:</span>
-  Entry → Recon:      NormalEdge
-  Recon → Exploit:    NormalEdge
-  Exploit → Evaluator: NormalEdge
-  Evaluator → Exploit: ConditionalEdge (<span class="string">"retry"</span>)
-  Evaluator → Submit:  ConditionalEdge (<span class="string">"success"</span>)</code></div>
+  Entry → Recon:       Direct edge
+  Recon → Exploit:     Direct edge
+  Exploit → Evaluator: Direct edge
+  Evaluator → Exploit: Conditional edge (<span class="string">"retry"</span>)
+  Evaluator → Submit:  Conditional edge (<span class="string">"success"</span>)</code></div>
 
         <h3>Step 4: Define the State</h3>
 
-        <div class="code-block"><code><span class="comment"># GlobalState schema (configured in Agentish editor):</span>
+        <div class="code-block"><code><span class="comment"># Shared state schema:</span>
 {
     <span class="string">"count"</span>:              <span class="string">"int"</span>,
     <span class="string">"messages"</span>:           <span class="string">"Annotated[List[BaseMessage], lambda x, y: x + y]"</span>,
@@ -191,7 +191,7 @@ Submit it using the submit_flag tool."</span></code></div>
         <h3>Pattern 1: Last Node Output</h3>
         <p>
             The simplest pattern. The final node in the pipeline produces the workflow&rsquo;s
-            output. Whatever it writes to GlobalState <em>is</em> the result.
+            output. Whatever it writes to shared state <em>is</em> the result.
         </p>
 
         <div class="code-block"><code><span class="comment"># The last node's output is the workflow result:</span>
@@ -254,111 +254,9 @@ result = model_with_output.invoke(messages)
 
 
         <!-- ============================================================== -->
-        <!-- 7.3 THE AGENTISH PIPELINE                                       -->
+        <!-- 7.3 DESIGN PRINCIPLES                                           -->
         <!-- ============================================================== -->
-        <h2>7.3 &mdash; The Agentish Pipeline</h2>
-
-        <p>
-            Here&rsquo;s how the complete Agentish pipeline works, from visual design to
-            running code:
-        </p>
-
-        <div class="code-block"><code><span class="comment"># 1. DESIGN — You draw the graph in the Agentish visual editor</span>
-   Canvas → Nodes + Edges + Configuration
-
-<span class="comment"># 2. EXPORT — Agentish serializes your graph to ASL JSON</span>
-   Canvas → <span class="string">workflow.json</span> (Agentish Specification Language)
-
-<span class="comment"># 3. COMPILE — The Agentish compiler generates Python code</span>
-   <span class="string">workflow.json</span> → <span class="string">workflow.py</span> (LangGraph + LangChain)
-
-<span class="comment"># 4. RUN — Execute the generated Python</span>
-   <span class="keyword">python</span> workflow.py
-   → LangGraph executes nodes per the compiled state graph
-   → Each node calls its LLM, uses its tools, writes to GlobalState
-   → Control flow follows edges (static) or router decisions (conditional)
-   → Result appears in GlobalState when the graph reaches END</code></div>
-
-        <h3>What the Compiler Generates</h3>
-
-        <p>
-            The compiled Python file contains these sections, in order:
-        </p>
-
-        <table class="doc-table">
-            <thead>
-                <tr><th>Section</th><th>Purpose</th><th>Generated From</th></tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Imports</td>
-                    <td>LangChain, LangGraph, operator, typing</td>
-                    <td>Always included</td>
-                </tr>
-                <tr>
-                    <td>Helper functions</td>
-                    <td><code>render_template()</code>, <code>init_chat_model()</code></td>
-                    <td>Always included</td>
-                </tr>
-                <tr>
-                    <td>GlobalState</td>
-                    <td>TypedDict with all fields and reducers</td>
-                    <td>State schema + node list</td>
-                </tr>
-                <tr>
-                    <td>Pydantic schemas</td>
-                    <td><code>RouterDecision</code>, structured output schemas</td>
-                    <td>Router nodes + structured output configs</td>
-                </tr>
-                <tr>
-                    <td>Tool functions</td>
-                    <td><code>@tool</code> decorated implementations</td>
-                    <td>Tools defined in ASL</td>
-                </tr>
-                <tr>
-                    <td>Worker tool wrappers</td>
-                    <td>Worker nodes exposed as tools</td>
-                    <td>Worker nodes (must come before model init)</td>
-                </tr>
-                <tr>
-                    <td>Model instances</td>
-                    <td><code>ChatOpenAI</code>, <code>ChatAnthropic</code>, etc.</td>
-                    <td>Node model configurations</td>
-                </tr>
-                <tr>
-                    <td>Tool registries</td>
-                    <td><code>tools_by_name_for_node_X</code> dicts</td>
-                    <td>Tool assignments per node</td>
-                </tr>
-                <tr>
-                    <td>Node functions</td>
-                    <td>LLM, Tool, Router, Worker nodes</td>
-                    <td>Each node in the graph</td>
-                </tr>
-                <tr>
-                    <td>Graph construction</td>
-                    <td><code>StateGraph</code> setup + <code>compile()</code></td>
-                    <td>Node list + entry point</td>
-                </tr>
-                <tr>
-                    <td>Main function</td>
-                    <td>Entry point with initial state</td>
-                    <td>Entry point config</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <div class="callout">
-            <strong>Order matters!</strong> Workers must be defined before models
-            (because models may bind worker tools). Schemas before node functions
-            (because nodes reference schemas). The compiler handles this automatically.
-        </div>
-
-
-        <!-- ============================================================== -->
-        <!-- 7.4 DESIGN PRINCIPLES                                           -->
-        <!-- ============================================================== -->
-        <h2>7.4 &mdash; Design Principles Recap</h2>
+        <h2>7.3 &mdash; Design Principles Recap</h2>
 
         <p>
             Across all seven chapters, a few principles have appeared repeatedly.
@@ -403,13 +301,12 @@ result = model_with_output.invoke(messages)
         <!-- ============================================================== -->
         <!-- 7.5 WHAT'S NEXT                                                 -->
         <!-- ============================================================== -->
-        <h2>7.5 &mdash; What&rsquo;s Next</h2>
+        <h2>7.4 &mdash; What&rsquo;s Next</h2>
 
         <ul class="features">
-            <li><strong>Try it yourself:</strong> Open the <a href="https://github.com/shellphish/agentish" target="_blank" rel="noopener">Agentish editor</a> and build the Security Alert Triage workflow from scratch.</li>
-            <li><strong>Explore examples:</strong> Check the <code>examples/</code> folder in the repository for more complete workflow definitions.</li>
-            <li><strong>Read the Agentish guide:</strong> The <a href="../docs-agentish.html">Agentish documentation</a> covers the visual editor, node types, and export/compile flow in detail.</li>
-            <li><strong>Join the iCTF:</strong> See the <a href="../docs-ictf-participants.html">iCTF Participants guide</a> to use Agentish in a live CTF competition.</li>
+            <li><strong>Try it yourself:</strong> Build the Security Alert Triage workflow from scratch using your preferred agentic framework.</li>
+            <li><strong>Read the Agentish guide:</strong> If you&rsquo;re using Agentish, the <a href="../agentish_framework/index.html">Agentish Framework guide</a> covers the visual editor, node types, state management, loops, logging, and troubleshooting.</li>
+            <li><strong>Join the iCTF:</strong> See the <a href="../docs-ictf-participants.html">iCTF Participants guide</a> to compete in a live agentic CTF competition.</li>
         </ul>
 
 
@@ -422,9 +319,7 @@ result = model_with_output.invoke(messages)
             <strong>Key Takeaways:</strong>
             <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
                 <li>A real workflow combines <strong>multiple topologies</strong>: pipeline + cycles, router + hierarchy, etc.</li>
-                <li>The Agentish pipeline: <strong>Design (visual) → Export (ASL JSON) → Compile (Python) → Run.</strong></li>
                 <li>Three output patterns: <strong>last node output</strong>, <strong>aggregation node</strong>, and <strong>structured final output</strong>.</li>
-                <li>Compiler output order matters: imports → helpers → state → schemas → tools → workers → models → nodes → graph.</li>
                 <li>Five design principles: start simple, one agent per job, explicit over implicit, defense in depth, optimize model selection.</li>
             </ul>
         </div>
@@ -433,8 +328,7 @@ result = model_with_output.invoke(messages)
             <strong>🎉 You&rsquo;ve completed the Agentic Workflow Guide.</strong>
             You now understand the foundations of multi-agent systems, how to configure
             agents, connect them into workflows, control execution, pass data between
-            them, handle errors, and produce structured output &mdash; all through
-            the lens of Agentish and LangGraph. Go build something.
+            them, handle errors, and produce structured output. Go build something.
         </div>
 
         <!-- Navigation -->

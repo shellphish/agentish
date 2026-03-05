@@ -28,6 +28,27 @@
             </p>
         </section>
 
+        <!-- Documentation Links -->
+        <h2>Essential Reading</h2>
+        <div class="card-grid">
+            <a href="agentish_framework/index.html" class="card">
+                <h3>Agentish Framework Guide</h3>
+                <p>
+                    Learn how to use the visual editor &mdash; node types, state management,
+                    loops, tools, and troubleshooting.
+                </p>
+                <span class="arrow">Read the practical guide &rarr;</span>
+            </a>
+            <a href="agentic_workflow/index.html" class="card">
+                <h3>Agentic Workflow Guide</h3>
+                <p>
+                    Understand the theory &mdash; why multi-agent workflows work, topology
+                    patterns, control flow, and information flow design.
+                </p>
+                <span class="arrow">Read the conceptual guide &rarr;</span>
+            </a>
+        </div>
+
         <!-- What is the iCTF -->
         <h2>What is the iCTF?</h2>
         <p>
@@ -175,7 +196,7 @@ $ CHALLENGISH_CONFIG_PATH=challengish.yml python backend/server_agentish.py --po
         <ul class="features">
             <li><strong>Agentish does NOT execute agents</strong> &mdash; It only creates workflow definitions. Execution happens in the sandbox.</li>
             <li><strong>Tool calls are HTTP requests</strong> &mdash; At execution time, your agent calls MCP tools over HTTP. Network issues may cause tool failures.</li>
-            <li><strong>LLM choice matters</strong> &mdash; Different models have different strengths. Consider the trade-off between speed and capability.</li>
+            <li><strong>Tool calls are over the network</strong> &mdash; At execution time, MCP tool calls are HTTP requests. Transient network issues may cause tool failures. Design your workflow to be resilient.</li>
             <li><strong>Bundle is self-contained</strong> &mdash; The exported ZIP has everything needed to compile and run your agent.</li>
         </ul>
     </main>

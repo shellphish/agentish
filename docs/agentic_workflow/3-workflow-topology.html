@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 3: Workflow Topology | Agentic Workflow | Agentish</title>
+    <title>Chapter 3: Workflow Topology | Agentic Workflow</title>
     <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
@@ -167,77 +167,12 @@
             </p>
         </div>
 
-        <h3>In Agentish</h3>
         <p>
-            Create three LLM Nodes and connect them with <strong>NormalEdge</strong> connections.
-            A NormalEdge means &ldquo;after this node finishes, always go to the connected node.&rdquo;
-            No conditions, no branching.
+            In a pipeline, each connection is a <strong>direct edge</strong> &mdash; &ldquo;after this
+            node finishes, always go to the connected node.&rdquo; No conditions, no branching.
         </p>
 
-        <img src="images/ch3_pipeline.png" alt="Pipeline topology — EntryPoint → Classifier → Investigator → Responder connected with NormalEdge" class="illustration img-ch3-pipeline">
-
-        <div class="example-box">
-            <div class="example-label">ASL — 3-Node Pipeline with NormalEdge Connections</div>
-            <div class="code-block"><code>{
-  "graph": {
-    "entrypoint": "1",
-    "state": {
-      "schema": {
-        "alert_content": "str",
-        "classification": "str",
-        "investigation": "str",
-        "response_action": "str"
-      }
-    },
-    "nodes": [
-      {
-        "id": "1", "type": "EntryPoint", "label": "EntryPoint",
-        "config": { "title": "Entry Node", "initial_state": {} }
-      },
-      {
-        "id": "2", "type": "LLMNode", "label": "Classifier",
-        "config": {
-          "title": "Classifier",
-          "system_prompt": "Classify the alert by category and severity.",
-          "human_prompt": "Classify this alert: {alert_content}",
-          "selected_tools": [],
-          "max_tool_iterations": 30
-        }
-      },
-      {
-        "id": "3", "type": "LLMNode", "label": "Investigator",
-        "config": {
-          "title": "Investigator",
-          "system_prompt": "Investigate the classified alert. Gather evidence.",
-          "human_prompt": "Investigation target: {alert_content}\nClassification: {classification}",
-          "selected_tools": ["check_ip", "search_logs", "check_hash"],
-          "max_tool_iterations": 15
-        }
-      },
-      {
-        "id": "4", "type": "LLMNode", "label": "Responder",
-        "config": {
-          "title": "Responder",
-          "system_prompt": "Based on the investigation, take appropriate action.",
-          "human_prompt": "Investigation results: {investigation}",
-          "selected_tools": ["block_ip", "create_ticket"],
-          "max_tool_iterations": 10
-        }
-      }
-    ],
-    "edges": [
-      { "from": "1", "to": "2", "type": "NormalEdge" },
-      { "from": "2", "to": "3", "type": "NormalEdge" },
-      { "from": "3", "to": "4", "type": "NormalEdge" }
-    ]
-  }
-}</code></div>
-            <p>
-                Every edge is a <code>NormalEdge</code> — &ldquo;when this node finishes, always
-                go to the next.&rdquo; No conditions, no branching. Entry → Classifier →
-                Investigator → Responder.
-            </p>
-        </div>
+        <img src="images/ch3_pipeline.png" alt="Pipeline topology — Entry → Classifier → Investigator → Responder" class="illustration img-ch3-pipeline">
 
 
         <!-- ============================================================== -->
@@ -298,11 +233,10 @@
             </p>
         </div>
 
-        <h3>In Agentish</h3>
         <p>
-            Connect one node&rsquo;s output to multiple downstream nodes using NormalEdge connections.
-            Then connect all downstream nodes to a single merge node. The merge node sees all
-            outputs in the shared GlobalState.
+            To implement fan-out, connect one node&rsquo;s output to multiple downstream nodes
+            using direct edges. Then connect all downstream nodes to a single merge node.
+            The merge node sees all outputs in the shared state.
         </p>
 
 
@@ -346,7 +280,7 @@
 
         <div class="code-block"><code><span class="comment"># What the Router Node does internally:</span>
 
-1. Reads the conversation history from GlobalState
+1. Reads the conversation history from the shared state
 2. Receives a system prompt describing routing criteria
 3. Sees a list of available targets:
    <span class="string">- llm_4_node: "Malware Agent" (LLMNode)</span>
@@ -358,13 +292,13 @@
      <span class="string">"reason"</span>: <span class="string">"Alert mentions suspicious binary download
                   and PE file execution, indicating malware"</span>
    }
-5. Agentish validates the choice against available targets
+5. The system validates the choice against available targets
 6. Execution continues at the chosen node</code></div>
 
         <p>
-            The decision is validated &mdash; if the LLM returns a target that doesn&rsquo;t exist,
-            Agentish falls back to the first available target. The <code>reason</code> field is
-            stored in the GlobalState for debugging and audit trails.
+            The decision should be validated &mdash; if the LLM returns a target that doesn&rsquo;t exist,
+            the system should fall back to a safe default. The <code>reason</code> field is
+            stored in the shared state for debugging and audit trails.
         </p>
 
         <div class="example-box">
@@ -393,73 +327,13 @@
 <span class="comment"># Only the Malware Handler runs. The other two are skipped.</span></code></div>
         </div>
 
-        <h3>In Agentish</h3>
         <p>
-            Add a <strong>Router Node</strong> and connect it to downstream nodes using
-            <strong>ConditionalEdge</strong> connections. The Router Node appears in the
-            editor with a distinct visual style. Each ConditionalEdge represents one
-            possible routing target.
+            A Router Node is connected to downstream nodes using <strong>conditional edges</strong>.
+            Each conditional edge represents one possible routing target. At runtime,
+            the router&rsquo;s LLM picks one value, and only that branch executes.
         </p>
 
-        <img src="images/ch3_router.png" alt="Router topology — Category Router with ConditionalEdge fan-out to Malware Handler, Intrusion Handler, and Misconfig Handler" class="illustration img-ch3-router">
-
-        <div class="example-box">
-            <div class="example-label">ASL — Router Node with ConditionalEdge Connections</div>
-            <div class="code-block"><code>{
-  "nodes": [
-    {
-      "id": "3", "type": "RouterBlock", "label": "Category Router",
-      "config": {
-        "title": "Category Router",
-        "input_state_keys": ["classification"],
-        "system_prompt": "Based on the alert classification, route to the appropriate specialist handler.\n\n- 'malware': suspicious binaries, PE files, shellcode\n- 'intrusion': unauthorized access, brute-force, lateral movement\n- 'misconfiguration': open ports, weak credentials, policy violations",
-        "router_values": ["malware", "intrusion", "misconfiguration"]
-      }
-    },
-    {
-      "id": "4", "type": "LLMNode", "label": "Malware Handler",
-      "config": {
-        "title": "Malware Handler",
-        "system_prompt": "You are a malware analysis specialist...",
-        "human_prompt": "Analyze this malware alert: {alert_content}",
-        "selected_tools": ["decompile", "check_hash", "run_sandbox"],
-        "max_tool_iterations": 20
-      }
-    },
-    {
-      "id": "5", "type": "LLMNode", "label": "Intrusion Handler",
-      "config": {
-        "title": "Intrusion Handler",
-        "system_prompt": "You are a network intrusion analyst...",
-        "human_prompt": "Investigate this intrusion alert: {alert_content}",
-        "selected_tools": ["check_ip", "search_logs"],
-        "max_tool_iterations": 15
-      }
-    },
-    {
-      "id": "6", "type": "LLMNode", "label": "Misconfiguration Handler",
-      "config": {
-        "title": "Misconfiguration Handler",
-        "system_prompt": "You are an infrastructure security analyst...",
-        "human_prompt": "Assess this misconfiguration alert: {alert_content}",
-        "selected_tools": ["check_config", "scan_ports"],
-        "max_tool_iterations": 10
-      }
-    }
-  ],
-  "edges": [
-    <span class="comment">// ConditionalEdge — router picks exactly one target</span>
-    { "from": "3", "to": "4", "type": "ConditionalEdge", "condition": "malware" },
-    { "from": "3", "to": "5", "type": "ConditionalEdge", "condition": "intrusion" },
-    { "from": "3", "to": "6", "type": "ConditionalEdge", "condition": "misconfiguration" }
-  ]
-}</code></div>
-            <p>
-                The <code>router_values</code> in the Router Node config list the possible outputs.
-                Each <code>ConditionalEdge</code> has a <code>condition</code> field matching one of those
-                values. At runtime, the router's LLM picks one value, and only that branch executes.
-            </p>
-        </div>
+        <img src="images/ch3_router.png" alt="Router topology — Category Router with conditional edges to Malware Handler, Intrusion Handler, and Misconfig Handler" class="illustration img-ch3-router">
 
 
         <!-- ============================================================== -->
@@ -552,37 +426,38 @@
             </p>
         </div>
 
-        <h3>In Agentish: Worker Nodes</h3>
+        <h3>Workers vs. Regular Agents</h3>
 
         <p>
-            Agentish has a dedicated <strong>Worker Node</strong> type for this pattern.
-            Workers differ from LLM Nodes in important ways:
+            Many frameworks distinguish between regular agents (which route forward
+            in the graph) and workers (which return results to their caller). The
+            key differences:
         </p>
 
         <table class="doc-table">
             <thead>
-                <tr><th>Aspect</th><th>LLM Node</th><th>Worker Node</th></tr>
+                <tr><th>Aspect</th><th>Regular Agent</th><th>Worker</th></tr>
             </thead>
             <tbody>
                 <tr>
-                    <td><strong>Compiled as</strong></td>
-                    <td>A graph node (part of the state graph)</td>
-                    <td>A <code>@tool</code> decorated function (called by the LLM)</td>
+                    <td><strong>Role in graph</strong></td>
+                    <td>A full graph node (part of the execution flow)</td>
+                    <td>A callable sub-agent (invoked as a tool by another agent)</td>
                 </tr>
                 <tr>
                     <td><strong>Routing</strong></td>
                     <td>Routes to next node in the graph</td>
-                    <td>Returns result to the calling LLM Node</td>
+                    <td>Returns result to the calling agent</td>
                 </tr>
                 <tr>
                     <td><strong>State access</strong></td>
-                    <td>Reads from and writes to GlobalState</td>
-                    <td>Does NOT update GlobalState directly</td>
+                    <td>Reads from and writes to shared state</td>
+                    <td>Typically does NOT update shared state directly</td>
                 </tr>
                 <tr>
                     <td><strong>Output format</strong></td>
                     <td>Flexible (text, structured output)</td>
-                    <td>Fixed: <code>{"result": str, "success": bool}</code></td>
+                    <td>Structured result returned to caller</td>
                 </tr>
             </tbody>
         </table>
@@ -631,6 +506,17 @@
             </ul>
             We cover termination in depth in <a href="4-control-flow.html">Chapter 4</a>
             and <a href="6-validation.html">Chapter 6</a>.
+        </div>
+
+        <div class="callout callout-key">
+            <strong>Loop history management:</strong> When an agent is re-entered via a loop,
+            you need to decide how its conversation history is managed:
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li><strong>Fresh</strong> &mdash; restarts conversation from scratch each iteration (avoids context bloat)</li>
+                <li><strong>Continue</strong> &mdash; extends accumulated history each iteration (preserves memory of prior attempts)</li>
+            </ul>
+            A feedback variable (e.g., the evaluator&rsquo;s reasoning for looping back) can
+            inject new context on each re-entry, guiding the agent toward a different approach.
         </div>
 
         <div class="example-box">
@@ -689,134 +575,23 @@
         </div>
 
 
-        <!-- ============================================================== -->
-        <!-- AGENTISH MAPPING                                                -->
-        <!-- ============================================================== -->
-        <h2>Mapping to Agentish: Summary</h2>
+        <h3>Implementation Summary</h3>
 
         <table class="doc-table">
             <thead>
-                <tr><th>Topology</th><th>Agentish Implementation</th><th>Edge Type</th></tr>
+                <tr><th>Topology</th><th>Implementation</th><th>Edge Type</th></tr>
             </thead>
             <tbody>
-                <tr><td>Single Agent</td><td>One <strong>Entry Point</strong> → one <strong>LLM Node</strong></td><td>NormalEdge</td></tr>
-                <tr><td>Pipeline</td><td>LLM Nodes in sequence</td><td>NormalEdge</td></tr>
-                <tr><td>Fan-out / Fan-in</td><td>One node → multiple NormalEdges → merge node</td><td>NormalEdge</td></tr>
-                <tr><td>Router</td><td><strong>Router Node</strong> → multiple targets</td><td>ConditionalEdge</td></tr>
-                <tr><td>Hierarchy</td><td>LLM Node + <strong>Worker Nodes</strong></td><td>Workers are <code>@tool</code> functions, not edges</td></tr>
-                <tr><td>Cyclic</td><td>Edges that loop back; controlled by iteration limits or router</td><td>NormalEdge (back-edge) or ConditionalEdge</td></tr>
+                <tr><td>Single Agent</td><td>Entry point &rarr; one agent</td><td>Direct edge</td></tr>
+                <tr><td>Pipeline</td><td>Agents in sequence</td><td>Direct edge</td></tr>
+                <tr><td>Fan-out / Fan-in</td><td>One node &rarr; multiple direct edges &rarr; merge node</td><td>Direct edge</td></tr>
+                <tr><td>Router</td><td>Router node &rarr; multiple targets</td><td>Conditional edge</td></tr>
+                <tr><td>Hierarchy</td><td>Coordinator agent + worker sub-agents</td><td>Workers are callable functions, not edges</td></tr>
+                <tr><td>Cyclic</td><td>Edges that loop back; controlled by iteration limits or router</td><td>Direct (back-edge) or conditional edge</td></tr>
             </tbody>
         </table>
 
-        <p>
-            In Agentish, you build these topologies visually: right-click the canvas to
-            add nodes, drag from output slots to input slots to create edges. The graph
-            shape you draw <em>is</em> the topology.
-        </p>
-
         <img src="images/ch3_combined_topology.png" alt="Combined topology — full security triage workflow with pipeline, router fan-out, and fan-in sections" class="illustration img-ch3-combined-topology">
-
-        <div class="example-box">
-            <div class="example-label">ASL — Full Security Triage (Pipeline + Router Combined)</div>
-            <div class="code-block"><code>{
-  "graph": {
-    "entrypoint": "1",
-    "state": {
-      "schema": {
-        "alert_content": "str",
-        "classification": "str",
-        "investigation": "str",
-        "response_action": "str"
-      }
-    },
-    "nodes": [
-      {
-        "id": "1", "type": "EntryPoint", "label": "EntryPoint",
-        "config": { "title": "Entry Node", "initial_state": {} }
-      },
-      {
-        "id": "2", "type": "LLMNode", "label": "Classifier",
-        "config": {
-          "title": "Classifier",
-          "system_prompt": "Classify the security alert by category and severity.",
-          "human_prompt": "Classify: {alert_content}",
-          "selected_tools": [],
-          "max_tool_iterations": 30
-        }
-      },
-      {
-        "id": "3", "type": "RouterBlock", "label": "Category Router",
-        "config": {
-          "title": "Category Router",
-          "system_prompt": "Route the classified alert to the correct specialist.",
-          "router_values": ["malware", "intrusion", "misconfiguration"]
-        }
-      },
-      {
-        "id": "4", "type": "LLMNode", "label": "Malware Handler",
-        "config": {
-          "title": "Malware Handler",
-          "system_prompt": "Analyze malware alerts. Decompile suspicious binaries, check hashes.",
-          "human_prompt": "Malware alert: {alert_content}\nClassification: {classification}",
-          "selected_tools": ["decompile", "check_hash", "run_sandbox"],
-          "max_tool_iterations": 20
-        }
-      },
-      {
-        "id": "5", "type": "LLMNode", "label": "Intrusion Handler",
-        "config": {
-          "title": "Intrusion Handler",
-          "system_prompt": "Investigate intrusion alerts. Check IPs, search logs for lateral movement.",
-          "human_prompt": "Intrusion alert: {alert_content}\nClassification: {classification}",
-          "selected_tools": ["check_ip", "search_logs"],
-          "max_tool_iterations": 15
-        }
-      },
-      {
-        "id": "6", "type": "LLMNode", "label": "Misconfiguration Handler",
-        "config": {
-          "title": "Misconfiguration Handler",
-          "system_prompt": "Assess misconfigurations. Scan ports, review security policies.",
-          "human_prompt": "Misconfiguration alert: {alert_content}\nClassification: {classification}",
-          "selected_tools": ["check_config", "scan_ports"],
-          "max_tool_iterations": 10
-        }
-      },
-      {
-        "id": "7", "type": "LLMNode", "label": "Responder",
-        "config": {
-          "title": "Responder",
-          "system_prompt": "Based on the investigation, take appropriate response action.",
-          "human_prompt": "Investigation results: {investigation}\nTake action.",
-          "selected_tools": ["block_ip", "quarantine", "create_ticket"],
-          "max_tool_iterations": 10
-        }
-      }
-    ],
-    "edges": [
-      <span class="comment">// Pipeline: Entry → Classifier → Router</span>
-      { "from": "1", "to": "2", "type": "NormalEdge" },
-      { "from": "2", "to": "3", "type": "NormalEdge" },
-
-      <span class="comment">// Router: one branch activates</span>
-      { "from": "3", "to": "4", "type": "ConditionalEdge", "condition": "malware" },
-      { "from": "3", "to": "5", "type": "ConditionalEdge", "condition": "intrusion" },
-      { "from": "3", "to": "6", "type": "ConditionalEdge", "condition": "misconfiguration" },
-
-      <span class="comment">// Pipeline resumes: all handlers → Responder</span>
-      { "from": "4", "to": "7", "type": "NormalEdge" },
-      { "from": "5", "to": "7", "type": "NormalEdge" },
-      { "from": "6", "to": "7", "type": "NormalEdge" }
-    ]
-  }
-}</code></div>
-            <p>
-                The complete running example: a <strong>Pipeline</strong> (Entry → Classifier → Router →
-                … → Responder) combined with a <strong>Router</strong> that dispatches to one of three specialist
-                handlers. <code>NormalEdge</code> for static flow, <code>ConditionalEdge</code> for branching.
-                All seven nodes, all edge types, one coherent workflow.
-            </p>
-        </div>
 
 
         <!-- ============================================================== -->
@@ -855,7 +630,7 @@
                 <li>There are <strong>six canonical topologies</strong>: Single Agent, Pipeline, Fan-out/Fan-in, Router, Hierarchy, and Cyclic.</li>
                 <li>Real systems <strong>combine</strong> topologies (e.g., Pipeline + Router).</li>
                 <li><strong>Router = one branch runs.</strong> Fan-out = all branches run.</li>
-                <li><strong>Workers</strong> are <code>@tool</code> functions that return results to the caller. <strong>LLM Nodes</strong> route forward in the graph.</li>
+                <li><strong>Workers</strong> return results to the calling agent. <strong>Regular agents</strong> route forward in the graph.</li>
                 <li>Cyclic topologies require <strong>termination logic</strong> (max iterations, success detection).</li>
                 <li>Start simple. Add complexity only when needed.</li>
             </ul>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 10: Logging &amp; Observability | Agentish Framework</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentish Framework Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 10</span> Logging &amp; Observability</h1>
+            <p class="tagline">Understanding what your agent did</p>
+        </section>
+
+        <p>
+            When your agent runs in the sandbox, you need to understand what happened: which
+            nodes executed, what the LLM thought, which tools were called, and where things
+            went wrong (if they did). Agentish provides two channels for this: the
+            <strong>sandbox execution log</strong> and <strong>Langfuse</strong>.
+        </p>
+
+        <!-- Sandbox Execution Log -->
+        <h2>Sandbox Execution Log</h2>
+        <p>
+            When you submit a bundle to the sandbox, the execution page streams real-time
+            logs from your agent. These include:
+        </p>
+        <ul class="features">
+            <li><strong>Node transitions</strong> &mdash; which node is currently executing.</li>
+            <li><strong>Tool calls</strong> &mdash; when the LLM calls a tool, the arguments, and the response.</li>
+            <li><strong>Final state</strong> &mdash; the complete global state after execution finishes.</li>
+            <li><strong>Errors</strong> &mdash; any compilation or runtime errors.</li>
+        </ul>
+        <p>
+            The final state is your most valuable debugging artifact. Read it to see exactly
+            what each agent produced (see <a href="8-state.html">Chapter 8: State</a>).
+        </p>
+
+        <!-- Langfuse -->
+        <h2>Langfuse</h2>
+        <p>
+            <a href="https://langfuse.com" target="_blank" rel="noopener">Langfuse</a> is an
+            open-source LLM observability platform. It captures detailed traces of every LLM
+            call your agent makes, giving you a structured view of the entire execution.
+        </p>
+
+        <div class="callout callout-key">
+            <strong>Access:</strong> During the competition, you will be provided with a
+            <strong>Langfuse portal link</strong> and <strong>credentials</strong>. These will
+            be shared with your team along with the challenge materials.
+        </div>
+
+        <h3>What Langfuse Shows You</h3>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Feature</th><th>What It Shows</th><th>Why It&rsquo;s Useful</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Traces</strong></td>
+                    <td>A timeline of your agent&rsquo;s execution from start to finish.</td>
+                    <td>See the big picture: which nodes ran, in what order, and how long each took.</td>
+                </tr>
+                <tr>
+                    <td><strong>Spans</strong></td>
+                    <td>Individual LLM calls within each node, with full input/output.</td>
+                    <td>See exactly what the LLM received (system prompt + messages) and what it produced.</td>
+                </tr>
+                <tr>
+                    <td><strong>Tool calls</strong></td>
+                    <td>Which tools were called, with what arguments, and what was returned.</td>
+                    <td>Verify that tools returned correct data. Spot tool failures.</td>
+                </tr>
+                <tr>
+                    <td><strong>Token usage</strong></td>
+                    <td>Input and output tokens per LLM call.</td>
+                    <td>Identify context window issues (input too long) or unexpected verbosity.</td>
+                </tr>
+                <tr>
+                    <td><strong>Latency</strong></td>
+                    <td>Time spent on each operation.</td>
+                    <td>Find slow nodes or slow tool calls that could be optimized.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>How to Read a Langfuse Trace</h3>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;"><strong>Start at the top-level trace</strong> to see the overall execution timeline.</li>
+            <li style="padding-left: 0.5rem;"><strong>Click into a span</strong> to see the full LLM conversation (messages sent and received).</li>
+            <li style="padding-left: 0.5rem;"><strong>Look at tool call spans</strong> to verify tool arguments and responses.</li>
+            <li style="padding-left: 0.5rem;"><strong>Check token counts</strong> &mdash; if input tokens are near the model&rsquo;s context limit, the LLM may be losing earlier information.</li>
+        </ol>
+
+        <!-- Debugging Workflow -->
+        <h2>Debugging Workflow</h2>
+        <p>
+            When your agent doesn&rsquo;t produce the right result, follow this process:
+        </p>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;"><strong>Read the final state</strong> in the sandbox log. Which variables have unexpected values?</li>
+            <li style="padding-left: 0.5rem;"><strong>Open Langfuse</strong> and find the trace for your run.</li>
+            <li style="padding-left: 0.5rem;"><strong>Trace the problem backwards.</strong> If <code>final_report</code> is wrong, look at the Finalizer&rsquo;s LLM call. Was its input (<code>analysis_result</code>) correct?</li>
+            <li style="padding-left: 0.5rem;"><strong>Go upstream.</strong> If the input was wrong, look at the node that produced it. Check its LLM conversation and tool calls.</li>
+            <li style="padding-left: 0.5rem;"><strong>Fix and re-submit.</strong> Adjust prompts, state keys, or topology based on what you found.</li>
+        </ol>
+
+        <!-- Summary -->
+        <h2>Chapter Summary</h2>
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>The sandbox streams execution logs with node transitions, tool calls, and final state.</li>
+                <li>Langfuse provides detailed LLM traces &mdash; full conversations, tool calls, token usage, and timing.</li>
+                <li>Langfuse credentials will be provided to you during the competition.</li>
+                <li>Debug by reading the final state first, then tracing problems backwards through Langfuse spans.</li>
+            </ul>
+        </div>
+
+        <div class="chapter-nav">
+            <a href="9-tools.html" class="chapter-nav-prev">&larr; Chapter 9: Tools</a>
+            <a href="11-troubleshooting.html" class="chapter-nav-next">Chapter 11: Troubleshooting &rarr;</a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

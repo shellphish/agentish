@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 8: State | Agentish Framework</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentish Framework Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 8</span> State</h1>
+            <p class="tagline">The most important concept in Agentish</p>
+        </section>
+
+        <div class="callout callout-key">
+            <strong>State is everything.</strong> Every piece of data in your workflow lives in the
+            global state. Agents communicate through state. You can understand exactly what
+            happened in a workflow run by looking at the final state. If you master state,
+            you master Agentish.
+        </div>
+
+        <div class="callout">
+            <strong>Deep dive:</strong> For the theory behind shared-state architectures, reducers,
+            and information flow patterns, see
+            <a href="../agentic_workflow/5-information-flow.html">Agentic Workflow &mdash; Chapter 5: Information Flow</a>.
+        </div>
+
+        <!-- What is State -->
+        <h2>What is State?</h2>
+        <p>
+            The global state is a <strong>single shared data store</strong> that every node
+            in your workflow can read from and write to. It&rsquo;s defined as a Python
+            <code>TypedDict</code> with typed fields. There is no per-agent private state &mdash;
+            everything goes through the global state.
+        </p>
+        <p>
+            Think of it as a shared whiteboard: each agent reads what it needs from the board,
+            does its work, and writes its results back. The next agent reads those results
+            and continues.
+        </p>
+
+        <!-- How Agents Use State -->
+        <h2>How Agents Communicate Through State</h2>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;"><strong>Read:</strong> An LLM Node declares which state variables it needs via <strong>Input State</strong> checkboxes. These values are injected into the prompt via template variables.</li>
+            <li style="padding-left: 0.5rem;"><strong>Process:</strong> The LLM reasons about the input and produces structured output.</li>
+            <li style="padding-left: 0.5rem;"><strong>Write:</strong> The structured output fields are written to the state variables declared in <strong>Global state to update</strong>.</li>
+        </ol>
+
+        <div class="example-box">
+            <div class="example-label">Example: Data Flow Between Two Nodes</div>
+            <div class="code-block"><code><span class="comment"># Node A: Analyzer</span>
+Input State: []                         <span class="comment"># Reads nothing (first node)</span>
+Output State: [analysis_result]         <span class="comment"># Writes analysis_result</span>
+
+<span class="comment"># After Node A runs, state contains:</span>
+{ analysis_result: "Found XOR cipher in decrypt_flag function..." }
+
+<span class="comment"># Node B: Reporter</span>
+Input State: [analysis_result]          <span class="comment"># Reads analysis_result</span>
+Human Prompt: "Write a report: {analysis_result}"
+Output State: [final_report]            <span class="comment"># Writes final_report</span>
+
+<span class="comment"># Node B's LLM receives:</span>
+<span class="comment"># "Write a report: Found XOR cipher in decrypt_flag function..."</span></code></div>
+        </div>
+
+        <!-- Data Types -->
+        <h2>Data Types Reference</h2>
+        <p>
+            When defining state variables in the Entry Point, you choose a type for each one.
+            The type determines how values are stored and merged.
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Type</th><th>Python Type</th><th>Merge Behavior</th><th>When to Use</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong><code>str</code></strong></td>
+                    <td><code>str</code></td>
+                    <td><strong>Last-write-wins.</strong> If two nodes write to the same <code>str</code> variable, the later write replaces the earlier one.</td>
+                    <td>Most common type. Use for analysis results, reports, reasons, flags, any text output.</td>
+                </tr>
+                <tr>
+                    <td><strong><code>int</code></strong></td>
+                    <td><code>int</code></td>
+                    <td><strong>Last-write-wins.</strong></td>
+                    <td>Counters, scores, numeric identifiers. The built-in <code>count</code> variable uses this type.</td>
+                </tr>
+                <tr>
+                    <td><strong><code>float</code></strong></td>
+                    <td><code>float</code></td>
+                    <td><strong>Last-write-wins.</strong></td>
+                    <td>Confidence scores, probabilities, thresholds.</td>
+                </tr>
+                <tr>
+                    <td><strong><code>Annotated[List[BaseMessage], ...]</code></strong></td>
+                    <td><code>List[BaseMessage]</code></td>
+                    <td><strong>Append reducer.</strong> New messages are appended to the existing list. Messages are never overwritten or deleted &mdash; only added to.</td>
+                    <td>The built-in <code>messages</code> variable uses this type. You generally don&rsquo;t define new variables with this type.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="callout callout-warning">
+            <strong>Last-write-wins matters.</strong> If you have a fan-out topology where two
+            nodes write to the same <code>str</code> variable, only one value survives. Design
+            your state schema so that each variable is written by exactly one node, or use
+            separate variables.
+        </div>
+
+        <!-- Built-in vs User Variables -->
+        <h2>Built-in vs User-Defined Variables</h2>
+
+        <h3>Built-in (Automatic)</h3>
+        <p>You don&rsquo;t define these &mdash; they exist in every workflow:</p>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Variable</th><th>Type</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>count</code></td>
+                    <td><code>int</code></td>
+                    <td>Incremented by each node execution. Tracks how many nodes have run.</td>
+                </tr>
+                <tr>
+                    <td><code>messages</code></td>
+                    <td><code>Annotated[List[BaseMessage], ...]</code></td>
+                    <td>Global message log. Every node appends its conversation (system, human, AI, tool messages). This is the full trace of everything that happened.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Auto-Generated Per Node</h3>
+        <p>
+            The compiler creates additional variables for internal tracking. You don&rsquo;t
+            define or interact with these directly, but they appear in the final state:
+        </p>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Pattern</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>node_&lt;id&gt;_messages</code></td>
+                    <td>Per-node conversation history. Used for tool loop context.</td>
+                </tr>
+                <tr>
+                    <td><code>node_&lt;id&gt;_tool_iteration_count</code></td>
+                    <td>How many tool calls this node has made so far.</td>
+                </tr>
+                <tr>
+                    <td><code>node_&lt;id&gt;_pass_start</code></td>
+                    <td>For fresh-mode loop nodes: index where the current pass began in the message list.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>User-Defined</h3>
+        <p>
+            These are the variables you define in the Entry Point&rsquo;s Initial State table.
+            They are the primary mechanism for passing data between agents.
+        </p>
+
+        <!-- Reading State After Execution -->
+        <h2>Reading State After Execution</h2>
+        <p>
+            After your agent finishes running in the sandbox, the final state is returned.
+            You can read it to understand exactly what happened:
+        </p>
+        <ul class="features">
+            <li><strong>User-defined variables</strong> show what each agent produced (analysis results, reports, decisions).</li>
+            <li><strong><code>messages</code></strong> is the complete conversation log &mdash; every system prompt, human message, AI response, and tool call/result, in order.</li>
+            <li><strong><code>count</code></strong> tells you how many node executions occurred (useful for detecting loops that ran too many times).</li>
+        </ul>
+
+        <div class="callout callout-key">
+            <strong>Debugging tip:</strong> If your workflow produced the wrong result,
+            look at <code>messages</code> first. It shows the full chain of reasoning
+            and tool calls. You can trace exactly where the LLM went wrong &mdash; was it
+            a bad tool call? A misinterpretation of data? A routing mistake?
+        </div>
+
+        <!-- State Schema Design Tips -->
+        <h2>State Schema Design Tips</h2>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Tip</th><th>Why</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Use descriptive variable names.</td>
+                    <td><code>analysis_result</code> is better than <code>data</code>. LLMs understand what to produce when the variable name is clear.</td>
+                </tr>
+                <tr>
+                    <td>One writer per variable.</td>
+                    <td>Avoid having two nodes write to the same <code>str</code> variable. Last-write-wins means you lose data.</td>
+                </tr>
+                <tr>
+                    <td>Use <code>str</code> for most things.</td>
+                    <td>LLMs produce text. Unless you specifically need a number, <code>str</code> is the safest and most flexible type.</td>
+                </tr>
+                <tr>
+                    <td>Include a routing_reason variable for loops.</td>
+                    <td>Lets the Router communicate <em>why</em> it sent execution back. Critical for meaningful loop iterations.</td>
+                </tr>
+                <tr>
+                    <td>Keep the schema small.</td>
+                    <td>Every variable adds to the state. Only define variables you actually use.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Summary -->
+        <h2>Chapter Summary</h2>
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>State is the single shared data store for the entire workflow.</li>
+                <li>Agents communicate by reading from and writing to state variables.</li>
+                <li>Most variables use <code>str</code> type (last-write-wins). <code>messages</code> uses append-only semantics.</li>
+                <li>The final state is your window into what happened &mdash; read <code>messages</code> to trace the full execution.</li>
+                <li>Design state schemas with descriptive names, one writer per variable, and only the variables you need.</li>
+            </ul>
+        </div>
+
+        <div class="chapter-nav">
+            <a href="7-loops.html" class="chapter-nav-prev">&larr; Chapter 7: Loops</a>
+            <a href="9-tools.html" class="chapter-nav-next">Chapter 9: Tools &rarr;</a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

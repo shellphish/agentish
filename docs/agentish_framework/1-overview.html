@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 1: Overview | Agentish Framework</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentish Framework Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 1</span> Overview</h1>
+            <p class="tagline">What is Agentish and how does it work?</p>
+        </section>
+
+        <!-- What is Agentish -->
+        <h2>What is Agentish?</h2>
+        <p>
+            Agentish is a <strong>visual workflow editor</strong> for building autonomous AI agents.
+            You design your agent workflow by placing nodes on a canvas and connecting them with
+            edges &mdash; no code required. When you&rsquo;re done, Agentish exports your design
+            as a bundle that gets compiled into executable Python code.
+        </p>
+
+        <div class="callout callout-key">
+            <strong>Key point:</strong> Agentish does <em>not</em> execute agents. It creates
+            workflow definitions. Execution happens in the agentish-ctf sandbox, which compiles
+            your workflow and runs it against challenge environments.
+        </div>
+
+        <!-- What is a Workflow -->
+        <h2>What is a Workflow?</h2>
+        <p>
+            A workflow is a <strong>directed graph</strong> of AI agents working together.
+            Each agent (node) has a specific role &mdash; one might analyze data, another
+            might make routing decisions, another might perform specialized tasks with tools.
+            Edges define the execution order: after one agent finishes, execution flows to the next.
+        </p>
+        <p>
+            Think of it as an assembly line where each station is an LLM with its own
+            instructions and capabilities, and the product (state) moves from station to station.
+        </p>
+
+        <div class="callout">
+            <strong>Want the theory?</strong> For a deep dive into why multi-agent workflows
+            exist and how to reason about their design, see
+            <a href="../agentic_workflow/1-foundations.html">Agentic Workflow &mdash; Chapter 1: Foundations</a>.
+        </div>
+
+        <!-- The Four Node Types -->
+        <h2>The Four Node Types</h2>
+        <p>
+            Every Agentish workflow is built from exactly four types of nodes:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Node</th><th>Purpose</th><th>Quick Rule</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Entry Point</strong></td>
+                    <td>Where execution begins. Defines the global state schema.</td>
+                    <td>Exactly one per workflow.</td>
+                </tr>
+                <tr>
+                    <td><strong>LLM Node</strong></td>
+                    <td>An AI agent that reasons, generates text, and optionally calls tools.</td>
+                    <td>At least one must have no outgoing edge (terminal node).</td>
+                </tr>
+                <tr>
+                    <td><strong>Router Node</strong></td>
+                    <td>An LLM-powered switch that sends execution down one of N paths.</td>
+                    <td>Must have at least 2 outgoing edges.</td>
+                </tr>
+                <tr>
+                    <td><strong>Worker Node</strong></td>
+                    <td>A subtask agent that executes tools and returns results to an LLM node.</td>
+                    <td>Must be connected to at least one LLM node.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>
+            Each node type is covered in detail in its own chapter
+            (<a href="2-entry-point.html">Ch 2</a>&ndash;<a href="5-worker-node.html">Ch 5</a>).
+        </p>
+
+        <!-- The Visual Editor -->
+        <h2>The Visual Editor</h2>
+        <p>
+            The Agentish editor is a browser-based canvas powered by the LiteGraph library.
+            Here&rsquo;s how you interact with it:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Action</th><th>How</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Add a node</strong></td>
+                    <td>Right-click on the canvas &rarr; select a node type from the menu.</td>
+                </tr>
+                <tr>
+                    <td><strong>Connect nodes</strong></td>
+                    <td>Click and drag from an output slot (right side) to an input slot (left side) of another node.</td>
+                </tr>
+                <tr>
+                    <td><strong>Configure a node</strong></td>
+                    <td>Click on a node to open its property inspector in the right panel.</td>
+                </tr>
+                <tr>
+                    <td><strong>Delete a node or edge</strong></td>
+                    <td>Select it and press <code>Delete</code> or <code>Backspace</code>.</td>
+                </tr>
+                <tr>
+                    <td><strong>Pan the canvas</strong></td>
+                    <td>Click and drag on empty space, or use the scroll wheel.</td>
+                </tr>
+                <tr>
+                    <td><strong>Zoom</strong></td>
+                    <td>Scroll wheel or pinch gesture.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- The Pipeline -->
+        <h2>The Pipeline: Design &rarr; Export &rarr; Compile &rarr; Run</h2>
+
+        <div class="code-block"><code>  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+  │   Visual    │      │   Bundle    │      │  Compiler   │      │   Runner    │
+  │   Editor    │─────▶│  (ZIP file) │─────▶│ (ASL→Python)│─────▶│  (Docker)   │
+  │  (Canvas)   │      │ asl.json    │      │             │      │             │
+  └─────────────┘      │ layout.json │      └─────────────┘      └─────────────┘
+    You design           You download         Sandbox does          Agent runs
+    the graph            the bundle           this for you          against challenge</code></div>
+
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;"><strong>Design</strong> &mdash; Build your workflow in the visual editor.</li>
+            <li style="padding-left: 0.5rem;"><strong>Export</strong> &mdash; Click &ldquo;Download Bundle&rdquo; to get a ZIP containing <code>asl.json</code> (your workflow) and <code>layout.json</code> (visual positions for re-importing).</li>
+            <li style="padding-left: 0.5rem;"><strong>Compile</strong> &mdash; Upload the bundle to the sandbox. It validates your ASL, checks for topology errors, and generates executable LangGraph Python code.</li>
+            <li style="padding-left: 0.5rem;"><strong>Run</strong> &mdash; The sandbox spins up Docker containers for your agent and the challenge&rsquo;s MCP tool servers, executes your agent, and streams back logs and results.</li>
+        </ol>
+
+        <div class="callout callout-warning">
+            <strong>Validation happens at export time too.</strong> When you click &ldquo;Download Bundle,&rdquo;
+            Agentish runs topology checks on your graph <em>before</em> creating the ZIP. If there are
+            errors (e.g., no terminal LLM node, orphan nodes, invalid loops), the download is blocked
+            and you&rsquo;ll see error toasts explaining what to fix.
+        </div>
+
+        <!-- Two Edge Types -->
+        <h2>Two Edge Types</h2>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Edge Type</th><th>Created By</th><th>Meaning</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>NormalEdge</strong></td>
+                    <td>Connecting any non-Router node to another node.</td>
+                    <td>&ldquo;After A finishes, always go to B.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td><strong>ConditionalEdge</strong></td>
+                    <td>Connecting a Router node to its targets.</td>
+                    <td>&ldquo;After Router decides, go to whichever target matches the decision.&rdquo;</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Chapter Summary -->
+        <h2>Chapter Summary</h2>
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>Agentish is a visual editor that produces workflow definitions &mdash; it does not execute agents.</li>
+                <li>Workflows are directed graphs built from four node types: Entry Point, LLM Node, Router Node, Worker Node.</li>
+                <li>The pipeline is: design in editor &rarr; export bundle &rarr; upload to sandbox &rarr; sandbox compiles and runs.</li>
+                <li>Topology validation catches structural errors before you ever run your agent.</li>
+            </ul>
+        </div>
+
+        <!-- Navigation -->
+        <div class="chapter-nav">
+            <div></div>
+            <a href="2-entry-point.html" class="chapter-nav-next">
+                Chapter 2: The Entry Point &rarr;
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

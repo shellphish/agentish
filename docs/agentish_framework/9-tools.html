@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 9: Tools | Agentish Framework</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentish Framework Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 9</span> Tools</h1>
+            <p class="tagline">Giving your agents the ability to act</p>
+        </section>
+
+        <p>
+            Without tools, your agents can only generate text. Tools let them interact with
+            the challenge environment &mdash; read files, analyze binaries, query databases,
+            and take actions. In the iCTF, tools are the <strong>MCP endpoints</strong>
+            provided by each challenge.
+        </p>
+
+        <div class="callout">
+            <strong>Deep dive:</strong> For the theory of tool use, the ReAct loop, and
+            tool assignment strategies, see
+            <a href="../agentic_workflow/2-the-agent.html">Agentic Workflow &mdash; Chapter 2: The Agent</a>.
+        </div>
+
+        <!-- The Function Catalog -->
+        <h2>The Function Catalog</h2>
+        <p>
+            The <strong>Function Catalog</strong> is the sidebar panel in the editor that lists
+            all available tools. These tools come from the challenge&rsquo;s
+            <code>challengish.yml</code> file, which defines the MCP servers and their endpoints.
+        </p>
+        <p>
+            Each tool in the catalog shows its <strong>name</strong>, <strong>description</strong>,
+            and <strong>parameters</strong>. Read these carefully &mdash; understanding what each
+            tool does is critical for designing effective workflows.
+        </p>
+
+        <!-- MCP Tools -->
+        <h2>MCP Tools</h2>
+        <p>
+            MCP (Model Context Protocol) tools are HTTP endpoints that your agent calls at
+            runtime. The challenge provides them. You don&rsquo;t implement them &mdash; you
+            just use them.
+        </p>
+        <p>
+            At execution time, when your agent&rsquo;s LLM decides to call a tool, the compiled
+            code makes an HTTP request to the MCP server. The response is returned to the LLM
+            as a tool result, and the LLM continues reasoning.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">How a Tool Call Works at Runtime</div>
+            <div class="code-block"><code><span class="comment"># 1. LLM decides to call a tool:</span>
+LLM: "I should list the functions in the binary."
+     → tool_call: list_functions()
+
+<span class="comment"># 2. Compiled code sends HTTP request:</span>
+GET http://mcp_binary:8002/mcp/list_functions
+
+<span class="comment"># 3. MCP server responds:</span>
+{ "success": true, "functions": ["main", "decrypt_flag", "check_pw"] }
+
+<span class="comment"># 4. Response is given back to the LLM:</span>
+ToolMessage: '{"success": true, "functions": ["main", "decrypt_flag", "check_pw"]}'
+
+<span class="comment"># 5. LLM continues reasoning with this new information.</span></code></div>
+        </div>
+
+        <!-- Custom Tools -->
+        <h2>Custom Tools</h2>
+        <p>
+            In addition to MCP tools from the challenge, you can define <strong>custom tools</strong>
+            directly in the Agentish editor. Custom tools are Python functions that you write.
+            They are included in the compiled code alongside MCP tool bindings.
+        </p>
+        <p>
+            Use the <strong>Tool Editor</strong> (accessible from the toolbar) to create custom
+            tools. Each custom tool needs:
+        </p>
+        <ul class="features">
+            <li><strong>Name</strong> &mdash; A valid Python function name.</li>
+            <li><strong>Description</strong> &mdash; What the tool does (shown to the LLM).</li>
+            <li><strong>Implementation</strong> &mdash; Python code that takes arguments and returns a result dict.</li>
+        </ul>
+
+        <div class="example-box">
+            <div class="example-label">Custom Tool Template</div>
+            <div class="code-block"><code><span class="keyword">def</span> tool_implementation(a: int, b: int, state: dict = None) -> dict:
+    <span class="string">"""
+    Add two numbers together.
+
+    Args:
+        a: First number
+        b: Second number
+        state: Agent state (optional, read-only access)
+
+    Returns:
+        dict with result and success flag
+    """</span>
+    <span class="keyword">try</span>:
+        result = a + b
+        <span class="keyword">return</span> { <span class="string">"result"</span>: result, <span class="string">"success"</span>: True }
+    <span class="keyword">except</span> Exception <span class="keyword">as</span> e:
+        <span class="keyword">return</span> { <span class="string">"result"</span>: None, <span class="string">"success"</span>: False, <span class="string">"error"</span>: str(e) }</code></div>
+        </div>
+
+        <!-- Assigning Tools -->
+        <h2>Assigning Tools to Nodes</h2>
+        <p>
+            Tools are assigned per-node in the inspector under <strong>Selected tools</strong>.
+            You drag tools from the Function Catalog into the node&rsquo;s tool list, or select
+            them from the available options.
+        </p>
+
+        <div class="callout callout-warning">
+            <strong>Keep it focused:</strong> Assign only 2&ndash;5 tools per node. Research shows
+            that LLM accuracy on tool selection drops significantly with more than 5 tools.
+            If you need many tools, split the work across multiple nodes or use Worker nodes.
+        </div>
+
+        <!-- Tool Iteration Limits -->
+        <h2>Tool Iteration Limits</h2>
+        <p>
+            When an LLM Node has tools, it enters a <strong>ReAct loop</strong>: reason, call
+            a tool, observe the result, repeat. The <code>max_tool_iterations</code> field
+            controls how many times the loop can repeat.
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Setting</th><th>Default</th><th>Guidance</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>max_tool_iterations</code></td>
+                    <td>30</td>
+                    <td>Lower for simple tasks (5&ndash;10). Higher for complex investigations (20&ndash;50). Never set to 0.</td>
+                </tr>
+                <tr>
+                    <td><code>iteration_warning_message</code></td>
+                    <td>&ldquo;You are close to the tool iteration limit. Wrap up soon without more tool calls.&rdquo;</td>
+                    <td>Injected as a system message when the LLM reaches ~80% of the limit. Customize to be specific to the task.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>
+            When the limit is hit, the LLM is forced to produce a final response without
+            further tool calls. See <a href="11-troubleshooting.html">Chapter 11: Troubleshooting</a>
+            for what to do when your agent hits the limit before completing its task.
+        </p>
+
+        <!-- Summary -->
+        <h2>Chapter Summary</h2>
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>Tools let agents interact with the challenge environment via HTTP (MCP endpoints).</li>
+                <li>The Function Catalog shows all available tools from the challenge.</li>
+                <li>Assign 2&ndash;5 tools per node for best results.</li>
+                <li><code>max_tool_iterations</code> prevents runaway tool loops.</li>
+                <li>Custom tools can be defined in the Tool Editor for additional functionality.</li>
+            </ul>
+        </div>
+
+        <div class="chapter-nav">
+            <a href="8-state.html" class="chapter-nav-prev">&larr; Chapter 8: State</a>
+            <a href="10-logging.html" class="chapter-nav-next">Chapter 10: Logging &rarr;</a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

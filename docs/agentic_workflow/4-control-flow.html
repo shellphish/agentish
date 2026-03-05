@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 4: Control Flow | Agentic Workflow | Agentish</title>
+    <title>Chapter 4: Control Flow | Agentic Workflow</title>
     <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
@@ -86,20 +86,17 @@
 
         <p>
             The simplest control flow: <strong>when this node finishes, always go to
-            that node.</strong> No conditions, no decisions. This is the &ldquo;NormalEdge&rdquo;
-            in Agentish.
+            that node.</strong> No conditions, no decisions. This is a <em>direct edge</em>
+            in graph terminology.
         </p>
 
         <div class="code-block"><code><span class="comment"># Static flow: A always goes to B</span>
-  ┌─────────┐  NormalEdge  ┌─────────┐
-  │  Agent A │────────────▶│  Agent B │
-  └─────────┘              └─────────┘
+  ┌─────────┐  direct edge  ┌─────────┐
+  │  Agent A │─────────────▶│  Agent B │
+  └─────────┘               └─────────┘
 
-<span class="comment"># In the generated code, this becomes:</span>
-<span class="keyword">return</span> Command(
-    update={...},
-    goto=<span class="string">"llm_3_node"</span>   <span class="comment"># Hard-coded destination</span>
-)</code></div>
+<span class="comment"># In code, this translates to a hard-coded destination:</span>
+next_node = <span class="string">"agent_b"</span>   <span class="comment"># Always the same</span></code></div>
 
         <p>
             Every pipeline is built from static flow. It&rsquo;s predictable, easy to debug,
@@ -131,16 +128,12 @@
 
 <span class="comment"># The Router LLM returns structured output:</span>
 {
-  <span class="string">"next_node"</span>: <span class="string">"llm_5_node"</span>,
+  <span class="string">"next_node"</span>: <span class="string">"intrusion_handler"</span>,
   <span class="string">"reason"</span>: <span class="string">"The alert involves unauthorized access attempts,
             which matches the Intrusion Handler's expertise"</span>
 }
 
-<span class="comment"># This translates to:</span>
-<span class="keyword">return</span> Command(
-    update={<span class="string">"routing_reason"</span>: decision.reason},
-    goto=decision.next_node   <span class="comment"># Dynamic destination</span>
-)</code></div>
+<span class="comment"># The system routes execution to the chosen handler.</span></code></div>
 
         <h3>How the Router Makes Decisions</h3>
 
@@ -164,17 +157,10 @@ Based on the conversation, which node should handle this next?"""</span></code><
 
         <p>
             The structured output ensures the LLM returns valid JSON matching the
-            schema. Agentish then validates that the chosen <code>next_node</code> is
+            schema. The system then validates that the chosen <code>next_node</code> is
             actually one of the connected targets. If the LLM hallucinates a target
-            that doesn&rsquo;t exist, Agentish falls back to the first available target
-            and logs a warning.
-        </p>
-
-        <h3>In Agentish</h3>
-        <p>
-            Conditional flow = <strong>Router Node</strong> + <strong>ConditionalEdge</strong>
-            connections. Each ConditionalEdge represents one possible destination.
-            You draw them from the Router Node to each potential handler.
+            that doesn&rsquo;t exist, the system should fall back to a safe default
+            and log a warning.
         </p>
 
 
@@ -224,51 +210,23 @@ Based on the conversation, which node should handle this next?"""</span></code><
             (5 tool-calling rounds + 1 final response). This matters for cost and latency.
         </div>
 
-        <h3>The Two-Phase Execution Pattern</h3>
+        <h3>Tools + Structured Output: The Two-Phase Pattern</h3>
 
         <p>
-            Agentish uses a clever pattern to handle an important LangChain limitation:
-            <strong><code>.with_structured_output()</code> disables tool calling.</strong>
-            If you want a node to both use tools <em>and</em> return structured output
-            (e.g., a JSON schema), you can&rsquo;t do both at once.
+            Many LLM frameworks have a limitation: <strong>structured output (JSON schema
+            enforcement) disables tool calling.</strong> If you want an agent to both
+            use tools <em>and</em> return structured output, you need a two-phase approach:
         </p>
 
-        <p>The solution is a two-phase approach:</p>
-
-        <div class="code-block"><code><span class="comment"># Phase 1: First call — tools enabled, no structured output</span>
-<span class="keyword">def</span> llm_2_node(global_state):
-    current_iteration = global_state.get(<span class="string">"node_2_tool_iteration_count"</span>, 0)
-
-    <span class="comment"># Check: are we returning from tool execution?</span>
-    <span class="keyword">if</span> current_iteration > 0:
-        <span class="comment"># Phase 2: Done with tools → apply structured output</span>
-        <span class="keyword">if</span> structured_output_enabled:
-            model_with_output = model.with_structured_output(Schema)
-            response = model_with_output.invoke(messages)
-        <span class="keyword">else</span>:
-            response = model.invoke(messages)
-        <span class="keyword">return</span> Command(
-            update={<span class="string">"node_2_tool_iteration_count"</span>: 0},
-            goto=<span class="string">"next_node"</span>
-        )
-
-    <span class="comment"># Phase 1: First call — tools available</span>
-    response = model.invoke(messages)   <span class="comment"># Can make tool calls</span>
-
-    <span class="keyword">if</span> response.tool_calls:
-        <span class="keyword">return</span> Command(goto=<span class="string">"tool_2_node"</span>)   <span class="comment"># Execute tools</span>
-
-    <span class="comment"># No tools needed — apply structured output directly</span>
-    <span class="keyword">if</span> structured_output_enabled:
-        model_with_output = model.with_structured_output(Schema)
-        response = model_with_output.invoke(messages)
-
-    <span class="keyword">return</span> Command(goto=<span class="string">"next_node"</span>)</code></div>
+        <ol class="features">
+            <li><strong>Phase 1:</strong> Invoke the LLM with tools enabled (no structured output). Let it call tools and gather information.</li>
+            <li><strong>Phase 2:</strong> Once tool calling is done, re-invoke the LLM with structured output enabled (tools disabled) to produce the final formatted response.</li>
+        </ol>
 
         <div class="callout callout-warning">
-            <strong>⚠️ Common mistake:</strong> Applying <code>.with_structured_output()</code> on
-            the first call. This silently disables all tools, and the LLM will never make tool calls.
-            The agent appears to &ldquo;work&rdquo; but never actually uses its tools.
+            <strong>Common mistake:</strong> Enabling structured output on the first invocation.
+            This silently disables all tools, and the agent will never make tool calls.
+            It appears to &ldquo;work&rdquo; but never actually uses its tools.
         </div>
 
 
@@ -287,7 +245,7 @@ Based on the conversation, which node should handle this next?"""</span></code><
 
         <p>
             The most common form of iteration is the tool-driven loop described above.
-            Agentish enforces a hard limit via <code>max_tool_iterations</code>:
+            A hard limit (e.g., <code>max_tool_iterations</code>) prevents runaway loops:
         </p>
 
         <div class="code-block"><code><span class="comment"># Tool Node enforces iteration limits:</span>
@@ -346,106 +304,36 @@ Based on the conversation, which node should handle this next?"""</span></code><
 
 
         <!-- ============================================================== -->
-        <!-- 4.6 THE COMMAND PATTERN                                         -->
+        <!-- 4.6 EDGE TYPES                                                  -->
         <!-- ============================================================== -->
-        <h2>4.6 &mdash; The Command Pattern</h2>
+        <h2>4.6 &mdash; Edge Types</h2>
 
         <p>
-            All control flow in Agentish is implemented through the <strong>Command
-            pattern</strong> from LangGraph. Every node function returns a
-            <code>Command</code> object that bundles two things together:
-        </p>
-
-        <ol>
-            <li><strong>State updates</strong> &mdash; what data to write (the <code>update</code> dict)</li>
-            <li><strong>Routing decision</strong> &mdash; where to go next (the <code>goto</code> string)</li>
-        </ol>
-
-        <div class="code-block"><code><span class="keyword">from</span> langgraph.types <span class="keyword">import</span> Command
-
-<span class="comment"># Every node returns one of these:</span>
-<span class="keyword">return</span> Command(
-    update={
-        <span class="string">"count"</span>: 1,                          <span class="comment"># Increment counter</span>
-        <span class="string">"messages"</span>: [response],               <span class="comment"># Append to message list</span>
-        <span class="string">"node_2_messages"</span>: [response],        <span class="comment"># Append to node's history</span>
-        <span class="string">"node_2_llm_calls"</span>: 1,                <span class="comment"># Increment LLM call count</span>
-    },
-    goto=<span class="string">"router_3_node"</span>                      <span class="comment"># Where to go next</span>
-)</code></div>
-
-        <h3>Why Not Separate Edges?</h3>
-
-        <p>
-            The traditional LangGraph approach uses <strong>conditional edge functions</strong>
-            &mdash; separate functions that inspect the state and return a destination string.
-            This works, but it separates the routing logic from the node logic:
-        </p>
-
-        <div class="code-block"><code><span class="comment"># Traditional (older) approach:</span>
-<span class="keyword">def</span> llm_node(state):
-    response = model.invoke(...)
-    <span class="keyword">return</span> {<span class="string">"messages"</span>: [response]}   <span class="comment"># Just state update</span>
-
-<span class="keyword">def</span> should_continue(state):              <span class="comment"># Separate routing function</span>
-    <span class="keyword">if</span> state[<span class="string">"messages"</span>][-1].tool_calls:
-        <span class="keyword">return</span> <span class="string">"tool_node"</span>
-    <span class="keyword">return</span> <span class="string">"next_node"</span>
-
-graph.add_conditional_edges(<span class="string">"llm_node"</span>, should_continue, {...})
-
-
-<span class="comment"># Command pattern (Agentish approach):</span>
-<span class="keyword">def</span> llm_node(state):
-    response = model.invoke(...)
-    <span class="keyword">if</span> response.tool_calls:
-        <span class="keyword">return</span> Command(update={...}, goto=<span class="string">"tool_node"</span>)     <span class="comment"># State + routing together</span>
-    <span class="keyword">return</span> Command(update={...}, goto=<span class="string">"next_node"</span>)       <span class="comment"># No separate function</span>
-
-<span class="comment"># No add_conditional_edges needed!</span></code></div>
-
-        <p>
-            The Command pattern is cleaner because you can see <em>what happens</em> and
-            <em>where it goes</em> in the same place. It&rsquo;s also safer &mdash; no risk of
-            the routing function and the node function getting out of sync.
-        </p>
-
-
-        <!-- ============================================================== -->
-        <!-- 4.7 EDGES IN AGENTISH                                           -->
-        <!-- ============================================================== -->
-        <h2>4.7 &mdash; Edges in Agentish</h2>
-
-        <p>
-            In the Agentish visual editor, edges are the lines you draw between nodes.
-            There are exactly two types:
+            When designing a workflow graph, there are two fundamental edge types:
         </p>
 
         <table class="doc-table">
             <thead>
-                <tr><th>Edge Type</th><th>Control Flow</th><th>Visual Appearance</th><th>JSON Representation</th></tr>
+                <tr><th>Edge Type</th><th>Control Flow</th><th>When to Use</th></tr>
             </thead>
             <tbody>
                 <tr>
-                    <td><strong>NormalEdge</strong></td>
+                    <td><strong>Direct edge</strong></td>
                     <td>Static &mdash; always follow this path</td>
-                    <td>Solid line</td>
-                    <td><code>{"from": "2", "to": "3", "type": "NormalEdge"}</code></td>
+                    <td>Pipelines, fan-out connections, any fixed-route transition</td>
                 </tr>
                 <tr>
-                    <td><strong>ConditionalEdge</strong></td>
-                    <td>Conditional &mdash; Router decides at run time</td>
-                    <td>Dashed line</td>
-                    <td><code>{"from": "3", "to": "4", "type": "ConditionalEdge"}</code></td>
+                    <td><strong>Conditional edge</strong></td>
+                    <td>Dynamic &mdash; a router or evaluator decides at run time</td>
+                    <td>Router branching, loop-or-exit decisions</td>
                 </tr>
             </tbody>
         </table>
 
         <p>
-            Tool-driven and iterative flow don&rsquo;t need separate edge types. They&rsquo;re
-            handled automatically by the generated code: when a node has tools, the
-            compiler creates the LLM→Tool→LLM loop internally. You don&rsquo;t draw tool
-            loop edges on the canvas.
+            Tool-driven loops (the ReAct pattern) don&rsquo;t need explicit edges. They
+            are handled internally by the agent &mdash; the framework manages the
+            LLM &rarr; Tool &rarr; LLM cycle automatically.
         </p>
 
 
@@ -457,13 +345,12 @@ graph.add_conditional_edges(<span class="string">"llm_node"</span>, should_conti
         <div class="callout callout-key">
             <strong>Key Takeaways:</strong>
             <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
-                <li><strong>Static flow:</strong> &ldquo;Always go here.&rdquo; Implemented with NormalEdge.</li>
-                <li><strong>Conditional flow:</strong> &ldquo;The LLM decides where to go.&rdquo; Implemented with Router Node + ConditionalEdge.</li>
-                <li><strong>Tool-driven flow:</strong> &ldquo;Call tools until done, then move on.&rdquo; Automatic loop created by the compiler.</li>
+                <li><strong>Static flow:</strong> &ldquo;Always go here.&rdquo; Implemented with direct edges.</li>
+                <li><strong>Conditional flow:</strong> &ldquo;The LLM decides where to go.&rdquo; Implemented with a router + conditional edges.</li>
+                <li><strong>Tool-driven flow:</strong> &ldquo;Call tools until done, then move on.&rdquo; Automatic internal loop.</li>
                 <li><strong>Iterative flow:</strong> &ldquo;Try again if not done.&rdquo; Graph-level back-edges with a termination condition.</li>
-                <li>The <strong>Command pattern</strong> bundles state updates and routing in one object. No separate edge functions needed.</li>
                 <li>The <strong>two-phase execution pattern</strong> solves the structured-output-disables-tools problem.</li>
-                <li>Always set <strong><code>max_tool_iterations</code></strong> to prevent runaway tool loops.</li>
+                <li>Always set <strong>tool iteration limits</strong> to prevent runaway tool loops.</li>
             </ul>
         </div>
 

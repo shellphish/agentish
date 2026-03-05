@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 6: Connecting Nodes | Agentish Framework</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentish Framework Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 6</span> Connecting Nodes</h1>
+            <p class="tagline">Edges, slots, and building graph topologies</p>
+        </section>
+
+        <p>
+            Nodes define what your agents do. Edges define <em>when</em> they do it.
+            This chapter covers how to wire nodes together to create different workflow
+            topologies.
+        </p>
+
+        <div class="callout">
+            <strong>Deep dive:</strong> For the full topology catalog (pipeline, fan-out, router,
+            hierarchy, cyclic) and when to choose each, see
+            <a href="../agentic_workflow/3-workflow-topology.html">Agentic Workflow &mdash; Chapter 3: Workflow Topology</a>.
+        </div>
+
+        <h2>How to Create an Edge</h2>
+        <p>
+            Click and drag from an <strong>output slot</strong> (right side of a node) to an
+            <strong>input slot</strong> (left side of another node). A colored line appears
+            showing the connection.
+        </p>
+
+        <h2>Two Edge Types</h2>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Type</th><th>Created When</th><th>Behavior</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>NormalEdge</strong></td>
+                    <td>You connect any non-Router node to another node.</td>
+                    <td>Unconditional: &ldquo;after A finishes, always go to B.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td><strong>ConditionalEdge</strong></td>
+                    <td>You connect a Router node&rsquo;s output to a target.</td>
+                    <td>Conditional: &ldquo;go to B only if the Router picks this option.&rdquo; Each output slot of a Router corresponds to one routing option.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Input and Output Slots</h2>
+        <p>
+            Each node type has different slot configurations:
+        </p>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Node Type</th><th>Input Slots</th><th>Output Slots</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Entry Point</strong></td>
+                    <td>None (it&rsquo;s the start)</td>
+                    <td>1 output</td>
+                </tr>
+                <tr>
+                    <td><strong>LLM Node</strong></td>
+                    <td>1+ inputs (expands as you connect more edges)</td>
+                    <td>1 output</td>
+                </tr>
+                <tr>
+                    <td><strong>Router Node</strong></td>
+                    <td>1 input</td>
+                    <td>Multiple outputs (one per Router Value)</td>
+                </tr>
+                <tr>
+                    <td><strong>Worker Node</strong></td>
+                    <td>1 input (tool binding from parent LLM)</td>
+                    <td>None (returns result to parent)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Common Topologies -->
+        <h2>Common Topologies</h2>
+
+        <h3>Pipeline (Sequential)</h3>
+        <div class="code-block"><code>Entry &rarr; LLM A &rarr; LLM B &rarr; LLM C (terminal)
+
+<span class="comment"># Each node processes the output of the previous one.</span>
+<span class="comment"># Simple, predictable, easy to debug.</span>
+<span class="comment"># LLM C has no outgoing edge → compiles to END.</span></code></div>
+
+        <h3>Router Branching</h3>
+        <div class="code-block"><code>Entry &rarr; Analyzer &rarr; Router &rarr; ┬─ Handler A (terminal)
+                                 └─ Handler B (terminal)
+
+<span class="comment"># Router picks one path based on analysis.</span>
+<span class="comment"># Both handlers are terminal (no outgoing edges).</span></code></div>
+
+        <h3>Worker Delegation</h3>
+        <div class="code-block"><code>Entry &rarr; Coordinator ──────&rarr; LLM Final (terminal)
+              │
+              ├──&rarr; Worker 1 (tool binding, not a flow edge)
+              └──&rarr; Worker 2 (tool binding, not a flow edge)
+
+<span class="comment"># Coordinator can call Worker 1 and Worker 2 as tools.</span>
+<span class="comment"># Workers return results to the Coordinator.</span>
+<span class="comment"># The flow continues from Coordinator to LLM Final.</span></code></div>
+
+        <h3>Loop (Router Back-Edge)</h3>
+        <div class="code-block"><code>Entry &rarr; Orchestrator &rarr; Router &rarr; ┬─ Orchestrator (back-edge / loop)
+                                     └─ Finalizer (terminal, exit)
+
+<span class="comment"># Router can send execution back to Orchestrator for another iteration.</span>
+<span class="comment"># See Chapter 7: Loops for how to configure this properly.</span></code></div>
+
+        <!-- Topology Rules -->
+        <h2>Topology Rules (Validated at Export)</h2>
+        <p>
+            The topology validator runs when you click &ldquo;Download Bundle.&rdquo; These
+            rules are enforced:
+        </p>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Rule</th><th>Error if Violated</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Entry Point must have at least one outgoing edge.</td>
+                    <td>&ldquo;Entry node has no outgoing edges. The graph is empty.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>At least one LLM Node must have no outgoing flow edge.</td>
+                    <td>&ldquo;No terminal LLM node found.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>Every LLM/Router node must have at least one incoming edge.</td>
+                    <td>&ldquo;Node &lsquo;X&rsquo; has no incoming flow edge and is unreachable.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>Every Worker must be connected to an LLM node.</td>
+                    <td>&ldquo;Worker node &lsquo;X&rsquo; is not connected to any LLM node.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>Routers must have &ge; 2 outgoing edges.</td>
+                    <td>&ldquo;Router node &lsquo;X&rsquo; has N outgoing flow edge(s). Routers must have at least 2.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>Cycles without a Router are infinite loops.</td>
+                    <td>&ldquo;Infinite loop detected: cycle [...] contains no Router node.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>Cycles where the Router has no exit path are infinite loops.</td>
+                    <td>&ldquo;Infinite loop detected: cycle [...] contains a Router but all its outgoing edges stay within the cycle.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>Loop target LLM nodes must have loop_mode configured.</td>
+                    <td>&ldquo;LLM node &lsquo;X&rsquo; has multiple incoming edges but &lsquo;loop_mode&rsquo; is not configured.&rdquo;</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Summary -->
+        <h2>Chapter Summary</h2>
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>Drag from output slots to input slots to create edges.</li>
+                <li>NormalEdge = unconditional flow. ConditionalEdge = Router-based branching.</li>
+                <li>Worker connections are tool bindings, not flow edges.</li>
+                <li>The topology validator enforces structural rules at export time.</li>
+            </ul>
+        </div>
+
+        <div class="chapter-nav">
+            <a href="5-worker-node.html" class="chapter-nav-prev">&larr; Chapter 5: The Worker Node</a>
+            <a href="7-loops.html" class="chapter-nav-next">Chapter 7: Loops &rarr;</a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

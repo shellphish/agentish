@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 7: Loops | Agentish Framework</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="index.html">&larr; Back to Agentish Framework Guide</a></p>
+
+        <section class="hero" style="padding: 2rem 0 1.5rem;">
+            <h1><span class="chapter-label">Chapter 7</span> Loops</h1>
+            <p class="tagline">Iterative workflows done right</p>
+        </section>
+
+        <p>
+            Some tasks need iteration: analyze, evaluate, refine, repeat. Agentish supports
+            loops through <strong>Router back-edges</strong> &mdash; when a Router sends execution
+            back to an earlier node in the graph. This chapter explains how to build loops
+            that work correctly and don&rsquo;t get stuck.
+        </p>
+
+        <!-- How Loops Work -->
+        <h2>How Loops Work</h2>
+        <p>
+            A loop in Agentish requires exactly three things:
+        </p>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;"><strong>A Router Node</strong> that evaluates whether to continue or exit.</li>
+            <li style="padding-left: 0.5rem;"><strong>A back-edge</strong> from the Router to an earlier LLM Node (the loop target).</li>
+            <li style="padding-left: 0.5rem;"><strong>An exit edge</strong> from the Router to a downstream node (the exit path).</li>
+        </ol>
+
+        <div class="code-block"><code><span class="comment"># The canonical loop pattern:</span>
+
+Entry &rarr; Orchestrator &rarr; Router &rarr; ┬─ Orchestrator  <span class="comment">(back-edge: retry)</span>
+                                     └─ Finalizer     <span class="comment">(exit: done)</span>
+
+<span class="comment"># The Router decides: "Is the work good enough?"</span>
+<span class="comment"># If not → send back to Orchestrator for another pass.</span>
+<span class="comment"># If yes → send to Finalizer to produce final output.</span></code></div>
+
+        <div class="callout callout-warning">
+            <strong>Critical:</strong> Loops without a Router are <strong>infinite loops</strong>.
+            If LLM A connects to LLM B connects back to LLM A with no Router in between,
+            there is no decision point to break the cycle. The validator will block this.
+        </div>
+
+        <!-- The Loop Problem -->
+        <h2>The Problem: What Happens on Re-Entry?</h2>
+        <p>
+            When execution loops back to an LLM Node, a question arises: <strong>what conversation
+            history should the LLM see?</strong>
+        </p>
+        <ul class="features">
+            <li>If it sees the <em>same</em> history as before with no new information, it will produce the <em>same</em> output &mdash; an infinite loop of identical responses.</li>
+            <li>If the history grows unboundedly, the context window fills up and the LLM loses track of earlier information.</li>
+        </ul>
+        <p>
+            This is why <strong>loop mode</strong> exists. It tells the compiler how to manage
+            conversation history for LLM Nodes that are loop targets.
+        </p>
+
+        <!-- Loop Mode -->
+        <h2>Loop Mode</h2>
+        <p>
+            When an LLM Node has more than one incoming edge (one from upstream, one from a
+            Router back-edge), the <strong>Loop mode</strong> field appears in its inspector.
+            You must set it to one of two values:
+        </p>
+
+        <table class="doc-table">
+            <thead>
+                <tr><th>Mode</th><th>Behavior</th><th>Best For</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Fresh</strong></td>
+                    <td>
+                        Restarts the conversation from scratch on each re-entry.
+                        The LLM gets a clean system prompt + human prompt, as if
+                        it&rsquo;s running for the first time. If a feedback state
+                        variable is set, its value is injected as the human message
+                        instead of the original human prompt.
+                    </td>
+                    <td>
+                        When you want each iteration to be independent. The LLM
+                        doesn&rsquo;t see what it did in previous passes &mdash;
+                        only the feedback from the Router telling it why it was
+                        sent back.
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Continue</strong></td>
+                    <td>
+                        Extends the accumulated conversation history. The LLM
+                        sees everything from all previous iterations plus any
+                        new feedback. History grows with each pass.
+                    </td>
+                    <td>
+                        When the LLM needs to build on previous work. Good for
+                        incremental refinement where earlier context matters.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="callout callout-warning">
+            <strong>Required:</strong> If a loop target LLM Node does not have loop_mode set,
+            the topology validator will block export with an error. This is enforced because
+            the default behavior (replaying stale history unchanged) produces identical output
+            on every iteration &mdash; a guaranteed infinite loop.
+        </div>
+
+        <!-- Feedback State Variable -->
+        <h2>Feedback State Variable</h2>
+        <p>
+            The <strong>Feedback state variable</strong> field appears when loop mode is set.
+            It selects a state variable whose value is injected as a new human message on
+            each re-entry.
+        </p>
+        <p>
+            This is how you give the LLM <em>new context</em> on each loop iteration. Typically,
+            this is a variable written by the Router or an upstream node explaining <em>why</em>
+            execution was sent back.
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Example: Feedback-Driven Loop</div>
+            <div class="code-block"><code><span class="comment"># State variables:</span>
+analysis_result     <span class="keyword">str</span>    <span class="comment"># Written by Orchestrator</span>
+routing_reason      <span class="keyword">str</span>    <span class="comment"># Written by Router (why it looped back)</span>
+final_report        <span class="keyword">str</span>    <span class="comment"># Written by Finalizer</span>
+
+<span class="comment"># Orchestrator config:</span>
+loop_mode: <span class="string">"fresh"</span>
+loop_feedback_state_key: <span class="string">"routing_reason"</span>
+
+<span class="comment"># What happens on re-entry:</span>
+<span class="comment"># Pass 1: Orchestrator runs with original prompts → produces analysis</span>
+<span class="comment"># Router: "Analysis is too short" → writes routing_reason, loops back</span>
+<span class="comment"># Pass 2: Orchestrator gets clean context + "Analysis is too short"</span>
+<span class="comment">#          as its human message → produces better analysis</span>
+<span class="comment"># Router: "Analysis is comprehensive" → exits to Finalizer</span></code></div>
+        </div>
+
+        <div class="callout">
+            <strong>Fresh + no feedback:</strong> If fresh mode is set but no feedback variable
+            is specified, the LLM falls back to its original human prompt on re-entry. This
+            works but means the LLM gets no information about <em>why</em> it was sent back.
+        </div>
+        <div class="callout callout-warning">
+            <strong>Continue + no feedback:</strong> The validator will emit a warning if
+            continue mode is set with no feedback variable. The LLM will re-run with its
+            accumulated history but no new context injected &mdash; this may work for some
+            use cases but risks stagnation.
+        </div>
+
+        <!-- Exit Conditions -->
+        <h2>Exit Conditions</h2>
+        <p>
+            Every loop must have a clear exit path. This is enforced at two levels:
+        </p>
+
+        <h3>1. Topology Validation (Compile-Time)</h3>
+        <ul class="features">
+            <li>The Router in the cycle must have at least one outgoing edge that exits the cycle.</li>
+            <li>If all Router edges stay within the cycle, the validator blocks export.</li>
+        </ul>
+
+        <h3>2. Router Prompt (Runtime)</h3>
+        <p>
+            The topology check only verifies that an exit <em>path exists</em>. Whether the
+            Router actually <em>uses</em> it depends on its system prompt. Write clear exit
+            criteria:
+        </p>
+
+        <div class="example-box">
+            <div class="example-label">Good Router Prompt for Loops</div>
+            <div class="code-block"><code><span class="string">"You are a quality evaluator. Based on the analysis_result:
+
+- Route to 'Orchestrator' if:
+  - The analysis is under 200 words
+  - Key aspects are missing or vague
+  - The result explicitly says more work is needed
+
+- Route to 'Finalizer' if:
+  - The analysis is comprehensive (200+ words)
+  - All major aspects are covered
+  - The result is ready for final formatting
+
+When in doubt after 3+ iterations, route to Finalizer
+to avoid endless loops."</span></code></div>
+        </div>
+
+        <!-- Common Mistakes -->
+        <h2>Common Mistakes</h2>
+        <table class="doc-table">
+            <thead>
+                <tr><th>Mistake</th><th>What Happens</th><th>Fix</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Loop without a Router</td>
+                    <td>Infinite loop. Validator blocks export.</td>
+                    <td>Always use a Router to control loop iteration.</td>
+                </tr>
+                <tr>
+                    <td>Router with no exit edge</td>
+                    <td>Infinite loop. Validator blocks export.</td>
+                    <td>Ensure at least one Router output goes to a node outside the cycle.</td>
+                </tr>
+                <tr>
+                    <td>No loop_mode on target node</td>
+                    <td>Validator blocks export.</td>
+                    <td>Set loop_mode to &ldquo;fresh&rdquo; or &ldquo;continue&rdquo; in the LLM Node inspector.</td>
+                </tr>
+                <tr>
+                    <td>Vague Router exit criteria</td>
+                    <td>Router loops forever at runtime (no validator catch).</td>
+                    <td>Write specific, measurable exit conditions in the Router prompt. Include a fallback (&ldquo;after N iterations, exit&rdquo;).</td>
+                </tr>
+                <tr>
+                    <td>Fresh mode + no feedback variable</td>
+                    <td>LLM gets the same prompt every time, may produce same output.</td>
+                    <td>Set a feedback state variable so each iteration gets new context.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- ASL Example -->
+        <h2>ASL Example: Complete Loop</h2>
+        <div class="example-box">
+            <div class="example-label">ASL &mdash; Orchestrator&ndash;Router Loop</div>
+            <div class="code-block"><code>{
+  "graph": {
+    "entrypoint": "1",
+    "state": {
+      "schema": {
+        "analysis_result": "str",
+        "final_report": "str",
+        "routing_reason": "str"
+      }
+    },
+    "nodes": [
+      { "id": "1", "type": "EntryPoint", "label": "EntryPoint",
+        "config": { "title": "Entry Node",
+                    "initial_state": { "analysis_result": "str",
+                                       "final_report": "str",
+                                       "routing_reason": "str" } } },
+      { "id": "2", "type": "LLMNode", "label": "Orchestrator",
+        "config": { "title": "Orchestrator",
+                    "system_prompt": "You are an orchestrator...",
+                    "human_prompt": "Analyze the problem...",
+                    <span class="keyword">"loop_mode": "fresh"</span>,
+                    <span class="keyword">"loop_feedback_state_key": "routing_reason"</span>,
+                    "output_state_keys": ["analysis_result"],
+                    "structured_output_schema": [
+                      { "name": "analysis_result", "type": "str",
+                        "description": "Analysis findings" }
+                    ] } },
+      { "id": "3", "type": "RouterBlock", "label": "Router",
+        "config": { "title": "Router",
+                    "input_state_keys": ["analysis_result"],
+                    "system_prompt": "Evaluate the analysis...",
+                    "router_values": [
+                      { "node": "Orchestrator",
+                        "description": "Analysis needs refinement." },
+                      { "node": "Finalizer",
+                        "description": "Analysis is complete." }
+                    ] } },
+      { "id": "4", "type": "LLMNode", "label": "Finalizer",
+        "config": { "title": "Finalizer",
+                    "system_prompt": "Produce the final report...",
+                    "output_state_keys": ["final_report"] } }
+    ],
+    "edges": [
+      { "from": "1", "to": "2", "type": "NormalEdge" },
+      { "from": "2", "to": "3", "type": "NormalEdge" },
+      { "from": "3", "to": "2", "type": "ConditionalEdge",
+        "condition": "Orchestrator" },
+      { "from": "3", "to": "4", "type": "ConditionalEdge",
+        "condition": "Finalizer" }
+    ]
+  }
+}</code></div>
+            <p>
+                Note the highlighted <code>loop_mode</code> and <code>loop_feedback_state_key</code>
+                on the Orchestrator. The Router can loop back to Orchestrator or exit to Finalizer.
+            </p>
+        </div>
+
+        <!-- Summary -->
+        <h2>Chapter Summary</h2>
+        <div class="callout callout-key">
+            <strong>Key Takeaways:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
+                <li>Loops require a Router with a back-edge and an exit edge.</li>
+                <li>Loop target LLM Nodes <strong>must</strong> have <code>loop_mode</code> set (fresh or continue).</li>
+                <li>Use a <strong>feedback state variable</strong> to give the LLM new context on each iteration.</li>
+                <li>Write clear, specific exit criteria in the Router prompt.</li>
+                <li>The topology validator catches structural loop problems; runtime behavior depends on your prompts.</li>
+            </ul>
+        </div>
+
+        <div class="chapter-nav">
+            <a href="6-connecting-nodes.html" class="chapter-nav-prev">&larr; Chapter 6: Connecting Nodes</a>
+            <a href="8-state.html" class="chapter-nav-next">Chapter 8: State &rarr;</a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>

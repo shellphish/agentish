@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentish Framework &mdash; A Practical Guide | Agentish</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <nav>
+        <a href="../index.html" class="logo"><img src="../agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="../documentation.html" class="active">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <p><a href="../documentation.html">&larr; Back to Documentation</a></p>
+
+        <section class="hero" style="padding: 2rem 0 2rem;">
+            <h1>Agentish Framework</h1>
+            <p class="tagline">A Practical Guide to Building Workflows</p>
+            <p class="description">
+                This guide teaches you how to use the Agentish visual editor to build,
+                configure, and export agent workflows. Each chapter covers one aspect of
+                the framework &mdash; from individual nodes to complete multi-agent systems.
+            </p>
+        </section>
+
+        <div class="callout callout-key">
+            <strong>Looking for theory?</strong> This guide is practical &mdash; it focuses on
+            <em>how to use Agentish</em>. For the conceptual foundations (what is an agent,
+            why multi-agent systems, design dimensions), see the
+            <a href="../agentic_workflow/index.html">Agentic Workflow Guide</a>.
+        </div>
+
+        <h2>Chapters</h2>
+        <div class="chapter-list">
+            <a href="1-overview.html" class="chapter-card">
+                <div class="chapter-number">1</div>
+                <div class="chapter-content">
+                    <h3>Overview</h3>
+                    <p>
+                        What is Agentish, what is a workflow, the visual editor UI,
+                        and the design &rarr; export &rarr; compile &rarr; run pipeline.
+                    </p>
+                </div>
+            </a>
+            <a href="2-entry-point.html" class="chapter-card">
+                <div class="chapter-number">2</div>
+                <div class="chapter-content">
+                    <h3>The Entry Point</h3>
+                    <p>
+                        Every workflow starts here. Why the entry node matters,
+                        how to define initial state variables, and what happens at startup.
+                    </p>
+                </div>
+            </a>
+            <a href="3-llm-node.html" class="chapter-card">
+                <div class="chapter-number">3</div>
+                <div class="chapter-content">
+                    <h3>The LLM Node</h3>
+                    <p>
+                        The core building block. System and human prompts, input/output state,
+                        structured output, tool assignment, and the terminal node rule.
+                    </p>
+                </div>
+            </a>
+            <a href="4-router-node.html" class="chapter-card">
+                <div class="chapter-number">4</div>
+                <div class="chapter-content">
+                    <h3>The Router Node</h3>
+                    <p>
+                        Conditional branching powered by an LLM. Router values,
+                        output slots, and the minimum two-output requirement.
+                    </p>
+                </div>
+            </a>
+            <a href="5-worker-node.html" class="chapter-card">
+                <div class="chapter-number">5</div>
+                <div class="chapter-content">
+                    <h3>The Worker Node</h3>
+                    <p>
+                        Subtask delegation. How workers attach to LLM nodes,
+                        their fixed return format, and when to use them.
+                    </p>
+                </div>
+            </a>
+            <a href="6-connecting-nodes.html" class="chapter-card">
+                <div class="chapter-number">6</div>
+                <div class="chapter-content">
+                    <h3>Connecting Nodes</h3>
+                    <p>
+                        Edges, slots, and wiring. NormalEdge vs ConditionalEdge,
+                        building pipelines, fan-outs, and hierarchies.
+                    </p>
+                </div>
+            </a>
+            <a href="7-loops.html" class="chapter-card">
+                <div class="chapter-number">7</div>
+                <div class="chapter-content">
+                    <h3>Loops</h3>
+                    <p>
+                        How to create proper iterative workflows. Loop mode (fresh vs continue),
+                        feedback state variables, exit conditions, and common pitfalls.
+                    </p>
+                </div>
+            </a>
+            <a href="8-state.html" class="chapter-card">
+                <div class="chapter-number">8</div>
+                <div class="chapter-content">
+                    <h3>State</h3>
+                    <p>
+                        The most important concept. Global state schema, data types,
+                        how LLMs communicate through state, and how to read execution results.
+                    </p>
+                </div>
+            </a>
+            <a href="9-tools.html" class="chapter-card">
+                <div class="chapter-number">9</div>
+                <div class="chapter-content">
+                    <h3>Tools</h3>
+                    <p>
+                        The Function Catalog, MCP tools, custom tools,
+                        tool assignment, and iteration limits.
+                    </p>
+                </div>
+            </a>
+            <a href="10-logging.html" class="chapter-card">
+                <div class="chapter-number">10</div>
+                <div class="chapter-content">
+                    <h3>Logging &amp; Observability</h3>
+                    <p>
+                        Understanding what your agent did. Langfuse traces,
+                        reading execution logs, and debugging failed runs.
+                    </p>
+                </div>
+            </a>
+            <a href="11-troubleshooting.html" class="chapter-card">
+                <div class="chapter-number">11</div>
+                <div class="chapter-content">
+                    <h3>Troubleshooting</h3>
+                    <p>
+                        Common problems and how to fix them. Infinite loops,
+                        recursion limits, prompt quality, and compilation errors.
+                    </p>
+                </div>
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>
