@@ -645,6 +645,13 @@ export function renderInspector(node) {
     form.className = "controls-grid";
     form.addEventListener("submit", (e) => { e.preventDefault(); return false; });
 
+    // For LLM nodes: compute whether this node has more than one connected input slot.
+    // This drives the conditional visibility of loop_mode / loop_feedback_state_key fields.
+    if (node.type === "asl/llm") {
+        const connectedInputs = (node.inputs || []).filter(slot => slot.link != null).length;
+        node.properties._has_multiple_inputs = connectedInputs > 1;
+    }
+
     const formDefs = NODE_FORMS[node.type] || [];
     formDefs.forEach((def) => {
         // Handle conditional rendering
@@ -654,6 +661,11 @@ export function renderInspector(node) {
             } else if (def.conditional.field && def.conditional.hasItems) {
                 const arr = node.properties?.[def.conditional.field];
                 if (!Array.isArray(arr) || arr.length === 0) return;
+            } else if (def.conditional.field && def.conditional.truthy) {
+                if (!node.properties?.[def.conditional.field]) return;
+            } else if (def.conditional.field && def.conditional.notEmpty) {
+                const val = node.properties?.[def.conditional.field];
+                if (!val || val === "") return;
             }
         }
 
@@ -742,6 +754,37 @@ export function renderInspector(node) {
                 wrapper.appendChild(checkboxContainer);
             }
 
+            form.appendChild(wrapper);
+            return;
+        }
+
+        // State variable single-select dropdown
+        if (def.type === "state_select") {
+            const stateVars = Object.keys(state.appState.schema || {})
+                .map(key => key.toLowerCase())
+                .filter(key => key !== "count" && key !== "messages");
+
+            const select = document.createElement("select");
+            const emptyOpt = document.createElement("option");
+            emptyOpt.value = "";
+            emptyOpt.textContent = "— select a state variable —";
+            select.appendChild(emptyOpt);
+
+            const currentVal = (node.properties?.[def.key] || "").toLowerCase();
+            stateVars.forEach(varName => {
+                const opt = document.createElement("option");
+                opt.value = varName;
+                opt.textContent = varName;
+                opt.selected = varName === currentVal;
+                select.appendChild(opt);
+            });
+
+            select.addEventListener("change", () => {
+                node.properties[def.key] = select.value;
+                state.graph.setDirtyCanvas(true, true);
+            });
+
+            wrapper.appendChild(select);
             form.appendChild(wrapper);
             return;
         }

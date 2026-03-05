@@ -272,6 +272,28 @@ function _validateTopology(asl) {
         }
     }
 
+    // Check 5: Loop LLM nodes must declare loop_mode
+    for (const id of llmIds) {
+        const incomingCount = edges.filter(
+            e => String(e.to) === id && !workerIds.has(String(e.from))
+        ).length;
+        if (incomingCount > 1) {
+            const n = nodeById.get(id);
+            const lm = n?.config?.loop_mode || "";
+            if (lm !== "fresh" && lm !== "continue") {
+                errors.push(
+                    `LLM node ${label(id)} has multiple incoming edges but 'loop_mode' is not ` +
+                    `configured or has an invalid value. Set it to 'fresh' or 'continue' in the node inspector.`
+                );
+            } else if (lm === "continue" && !(n?.config?.loop_feedback_state_key || "")) {
+                warnings.push(
+                    `LLM node ${label(id)} uses continue mode but no feedback state variable is set. ` +
+                    `The node will re-run with prior history but no new context injected.`
+                );
+            }
+        }
+    }
+
     // DFS cycle detection (white/gray/black coloring)
     const WHITE = 0, GRAY = 1, BLACK = 2;
     const color = new Map([...flowIds].map(id => [id, WHITE]));

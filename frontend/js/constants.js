@@ -110,6 +110,25 @@ export const NODE_FORMS = {
             rows: 3,
             description: "Warning message when approaching tool iteration limit (only shown when tools are selected)",
             conditional: { field: "selected_tools", hasItems: true }
+        },
+        {
+            key: "loop_mode",
+            label: "Loop mode",
+            type: "select",
+            options: [
+                { value: "", label: "— Not a loop node —" },
+                { value: "fresh", label: "Fresh — restart history on each re-entry" },
+                { value: "continue", label: "Continue — accumulate history across re-entries" }
+            ],
+            description: "Required when this node has more than one incoming edge (loop target). Controls how conversation history is managed across loop iterations.",
+            conditional: { field: "_has_multiple_inputs", truthy: true }
+        },
+        {
+            key: "loop_feedback_state_key",
+            label: "Feedback state variable",
+            type: "state_select",
+            description: "State variable injected as a new human message on each re-entry. Lets the LLM know why it was routed back (e.g. routing_reason). Optional for fresh mode; strongly recommended for continue mode.",
+            conditional: { field: "loop_mode", notEmpty: true }
         }
     ],
     "asl/worker": [
