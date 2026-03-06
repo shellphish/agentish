@@ -132,17 +132,13 @@
 
         <div class="example-box">
             <div class="example-label">Example: Mixed-Model Security Pipeline</div>
-            <div class="code-block"><code><span class="comment"># Agent 1: Alert Classifier — fast, non-reasoning (just classification)</span>
-Model: GPT-4o-mini (non-reasoning)
-
-<span class="comment"># Agent 2: Exploit Developer — complex reasoning needed</span>
-Model: o3 or Claude with extended thinking (reasoning)
-
-<span class="comment"># Agent 3: Report Writer — moderate capability</span>
-Model: GPT-4o-mini (non-reasoning)
-
-<span class="comment"># The reasoning model is only used where it matters.</span>
-<span class="comment"># The other agents use fast non-reasoning models.</span></code></div>
+            <ul class="features">
+                <li><strong>Agent 1: Alert Classifier</strong> &mdash; fast, non-reasoning (just classification). Model: GPT-4o-mini (non-reasoning)</li>
+                <li><strong>Agent 2: Exploit Developer</strong> &mdash; complex reasoning needed. Model: o3 or Claude with extended thinking (reasoning)</li>
+                <li><strong>Agent 3: Report Writer</strong> &mdash; moderate capability. Model: GPT-4o-mini (non-reasoning)</li>
+                <li>The reasoning model is only used where it matters.</li>
+                <li>The other agents use fast non-reasoning models.</li>
+            </ul>
         </div>
 
         <div class="callout callout-warning">
@@ -190,7 +186,7 @@ Model: GPT-4o-mini (non-reasoning)
                 <tr>
                     <td><strong>Output format</strong></td>
                     <td>Specifies the structure of the agent&rsquo;s response.</td>
-                    <td><em>&ldquo;Respond with: 1) Vulnerability type, 2) Affected function, 3) Exploitation difficulty (easy/medium/hard), 4) Recommended next steps.&rdquo;</em></td>
+                    <td><em>&ldquo;Respond with: 1) Malware family or classification, 2) Obfuscation techniques identified, 3) Hidden functions or suspicious behavior found, 4) Key findings (IOCs, patterns), 5) Recommended next steps.&rdquo;</em></td>
                 </tr>
             </tbody>
         </table>
@@ -199,13 +195,14 @@ Model: GPT-4o-mini (non-reasoning)
 
         <div class="example-box">
             <div class="example-label">&#10060; Bad Prompt — Vague</div>
-            <div class="code-block"><code><span class="string">"Classify security alerts."</span>
-
-<span class="comment"># Problems:</span>
-<span class="comment"># - No identity: the LLM doesn't know what level of expertise to assume</span>
-<span class="comment"># - No focus: what aspects of the alert should it look at?</span>
-<span class="comment"># - No constraints: can it make assumptions? Should it guess?</span>
-<span class="comment"># - No output format: will it return JSON? Prose? A single word?</span></code></div>
+            <div class="code-block"><code><span class="string">"Classify security alerts."</span></code></div>
+            <p style="margin-top: 0.8rem; margin-bottom: 0.4rem;"><strong>Problems:</strong></p>
+            <ul class="features">
+                <li>No identity: the LLM doesn&rsquo;t know what level of expertise to assume</li>
+                <li>No focus: what aspects of the alert should it look at?</li>
+                <li>No constraints: can it make assumptions? Should it guess?</li>
+                <li>No output format: will it return JSON? Prose? A single word?</li>
+            </ul>
         </div>
 
         <div class="example-box">
