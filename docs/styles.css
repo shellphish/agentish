@@ -628,6 +628,66 @@ h4 {
     max-width: 800px;
 }
 
+/* === FAQ === */
+.faq {
+    margin-top: 1rem;
+}
+
+.faq-item {
+    background: #0f0f1e;
+    border: 1px solid #1e1e3a;
+    border-radius: 8px;
+    margin-bottom: 0.6rem;
+    overflow: hidden;
+}
+
+.faq-item:hover {
+    border-color: #2a2a4a;
+}
+
+.faq-item[open] {
+    border-color: #38bdf8;
+}
+
+.faq-item summary {
+    padding: 1rem 1.3rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: #e2e8f0;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.faq-item summary::-webkit-details-marker {
+    display: none;
+}
+
+.faq-item summary::after {
+    content: "+";
+    font-size: 1.2rem;
+    color: #38bdf8;
+    flex-shrink: 0;
+}
+
+.faq-item[open] summary::after {
+    content: "−";
+}
+
+.faq-item p {
+    padding: 0 1.3rem 1.2rem;
+    margin: 0;
+    color: #8892a4;
+    font-size: 0.95rem;
+    line-height: 1.7;
+}
+
+.faq-item p a {
+    color: #38bdf8;
+}
+
 /* === Responsive === */
 @media (max-width: 600px) {
     nav {

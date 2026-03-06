@@ -1,13 +1,13 @@
 # Agentish
 
-A visual workflow editor for creating LangGraph agents through an intuitive drag-and-drop UI.
+A visual workflow editor for creating [LangGraph](https://www.langchain.com/langgraph) agents through an intuitive drag-and-drop UI.
 
 ## Overview
 
 Agentish is the frontend UI for building AI agent workflows. It provides:
 
-- **Visual Graph Editor** - Drag-and-drop interface for creating agent workflows
-- **Node Types** - LLM nodes, Router nodes, Worker nodes, Entry points
+- **Visual Graph Editor** - Use a drag-and-drop interface for creating agent workflows
+- **Node Types** - Add LLM nodes, Router nodes, Worker nodes, Entry points, etc.
 - **MCP Tool Integration** - Load available tools from `challengish.yml`
 - **Bundle Export** - Download your workflow as a bundle (ZIP with asl.json + layout.json)
 
@@ -82,9 +82,9 @@ The exported bundle contains:
 
 **Agentish does NOT execute agents.** It only creates workflow definitions.
 
-To execute your agent, use the [agentish-ctf](../agentish-ctf) execution environment:
+To execute your agent, use the agentish-sandbox execution environment:
 1. Export your bundle from Agentish
-2. Upload the bundle to agentish-ctf sandbox
+2. Upload the bundle to agentish-sandbox
 3. The sandbox compiles and executes your agent with access to MCP tools
 
 ## API Endpoints
@@ -127,5 +127,5 @@ mcp_servers:
 
 ## Related Projects
 
-- **agentish-ctf** - Execution environment for compiling and running agent bundles
-- **agentish-challenges** - CTF challenges using the Agentish framework
+- **agentish-sandbox** - Execution environment for compiling and running agent bundles
+- **agentish-challenges** - CTF challenges based on the Agentish framework
