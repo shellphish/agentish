@@ -249,6 +249,7 @@ a:hover {
 
 .code-block code {
     color: #c8ccd4;
+    white-space: pre-wrap;
 }
 
 .code-block .comment {
@@ -610,6 +611,10 @@ h4 {
 
 .illustration.img-ch2-tool-assignment {
     max-width: 750px;
+}
+
+.illustration.img-react-loop {
+    max-width: 600px;
 }
 
 .illustration.img-ch2-full-llm-config {

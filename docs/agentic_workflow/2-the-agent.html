@@ -282,13 +282,10 @@ Guidelines:
 
 Previous analysis from upstream agent: {previous_analysis}
 
-Classify this alert."</span>
-
-<span class="comment"># At runtime, {alert_content} and {previous_analysis} are</span>
-<span class="comment"># replaced with actual values from the shared state.</span>
-<span class="comment"># If alert_content = "SSH brute-force from 203.0.113.42"</span>
-<span class="comment"># the LLM receives:</span>
-<span class="comment"># "Alert details: SSH brute-force from 203.0.113.42"</span></code></div>
+Classify this alert."</span></code></div>
+            <p style="margin-top: 1rem; margin-bottom: 0; font-size: 0.9rem; color: #8892a4;">
+                At runtime, <code>{alert_content}</code> and <code>{previous_analysis}</code> are replaced with actual values from the shared state. For example, if <code>alert_content = "SSH brute-force from 203.0.113.42"</code>, the LLM receives: <em>&ldquo;Alert details: SSH brute-force from 203.0.113.42&rdquo;</em>
+            </p>
         </div>
 
         <p>
@@ -469,23 +466,7 @@ Output: <span class="string">{"severity": "high", "category": "intrusion", "conf
             <li><strong>Repeat</strong> &mdash; Based on the observation, it decides whether to call another tool or produce a final answer.</li>
         </ol>
 
-        <div class="code-block"><code><span class="comment"># The ReAct loop visualized:</span>
-
-  &boxdr;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;
-  &boxv;                                                      &boxv;
-  &boxv;   &boxdr;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;    &boxdr;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;    &boxdr;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;      &boxv;
-  &boxv;   &boxv;  Reason  &boxv;&boxh;&boxh;&boxh;&blacktriangleright;&boxv;   Act    &boxv;&boxh;&boxh;&boxh;&blacktriangleright;&boxv; Observe  &boxv;&boxh;&boxh;&boxdr;   &boxv;
-  &boxv;   &boxul;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;    &boxv;(tool call)&boxv;   &boxv;(tool     &boxv;  &boxv;   &boxv;
-  &boxv;        &blacktriangle;          &boxul;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;    &boxv; result)  &boxv;  &boxv;   &boxv;
-  &boxv;        &boxv;                          &boxul;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;  &boxv;   &boxv;
-  &boxv;        &boxul;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;   &boxv;
-  &boxv;                    (need more info? loop)            &boxv;
-  &boxv;                                                      &boxv;
-  &boxv;        &boxdr;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;                      &boxv;
-  &boxv;        &boxv;  Have enough info?   &boxv;                      &boxv;
-  &boxv;        &boxv;  &rarr; Final Answer      &boxv;                      &boxv;
-  &boxv;        &boxul;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;                      &boxv;
-  &boxul;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;</code></div>
+        <img src="images/react_loop.png" alt="The ReAct Loop — Reason, Act, Observe cycle with feedback loop and Final Answer branch" class="illustration img-react-loop">
 
         <div class="example-box">
             <div class="example-label">Example: ReAct Loop in a Binary Analysis Agent</div>
@@ -587,7 +568,7 @@ For each alert, produce:
    misconfiguration, false-positive
 3. Confidence: 0.0 to 1.0
 
-If confidence &lt; 0.7, classify severity as 'high' and explain why.
+If confidence &gt; 0.7, classify severity as 'high' and explain why.
 Never classify as 'informational' unless confidence &gt; 0.9."</span>
 
 <span class="keyword">Human Prompt:</span>
