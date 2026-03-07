@@ -55,7 +55,7 @@
         <p>
             The International Capture The Flag (&ldquo;iCTF&rdquo;) is a distributed, wide-area security exercise
             organized by <a href="https://shellphish.net" target="_blank">Shellphish</a> at UC Santa Barbara and sponsored by the <a href="https://action.ucsb.edu">ACTION NSF AI Institute</a>.
-            It is one of the world&rsquo;s longest-running educational hacking competitions.
+            It is one of the world&rsquo;s largest and longest-running educational hacking competitions.
         </p>
         <p>
             In the Agentish edition, teams build <strong>autonomous AI agents</strong> that interact with
@@ -66,25 +66,34 @@
             For more information, visit <a href="https://ictf.cs.ucsb.edu" target="_blank">ictf.cs.ucsb.edu</a>.
         </p>
 
-        
-        <!-- Setup -->
-        <h2>Agentish Challenges</h2>
-        <p>When you connect to the iCTF competition website, you will see two types of challenges: traditional challenges and 
-            Agentish challenges.</p>    
-            <p><strong>Traditional challenges</strong> are the same as in previous years, and are designed to be 
-                solved by hand. These challenges usually have an AI-themed twist, but are still solved by manually interacting 
-            with a remote service.</p>
-            <p><strong>Agentish challenges</strong> are designed to be solved by an autonomous agent.<br/>
-            When you select an Agentish challenge, you will be presented with two links: a link to the agentish editor 
-            and a link to the agentish sandbox.<br/> 
-            You will use the agentish editor to build your agent workflow.<br/>
-            You will then download an "agent bundle" and submit it to the challenge sandbox.
-            The sandbox will compile your agent workflow and run it against the challenge.<br/>
-            The sandbox will return the log of the agent's execution and the results of the challenge to you.
-            If you have solved the challenge the flag will be in the results or somewhere in the logs.<br/>
-            Look for something that looks like "ictf{This_could_be_the_flag}".</p>
+        <!-- Getting Started -->
+        <h2>Getting Started</h2>
+        <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
+            <li style="padding-left: 0.5rem;"><strong>Register your team</strong> at <a href="https://ictf.cs.ucsb.edu" target="_blank">ictf.cs.ucsb.edu</a></li>
+            <li style="padding-left: 0.5rem;"><strong>Set up Agentish</strong> &mdash; clone the repo and install dependencies</li>
+            <li style="padding-left: 0.5rem;"><strong>Open the editor</strong> &mdash; start building your agent workflow</li>
+            <li style="padding-left: 0.5rem;"><strong>Export your bundle</strong> &mdash; download the ZIP with your workflow</li>
+            <li style="padding-left: 0.5rem;"><strong>Submit</strong> &mdash; upload the bundle to the competition sandbox</li>
+        </ol>
 
-            <p>The documentation of the agentish framework is available <a href="agentish_framework/index.html">here</a>.</p>
+        <!-- Setup -->
+        <h2>Setup</h2>
+        <div class="code-block"><code><span class="comment"># Clone the repository</span>
+$ git clone https://github.com/shellphish/agentish.git
+$ cd agentish
+
+<span class="comment"># Install dependencies</span>
+$ pip install -r requirements.txt
+
+<span class="comment"># Start the server (with challenge tools)</span>
+$ CHALLENGISH_CONFIG_PATH=challengish.yml python backend/server_agentish.py --port 8000
+
+<span class="comment"># Open http://localhost:8000 in your browser</span>
+        </code></div>
+        <p>
+            During the competition, you will be provided a <code>challengish.yml</code> file
+            that defines the available MCP tools for each challenge.
+        </p>
 
         <!-- Using the Visual Editor -->
         <h2>Using the Visual Editor</h2>
@@ -126,7 +135,37 @@
             to call them during execution.
         </p>
 
-        
+        <!-- Workflow Strategies -->
+        <h2>Workflow Strategies</h2>
+
+        <h3>Simple Pipeline</h3>
+        <div class="code-block"><code>Entry → LLM (analyze) → LLM (solve) → END
+
+<span class="comment"># Good for straightforward challenges</span>
+<span class="comment"># Single-pass analysis and solution</span>
+        </code></div>
+
+        <h3>Router-Based Branching</h3>
+        <div class="code-block"><code>Entry → Analyzer → Router → ┬─ Approach A
+                                 ├─ Approach B
+                                 └─ Approach C
+                                       ↓
+                                     Final
+
+<span class="comment"># Good when different strategies are needed</span>
+<span class="comment"># Router picks the best approach based on analysis</span>
+        </code></div>
+
+        <h3>Worker Delegation</h3>
+        <div class="code-block"><code>Entry → Coordinator ←──→ Worker 1 (reconnaissance)
+              │        ←──→ Worker 2 (exploitation)
+              ↓
+            Final
+
+<span class="comment"># Good for complex challenges requiring multiple subtasks</span>
+<span class="comment"># Coordinator delegates to specialized workers</span>
+        </code></div>
+
         <!-- Exporting & Submitting -->
         <h2>Exporting &amp; Submitting</h2>
         <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
@@ -153,6 +192,14 @@
             <li><strong>Use workers for subtasks</strong> &mdash; Break complex reasoning into focused worker nodes</li>
         </ul>
 
+        <!-- Important Notes -->
+        <h2>Important Notes</h2>
+        <ul class="features">
+            <li><strong>Agentish does NOT execute agents</strong> &mdash; It only creates workflow definitions. Execution happens in the sandbox.</li>
+            <li><strong>Tool calls are HTTP requests</strong> &mdash; At execution time, your agent calls MCP tools over HTTP. Network issues may cause tool failures.</li>
+            <li><strong>Tool calls are over the network</strong> &mdash; At execution time, MCP tool calls are HTTP requests. Transient network issues may cause tool failures. Design your workflow to be resilient.</li>
+            <li><strong>Bundle is self-contained</strong> &mdash; The exported ZIP has everything needed to compile and run your agent.</li>
+        </ul>
     </main>
 
     <footer>

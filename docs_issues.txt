@@ -1,0 +1,62 @@
+The "Mixing Models Within a Workflow" has an example that does not match the overall example (It talks about "Exploit Developer"). Is this by design? I think that it would be better to keep the running example consistent
+
+One more interesting thing is that under "System Prompt vs. Human Prompt" there is this sentence: "Usually contains template variables to inject dynamic data from the shared state." at this point I don't think that the reader can understand what this means...
+
+In chapter 2 the example at the end is a bit confusing with the confidence level... what were you trying to say?
+
+In chapter 3 when talking about the Router "structured output" is introduced but not explained causing confusion...
+
+IN "Bounded Iteration (Tool Loops)" there is pseudo code that might confuse the reader. Maybe just an example on how to set the tool_iteration without the code would be better.
+
+In "The Single State Philosophy" instead of having code that updates the state it would be best to briefly introduce JSON and give an example of a state with list, dictionaries, etc.
+
+IN "Data Type Reference" this text is confusing for a reader:
+
+Last-write-wins for user-defined fields. The built-in count uses Annotated[int, operator.add] (additive reducer).
+
+5.3 — Reducers: How Updates Merge"
+Here’s a subtle but critical concept. When a node returns Command(update={"count": 1}), what does that 1 mean? Is the new count 1, or is it old count + 1?
+
+This seems to be too technical
+
+The whole Reducer thing is hard to explain. We should generate more erxamples
+5.6 — Data Passing Patterns
+
+It is not clear how this is done in agentish. Some of the code looks like Python...
+In the key takeways of section 5 you say
+
+"Use a single shared state accessible by all agents. No per-agent private state.
+"
+However,  this seems to clash with what you describe in "Global vs. Per-Node Messages":
+
+In 6.2 in ?How it works" you should make clear that all this happens under the hood (if that's the ase0
+[4:39 PM]case
+[4:40 PM]AGain, in "Pattern: Structured Error Returns" it is not clear how this relates to Agentish...
+[4:43 PM]This sentence:
+Router fanout ≥ 2	Single-output routers are pointless
+[4:43 PM]seems wrong
+[4:44 PM]The whole Chapter 6 is a bit difficult to read in the concept of agentish
+[4:47 PM]Chapter 7
+This ""messages":           "Annotated[List[BaseMessage], lambda x, y: x + y]"," is something that should be an idiom in agentish (no high school kid will understand what it means... (edited)
+
+
+In chapter 2 of the Agentish documentation:
+THis definition messages	Annotated[List[BaseMessage], ...] is going to be confusing
+
+
+discovered_functions str     # List of functions found in binary <-- not a list!
+
+In chapter 5 workers, it is not clear in which order the workers are exeuted
+
+Chapter 8
+It’s defined as a Python TypedDict with typed fields.
+
+Is there a way to not realying on Python and only JSON instead?
+[5:26 PM]Same thing for Data Types Reference I would remove any reference to Python
+[5:29 PM]Chapter 9
+
+"In the iCTF, tools are the MCP endpoints provided by each challenge."
+
+I would call the MCP endpoints part of the enviornment created in the sandbox. In a sperate document (the FAQ?) I would talk about how the iCTF use sandboxes for the challenges. I like to keep Agentish as a seprate tool -- that's why it's cool - it's a lot more than iCTF
+[5:30 PM]Maybe we should add at the beginning somethimng that says agentish things about the task to solve in terms of "challenges" -- In one particular instantiation (the iCTF) challenges are what you solve for flag, but a challenge could ne any task!
+[5:32 PM]"Custom tools" ? I would remove those... "Python functions that you write" os.system("cat /fl;ag") :-))
