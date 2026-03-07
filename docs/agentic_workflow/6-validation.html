@@ -97,7 +97,7 @@
         <h2>6.2 &mdash; Iteration Limits: The Circuit Breaker</h2>
 
         <p>
-            The single most important safeguard in any agentic workflow.
+            The iteration limit is the single most important safeguard in any agentic workflow.
             Every LLM Node with tools has a <code>max_tool_iterations</code> setting
             that caps how many times the tool loop can execute.
         </p>
@@ -428,7 +428,7 @@ result = model_with_output.invoke(messages)
         <p>
             Before a workflow runs, the system should validate the graph structure
             to catch problems that would manifest as runtime errors (infinite
-            loops, unreachable nodes, etc.). Good workflow frameworks run these checks
+            loops, unreachable nodes, etc.) Good workflow frameworks run these checks
             automatically at compile time or export time.
         </p>
 

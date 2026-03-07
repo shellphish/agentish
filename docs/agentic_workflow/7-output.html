@@ -109,23 +109,8 @@
 
         <h3>Step 3: Draw the Graph</h3>
 
-        <div class="code-block"><code><span class="comment"># Complete topology:</span>
-
-  ┌────────┐     ┌──────────┐     ┌─────────────┐     ┌──────────────┐
-  │ Entry  │────▶│  Recon   │────▶│   Exploit   │────▶│  Evaluator   │
-  └────────┘     └──────────┘     └─────────────┘     │  (Router)    │
-                                        ▲              └──────┬───────┘
-                                        │                     │
-                                        │ <span class="string">"retry"</span>              │
-                                        └─────────────────────┘
-                                                              │
-                                                  <span class="string">"success"</span>    │
-                                                              ▼
-                                                       ┌───────────┐
-                                                       │  Submit   │
-                                                       └───────────┘
-
-<span class="keyword">Edges:</span>
+        <img src="images/ch7_ctf_workflow.png" alt="CTF Binary Challenge workflow — Entry → Recon → Exploit → Evaluator (Router), with retry loop to Exploit or success to Submit" class="illustration img-ch7-ctf">
+        <div class="code-block"><code><span class="keyword">Edges:</span>
   Entry → Recon:       Direct edge
   Recon → Exploit:     Direct edge
   Exploit → Evaluator: Direct edge
