@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ | Agentish</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo"><img src="agentish_logo_vector.svg" alt="Agentish" class="nav-logo">agentish<span class="dot">.</span></a>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="https://ictf.cs.ucsb.edu" target="_blank" rel="noopener">iCTF</a></li>
+            <li><a href="documentation.html">Documentation</a></li>
+            <li><a href="faq.html" class="active">FAQ</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <section class="hero" style="padding: 3rem 0 2rem;">
+            <h1>FAQ</h1>
+            <p class="description">Frequently asked questions about Agentish.</p>
+        </section>
+
+        <div class="faq">
+            <details class="faq-item">
+                <summary>What is Agentish?</summary>
+                <p>
+                    Agentish is a visual, node-based framework for building autonomous AI agent
+                    pipelines. You design workflows by connecting LLM calls, tools, and decision
+                    logic in a graph editor, then run them against real challenges like CTF
+                    competitions.
+                </p>
+            </details>
+            <details class="faq-item">
+                <summary>How does Agentish relate to iCTF?</summary>
+                <p>
+                    Agentish powers the International Capture The Flag (iCTF) competition. It
+                    provides the environment for participants to build and deploy autonomous
+                    agents that compete in security challenges.
+                </p>
+            </details>
+            <details class="faq-item">
+                <summary>What is MCP and why does it matter?</summary>
+                <p>
+                    MCP (Model Context Protocol) is a standard for connecting AI models to
+                    external tools and data sources. Agentish has first-class MCP integration,
+                    so you can easily wire agents to code execution, file systems, APIs, and
+                    other capabilities.
+                </p>
+            </details>
+            <details class="faq-item">
+                <summary>Where can I learn more?</summary>
+                <p>
+                    Start with the <a href="documentation.html">Documentation</a> hub. The
+                    <a href="agentic_workflow/index.html">Agentic Workflow</a> guide teaches
+                    concepts from first principles; the Agentish Framework guide covers the
+                    practical details of building workflows in the editor.
+                </p>
+            </details>
+            <details class="faq-item">
+                <summary>Can I run an agentish agent in a sandbox locally?</summary>
+                <p>
+                    No, at the moment Agentish is only meant to be used in the iCTF sandbox.
+                    However, after the competition we will make the agentish-sandbox environemtn available to you so you can run your agent locally by exporting the bundle and running it
+                    in the agentish-sandbox.
+                </p>
+            </details>
+        </div>
+
+    </main>
+
+    <footer>
+        <p>
+            Built by <a href="https://shellphish.net" target="_blank" rel="noopener">Shellphish</a>
+            &middot; Sponsored by the <a href="https://action.ucsb.edu" target="_blank" rel="noopener">ACTION NSF AI Institute</a>
+        </p>
+    </footer>
+</body>
+</html>
