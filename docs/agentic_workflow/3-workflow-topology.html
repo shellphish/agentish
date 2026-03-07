@@ -65,10 +65,7 @@
             consider first.
         </p>
 
-        <div class="code-block"><code><span class="comment"># Topology:</span>
-  ┌──────────┐     ┌─────────┐
-  │  Entry   │────▶│  Agent  │
-  └──────────┘     └─────────┘</code></div>
+        <img src="images/single_agent_topology.png" alt="Single Agent topology — Entry flows to Agent" class="illustration img-single-agent">
 
         <h3>When to Use</h3>
         <ul class="features">
@@ -146,13 +143,8 @@
 
         <div class="example-box">
             <div class="example-label">Running Example: Security Alert Pipeline</div>
-            <div class="code-block"><code><span class="comment"># Three specialized agents in a line:</span>
-
-  ┌──────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-  │  Entry   │────▶│ Classifier  │────▶│ Investigator│────▶│  Responder  │
-  └──────────┘     └─────────────┘     └─────────────┘     └─────────────┘
-
-<span class="keyword">Classifier:</span>    Model: GPT-4o-mini, Tools: none
+            <img src="images/ch3_pipeline.png" alt="Pipeline topology — Entry → Classifier → Investigator → Responder" class="illustration img-ch3-pipeline" style="margin-bottom: 1rem;">
+            <div class="code-block"><code><span class="keyword">Classifier:</span>    Model: GPT-4o-mini, Tools: none
                <span class="string">"Classify the alert by category and severity."</span>
 
 <span class="keyword">Investigator:</span>  Model: GPT-4o, Tools: [check_ip, search_logs, check_hash]
@@ -173,8 +165,6 @@
             node finishes, always go to the connected node.&rdquo; No conditions, no branching.
         </p>
 
-        <img src="images/ch3_pipeline.png" alt="Pipeline topology — Entry → Classifier → Investigator → Responder" class="illustration img-ch3-pipeline">
-
 
         <!-- ============================================================== -->
         <!-- 3.3 FAN-OUT / FAN-IN                                            -->
@@ -186,16 +176,7 @@
             run in parallel on the same input, then their results merge at a collection point.
         </p>
 
-        <div class="code-block"><code><span class="comment"># Topology:</span>
-                    ┌───────────┐
-               ┌───▶│ Analyst A │───┐
-               │    └───────────┘   │
-  ┌─────────┐  │    ┌───────────┐   │    ┌──────────┐
-  │ Dispatch │──┼───▶│ Analyst B │───┼───▶│  Merge   │
-  └─────────┘  │    └───────────┘   │    └──────────┘
-               │    ┌───────────┐   │
-               └───▶│ Analyst C │───┘
-                    └───────────┘</code></div>
+        <img src="images/ch3_fanout_fanin.png" alt="Fan-out / Fan-in topology — Dispatch fans out to Analyst A, B, C, which merge into Merge" class="illustration img-ch3-fanout">
 
         <h3>When to Use</h3>
         <ul class="features">
@@ -213,7 +194,7 @@
             <strong>Router = ONE branch runs.</strong> The router picks the single best handler.
             <br><br>
             This is the fundamental difference. Fan-out is about getting multiple answers.
-            Router is about picking the right handler.
+            Router is about picking the right handler (the Router pattern is explained in more detail in <a href="#router">Section 3.4</a>).
         </div>
 
         <div class="example-box">
@@ -244,7 +225,7 @@
         <!-- ============================================================== -->
         <!-- 3.4 ROUTER                                                      -->
         <!-- ============================================================== -->
-        <h2>3.4 &mdash; Router (Dispatcher)</h2>
+        <h2 id="router">3.4 &mdash; Router (Dispatcher)</h2>
 
         <p>
             One node classifies the input and sends it to <strong>exactly one</strong> of N
@@ -252,16 +233,7 @@
             tokens and time by routing work to the right specialist.
         </p>
 
-        <div class="code-block"><code><span class="comment"># Topology:</span>
-                         ┌───────────────┐
-                    ┌───▶│ Malware Agent │
-                    │    └───────────────┘
-  ┌──────────┐     │    ┌───────────────┐
-  │  Router  │─────┼───▶│ Intrusion Agt │
-  └──────────┘     │    └───────────────┘
-                    │    ┌───────────────┐
-                    └───▶│ Misconfig Agt │
-                         └───────────────┘</code></div>
+        <img src="images/ch3_router_generic.png" alt="Router topology (generic) — Router with conditional edges to Malware Agent, Intrusion Agent, and Misconfig Agent" class="illustration img-ch3-router">
 
         <h3>When to Use</h3>
         <ul class="features">
@@ -304,28 +276,10 @@
 
         <div class="example-box">
             <div class="example-label">Running Example: Alert Category Router</div>
-            <div class="code-block"><code><span class="comment"># Extending our pipeline with a router:</span>
-
-  ┌──────────┐     ┌─────────────┐     ┌────────────┐
-  │  Entry   │────▶│ Classifier  │────▶│   Router   │
-  └──────────┘     └─────────────┘     └──────┬─────┘
-                                              │
-                        ┌─────────────────────┼───────────────────┐
-                        ▼                     ▼                   ▼
-                 ┌─────────────┐     ┌──────────────┐    ┌──────────────┐
-                 │   Malware   │     │  Intrusion   │    │   Misconfig  │
-                 │   Handler   │     │   Handler    │    │   Handler    │
-                 └──────┬──────┘     └──────┬───────┘    └──────┬───────┘
-                        │                   │                    │
-                        └───────────────────┴────────────────────┘
-                                            ▼
-                                    ┌──────────────┐
-                                    │  Responder   │
-                                    └──────────────┘
-
-<span class="comment"># The Router reads the Classifier's output and decides:</span>
-<span class="comment"># "This alert is about a suspicious binary → route to Malware Handler"</span>
-<span class="comment"># Only the Malware Handler runs. The other two are skipped.</span></code></div>
+            <img src="images/ch3_router_example.png" alt="Alert Category Router example — Entry → Classifier → Router → Malware/Intrusion/Misconfig Handlers → Responder" class="illustration img-ch3-router" style="margin-bottom: 1rem;">
+            <p>
+                The Router reads the Classifier&rsquo;s output and decides: &ldquo;This alert is about a suspicious binary &rarr; route to Malware Handler.&rdquo; Only the Malware Handler runs. The other two are skipped.
+            </p>
         </div>
 
         <p>
@@ -333,8 +287,6 @@
             Each conditional edge represents one possible routing target. At runtime,
             the router&rsquo;s LLM picks one value, and only that branch executes.
         </p>
-
-        <img src="images/ch3_router.png" alt="Router topology — Category Router with conditional edges to Malware Handler, Intrusion Handler, and Misconfig Handler" class="illustration img-ch3-router">
 
 
         <!-- ============================================================== -->
@@ -348,24 +300,7 @@
             the results. Think of it as a manager who assigns tasks to their team.
         </p>
 
-        <div class="code-block"><code><span class="comment"># Topology:</span>
-             ┌──────────────┐
-             │  Coordinator │
-             └──────┬───────┘
-                    │ delegates to
-         ┌──────────┼──────────┐
-         ▼          ▼          ▼
-  ┌────────────┐ ┌─────────┐ ┌──────────┐
-  │   Recon    │ │ Exploit │ │ Cleanup  │
-  │   Worker   │ │ Worker  │ │  Worker  │
-  └────────────┘ └─────────┘ └──────────┘
-         │          │          │
-         └──────────┴──────────┘
-                    │ results flow back
-                    ▼
-             ┌──────────────┐
-             │  Coordinator │  (synthesizes results)
-             └──────────────┘</code></div>
+        <img src="images/ch3_hierarchy.png" alt="Hierarchy topology — Coordinator delegates to Recon, Exploit, Cleanup workers; results flow back to Coordinator" class="illustration img-ch3-hierarchy">
 
         <h3>Router vs. Hierarchy</h3>
 
@@ -476,18 +411,7 @@
             and tries again if needed.
         </p>
 
-        <div class="code-block"><code><span class="comment"># Topology:</span>
-  ┌───────────┐     ┌───────────┐
-  │  Analyze  │────▶│  Attempt  │
-  └───────────┘     └─────┬─────┘
-         ▲                │
-         │     ┌──────────┘
-         │     ▼
-         │  ┌───────────┐     ┌───────┐
-         └──│  Evaluate  │───▶│  END  │  (if solved)
-            └───────────┘     └───────┘
-
-<span class="comment"># Analyze → Attempt → Evaluate → loop back (or exit)</span></code></div>
+        <img src="images/ch3_cyclic.png" alt="Cyclic topology — Analyze → Attempt → Evaluate, with loop back to Analyze or exit to END" class="illustration img-ch3-cyclic">
 
         <h3>When to Use</h3>
         <ul class="features">
@@ -551,28 +475,10 @@
 
         <div class="example-box">
             <div class="example-label">Running Example: Full Security Triage (Pipeline + Router)</div>
-            <div class="code-block"><code><span class="comment"># Topology: Pipeline → Router → Specialized handlers → Pipeline</span>
-
-  ┌────────┐   ┌────────────┐   ┌─────────┐
-  │ Entry  │──▶│ Classifier │──▶│ Router  │
-  └────────┘   └────────────┘   └────┬────┘
-                                     │
-                    ┌────────────────┼──────────────────┐
-                    ▼                ▼                   ▼
-             ┌───────────┐   ┌───────────┐       ┌───────────┐
-             │  Malware  │   │ Intrusion │       │ Misconfig │
-             │  Handler  │   │  Handler  │       │  Handler  │
-             └─────┬─────┘   └─────┬─────┘       └─────┬─────┘
-                   │               │                    │
-                   └───────────────┴────────────────────┘
-                                   ▼
-                            ┌───────────┐
-                            │ Responder │
-                            └───────────┘
-
-<span class="comment"># This combines:</span>
-<span class="comment"># - Pipeline (Entry → Classifier → Router → ... → Responder)</span>
-<span class="comment"># - Router (Router dispatches to one of three handlers)</span></code></div>
+            <img src="images/ch3_combined_topology.png" alt="Combined topology — Entry → Classifier → Router → Malware/Intrusion/Misconfig Handlers → Responder" class="illustration img-ch3-combined-topology" style="margin-bottom: 1rem;">
+            <p>
+                This combines: <strong>Pipeline</strong> (Entry → Classifier → Router → … → Responder) and <strong>Router</strong> (Router dispatches to one of three handlers).
+            </p>
         </div>
 
 
@@ -591,8 +497,6 @@
                 <tr><td>Cyclic</td><td>Edges that loop back; controlled by iteration limits or router</td><td>Direct (back-edge) or conditional edge</td></tr>
             </tbody>
         </table>
-
-        <img src="images/ch3_combined_topology.png" alt="Combined topology — full security triage workflow with pipeline, router fan-out, and fan-in sections" class="illustration img-ch3-combined-topology">
 
 
         <!-- ============================================================== -->

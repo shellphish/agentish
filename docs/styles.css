@@ -625,6 +625,38 @@ h4 {
     max-width: 750px;
 }
 
+.illustration.img-single-agent {
+    max-width: 400px;
+}
+
+.illustration.img-ch3-fanout {
+    max-width: 550px;
+}
+
+.illustration.img-ch3-hierarchy {
+    max-width: 550px;
+}
+
+.illustration.img-ch3-cyclic {
+    max-width: 500px;
+}
+
+.illustration.img-ch4-static {
+    max-width: 400px;
+}
+
+.illustration.img-ch4-conditional {
+    max-width: 450px;
+}
+
+.illustration.img-ch4-tool-driven {
+    max-width: 500px;
+}
+
+.illustration.img-ch4-iterative {
+    max-width: 500px;
+}
+
 .illustration.img-ch3-router {
     max-width: 680px;
 }

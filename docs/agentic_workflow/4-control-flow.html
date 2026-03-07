@@ -91,12 +91,8 @@
             in graph terminology.
         </p>
 
-        <div class="code-block"><code><span class="comment"># Static flow: A always goes to B</span>
-  ┌─────────┐  direct edge  ┌─────────┐
-  │  Agent A │─────────────▶│  Agent B │
-  └─────────┘               └─────────┘
-
-<span class="comment"># In code, this translates to a hard-coded destination:</span>
+        <img src="images/ch4_static_flow.png" alt="Static flow — Agent A with direct edge to Agent B" class="illustration img-ch4-static">
+        <div class="code-block"><code><span class="comment"># In code, this translates to a hard-coded destination:</span>
 next_node = <span class="string">"agent_b"</span>   <span class="comment"># Always the same</span></code></div>
 
         <p>
@@ -116,18 +112,8 @@ next_node = <span class="string">"agent_b"</span>   <span class="comment"># Alwa
             next nodes. This is how Routers work.
         </p>
 
-        <div class="code-block"><code><span class="comment"># Conditional flow: Router picks one branch</span>
-                         ┌──────────────┐
-                    ┌───▶│  Handler A   │
-                    │    └──────────────┘
-  ┌──────────┐     │    ┌──────────────┐
-  │  Router  │─────┼───▶│  Handler B   │
-  └──────────┘     │    └──────────────┘
-                    │    ┌──────────────┐
-                    └───▶│  Handler C   │
-                         └──────────────┘
-
-<span class="comment"># The Router LLM returns structured output:</span>
+        <img src="images/ch4_conditional_flow.png" alt="Conditional flow — Router picks one of Handler A, B, or C" class="illustration img-ch4-conditional">
+        <div class="code-block"><code><span class="comment"># The Router LLM returns structured output:</span>
 {
   <span class="string">"next_node"</span>: <span class="string">"intrusion_handler"</span>,
   <span class="string">"reason"</span>: <span class="string">"The alert involves unauthorized access attempts,
@@ -175,22 +161,7 @@ Based on the conversation, which node should handle this next?"""</span></code><
             has tools, it creates an <strong>implicit loop</strong>:
         </p>
 
-        <div class="code-block"><code><span class="comment"># Tool-driven flow: implicit loop within a single "node"</span>
-
-  ┌────────────────────────────────────────────┐
-  │              LLM Node (Agent)              │
-  │                                            │
-  │   ┌──────────┐      ┌──────────────────┐   │
-  │   │ LLM Call │─────▶│ Tool Execution   │   │
-  │   │          │◀─────│ (Tool Node)      │   │
-  │   └────┬─────┘      └──────────────────┘   │
-  │        │                                   │
-  │        │ (no more tool calls)              │
-  │        ▼                                   │
-  └────────────────────────────────────────────┘
-           │
-           ▼
-     Next Node in Graph</code></div>
+        <img src="images/ch4_tool_driven_flow.png" alt="Tool-driven flow — LLM Node with internal loop to Tool Execution, then to Next Node" class="illustration img-ch4-tool-driven">
 
         <p>
             Here&rsquo;s how it works step by step:
@@ -281,21 +252,7 @@ Based on the conversation, which node should handle this next?"""</span></code><
             that decides whether to loop back or move forward:
         </p>
 
-        <div class="code-block"><code><span class="comment"># Open iteration with a Router as loop controller:</span>
-
-  ┌──────────┐     ┌──────────┐     ┌──────────────┐
-  │ Analyze  │────▶│ Attempt  │────▶│   Evaluate   │
-  └──────────┘     └──────────┘     │   (Router)   │
-       ▲                            └──────┬───────┘
-       │                                   │
-       │         ┌─────────────────┐       │
-       └─────────│ "needs_retry"   │◀──────┘
-                 └─────────────────┘       │
-                                    ┌──────┘
-                                    ▼
-                              ┌──────────┐
-                              │   END    │
-                              └──────────┘</code></div>
+        <img src="images/ch4_iterative_flow.png" alt="Open iteration — Analyze → Attempt → Evaluate (Router), with loop back or exit to END" class="illustration img-ch4-iterative">
 
         <p>
             The Evaluate Router decides: &ldquo;did we succeed?&rdquo; If yes, route to END.
