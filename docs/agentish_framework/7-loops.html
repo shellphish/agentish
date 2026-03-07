@@ -43,14 +43,11 @@
             <li style="padding-left: 0.5rem;"><strong>An exit edge</strong> from the Router to a downstream node (the exit path).</li>
         </ol>
 
-        <div class="code-block"><code><span class="comment"># The canonical loop pattern:</span>
-
-Entry &rarr; Orchestrator &rarr; Router &rarr; ┬─ Orchestrator  <span class="comment">(back-edge: retry)</span>
-                                     └─ Finalizer     <span class="comment">(exit: done)</span>
-
-<span class="comment"># The Router decides: "Is the work good enough?"</span>
-<span class="comment"># If not → send back to Orchestrator for another pass.</span>
-<span class="comment"># If yes → send to Finalizer to produce final output.</span></code></div>
+        <img src="images/ch6_loop.png" alt="Canonical loop pattern — Entry → Orchestrator → Router, with back-edge to Orchestrator (retry) or exit to Finalizer (done)" class="illustration img-ch6-loop">
+        <p>
+            The Router decides: &ldquo;Is the work good enough?&rdquo; If not &rarr; send back to Orchestrator for another pass.
+            If yes &rarr; send to Finalizer to produce final output.
+        </p>
 
         <div class="callout callout-warning">
             <strong>Critical:</strong> Loops without a Router are <strong>infinite loops</strong>.

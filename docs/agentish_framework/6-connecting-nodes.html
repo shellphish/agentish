@@ -99,35 +99,31 @@
         <h2>Common Topologies</h2>
 
         <h3>Pipeline (Sequential)</h3>
-        <div class="code-block"><code>Entry &rarr; LLM A &rarr; LLM B &rarr; LLM C (terminal)
-
-<span class="comment"># Each node processes the output of the previous one.</span>
-<span class="comment"># Simple, predictable, easy to debug.</span>
-<span class="comment"># LLM C has no outgoing edge → compiles to END.</span></code></div>
+        <img src="images/ch6_pipeline.png" alt="Pipeline topology — Entry → LLM A → LLM B → LLM C (terminal)" class="illustration img-ch6-pipeline">
+        <p>
+            Each node processes the output of the previous one. Simple, predictable, easy to debug.
+            LLM C has no outgoing edge &rarr; compiles to END.
+        </p>
 
         <h3>Router Branching</h3>
-        <div class="code-block"><code>Entry &rarr; Analyzer &rarr; Router &rarr; ┬─ Handler A (terminal)
-                                 └─ Handler B (terminal)
-
-<span class="comment"># Router picks one path based on analysis.</span>
-<span class="comment"># Both handlers are terminal (no outgoing edges).</span></code></div>
+        <img src="images/ch6_router_branching.png" alt="Router branching — Entry → Analyzer → Router → Handler A or Handler B (terminal)" class="illustration img-ch6-router">
+        <p>
+            Router picks one path based on analysis. Both handlers are terminal (no outgoing edges).
+        </p>
 
         <h3>Worker Delegation</h3>
-        <div class="code-block"><code>Entry &rarr; Coordinator ──────&rarr; LLM Final (terminal)
-              │
-              ├──&rarr; Worker 1 (tool binding, not a flow edge)
-              └──&rarr; Worker 2 (tool binding, not a flow edge)
-
-<span class="comment"># Coordinator can call Worker 1 and Worker 2 as tools.</span>
-<span class="comment"># Workers return results to the Coordinator.</span>
-<span class="comment"># The flow continues from Coordinator to LLM Final.</span></code></div>
+        <img src="images/ch6_worker_delegation.png" alt="Worker delegation — Coordinator with Worker 1 and Worker 2 as tools, flow to LLM Final" class="illustration img-ch6-worker">
+        <p>
+            Coordinator can call Worker 1 and Worker 2 as tools. Workers return results to the Coordinator.
+            The flow continues from Coordinator to LLM Final.
+        </p>
 
         <h3>Loop (Router Back-Edge)</h3>
-        <div class="code-block"><code>Entry &rarr; Orchestrator &rarr; Router &rarr; ┬─ Orchestrator (back-edge / loop)
-                                     └─ Finalizer (terminal, exit)
-
-<span class="comment"># Router can send execution back to Orchestrator for another iteration.</span>
-<span class="comment"># See Chapter 7: Loops for how to configure this properly.</span></code></div>
+        <img src="images/ch6_loop.png" alt="Loop topology — Orchestrator → Router, with back-edge to Orchestrator or exit to Finalizer" class="illustration img-ch6-loop">
+        <p>
+            Router can send execution back to Orchestrator for another iteration.
+            See <a href="7-loops.html">Chapter 7: Loops</a> for how to configure this properly.
+        </p>
 
         <!-- Topology Rules -->
         <h2>Topology Rules (Validated at Export)</h2>

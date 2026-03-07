@@ -36,7 +36,7 @@
 
         <div class="callout callout-key">
             <strong>Key point:</strong> Agentish does <em>not</em> execute agents. It creates
-            workflow definitions. Execution happens in the agentish-ctf sandbox, which compiles
+            workflow definitions. Execution happens in the Agentish sandbox, which compiles
             your workflow and runs it against challenge environments.
         </div>
 
@@ -140,13 +140,7 @@
         <!-- The Pipeline -->
         <h2>The Pipeline: Design &rarr; Export &rarr; Compile &rarr; Run</h2>
 
-        <div class="code-block"><code>  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
-  │   Visual    │      │   Bundle    │      │  Compiler   │      │   Runner    │
-  │   Editor    │─────▶│  (ZIP file) │─────▶│ (ASL→Python)│─────▶│  (Docker)   │
-  │  (Canvas)   │      │ asl.json    │      │             │      │             │
-  └─────────────┘      │ layout.json │      └─────────────┘      └─────────────┘
-    You design           You download         Sandbox does          Agent runs
-    the graph            the bundle           this for you          against challenge</code></div>
+        <img src="images/ch1_pipeline.png" alt="The Pipeline: Visual Editor → Bundle (ZIP) → Compiler → Runner" class="illustration img-ch1-pipeline">
 
         <ol class="features" style="list-style: decimal; padding-left: 1.5rem;">
             <li style="padding-left: 0.5rem;"><strong>Design</strong> &mdash; Build your workflow in the visual editor.</li>

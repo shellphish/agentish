@@ -661,6 +661,17 @@ h4 {
     max-width: 650px;
 }
 
+.illustration.img-ch1-pipeline {
+    max-width: 700px;
+}
+
+.illustration.img-ch6-pipeline,
+.illustration.img-ch6-router,
+.illustration.img-ch6-worker,
+.illustration.img-ch6-loop {
+    max-width: 550px;
+}
+
 .illustration.img-ch3-router {
     max-width: 680px;
 }
