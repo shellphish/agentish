@@ -119,17 +119,6 @@
                         </div>
                     </section>
 
-                    <section class="sidebar-section" id="section-tool-registry">
-                        <div class="section-heading" data-toggle-section="section-tool-registry">
-                            <h2>🛠️ Tool Registry <span class="section-chevron">▼</span></h2>
-                        </div>
-                        <div class="section-body">
-                        <button class="btn btn-sm btn-primary" id="new-tool-btn">+ New Tool</button>
-                        <div id="tool-list">
-                            <!-- Tools will be populated here -->
-                        </div>
-                        </div>
-                    </section>
                 </aside>
 
                 <section class="canvas-area">
@@ -208,7 +197,7 @@
 
                 <div id="bundle-info" class="hidden bundle-info-box">
                     <p>
-                        <strong>Bundle ready!</strong> Upload to the sandbox at <a href="http://localhost:8001" target="_blank">http://localhost:8001</a> to execute.
+                        <strong>Bundle ready!</strong> Upload to the sandbox to execute.
                     </p>
                 </div>
             </div>
@@ -239,55 +228,6 @@
             </div>
         </div>
 
-        <!-- Tool Editor Modal -->
-        <div id="tool-editor-modal" class="modal-generic-overlay">
-            <div class="modal-generic-panel modal-narrow">
-                <button id="close-tool-editor" class="modal-generic-close">&times;</button>
-                <h2>✨ Create Custom Tool</h2>
-                
-                <div class="tool-editor-field">
-                    <label>Tool Name</label>
-                    <input type="text" id="tool-name" placeholder="e.g., calculate_offset">
-                    <small>Must be a valid Python identifier</small>
-                </div>
-
-                <div class="tool-editor-field">
-                    <label>Description</label>
-                    <textarea id="tool-description" placeholder="Describe what this tool does..."></textarea>
-                </div>
-
-                <div class="tool-editor-field">
-                    <label>Arguments</label>
-                    <div id="tool-arguments">
-                        <!-- Arguments will be added here -->
-                    </div>
-                    <button id="add-argument-btn" class="btn-add-field">+ Add Argument</button>
-                </div>
-
-                <div class="tool-editor-field">
-                    <label>Return Schema (JSON)</label>
-                    <textarea id="tool-return-schema" class="mono-input" placeholder='{"result": "Any", "success": "bool"}'></textarea>
-                </div>
-
-                <div class="tool-editor-field">
-                    <label>Implementation (Python)</label>
-                    <select id="template-selector">
-                        <option value="">Select a template...</option>
-                        <option value="addition">Addition Example</option>
-                    </select>
-                    <div class="validate-syntax-wrapper">
-                        <button id="validate-syntax-btn" class="modal-btn modal-btn-primary btn-validate-syntax">Validate Syntax</button>
-                    </div>
-                    <textarea id="tool-implementation" class="mono-input tall-input" placeholder="def tool_implementation(...):"></textarea>
-                    <div id="syntax-feedback" class="syntax-feedback"></div>
-                </div>
-
-                <div class="modal-btn-row modal-btn-row--end">
-                    <button id="cancel-tool-btn" class="modal-btn modal-btn-ghost">Cancel</button>
-                    <button id="save-tool-btn" class="modal-btn modal-btn-primary">Save Tool</button>
-                </div>
-            </div>
-        </div>
 
         <!-- Toast Notification Container -->
         <div id="toast-container" class="toast-container"></div>

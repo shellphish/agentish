@@ -39,6 +39,19 @@ function EntryPointNode() {
     this.onOutputClick = function (slot_index) {
         if (ASL_DEBUG) console.log("Entry Node output clicked:", slot_index);
     };
+
+    this.onConnectOutput = function (slot, type, input, inputNode, inputSlot) {
+        if (!inputNode || inputNode.type !== "asl/llm") {
+            showToast("Entry Node can only connect to an LLM Node.", "warning");
+            return false;
+        }
+        const existingLinks = this.outputs && this.outputs[0] && this.outputs[0].links;
+        if (existingLinks && existingLinks.length >= 1) {
+            showToast("Entry Node can only have one outgoing connection.", "warning");
+            return false;
+        }
+        return true;
+    };
 }
 EntryPointNode.title = "Entry Node";
 EntryPointNode.title_color = "#000000";

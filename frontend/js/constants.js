@@ -18,31 +18,6 @@ export const DEFAULT_TOOL_MAX_ITERATIONS = 30;
 export const DEFAULT_TOOL_LIMIT_WARNING =
     "You are close to the tool iteration limit. Wrap up soon without more tool calls.";
 
-export const TOOL_TEMPLATE_ADDITION = `def tool_implementation(a: int, b: int, state: dict = None) -> dict:
-    """
-    Add two numbers together.
-    
-    Args:
-        a: First number
-        b: Second number
-        state: Agent state (optional, read-only access)
-    
-    Returns:
-        dict with result and success flag
-    """
-    try:
-        result = a + b
-        return {
-            "result": result,
-            "success": True
-        }
-    except Exception as e:
-        return {
-            "result": None,
-            "success": False,
-            "error": str(e)
-        }`;
-
 export const NODE_FORMS = {
     "asl/entry": [
         { key: "title", label: "Display name", type: "text", placeholder: "Entry Node" },

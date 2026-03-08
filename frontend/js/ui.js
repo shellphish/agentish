@@ -3,7 +3,7 @@
 // =====================================================
 
 import { state } from './state.js';
-import { ASL_DEBUG, NODE_TYPE_MAP, TOOL_TEMPLATE_ADDITION } from './constants.js';
+import { ASL_DEBUG, NODE_TYPE_MAP } from './constants.js';
 import {
     showToast,
     downloadFile,
@@ -14,13 +14,6 @@ import {
 import { ensureSingleEntry, createNode } from './nodes.js';
 import { renderInspector, renderEmptyInspector } from './inspector.js';
 import { serializeToASL, serializeToLayout, configureFromASL, downloadASL, downloadLayout, viewASL } from './serialization.js';
-import {
-    openToolEditor,
-    closeToolEditor,
-    addArgumentRow,
-    validateToolSyntax,
-    saveToolDefinition
-} from './tools.js';
 
 // =====================================================
 // Public init — called once from main.js
@@ -33,11 +26,11 @@ export function initUI() {
     initImportHandlers();
     initBundleModal();
     initModalHandlers();
-    initToolEditorHandlers();
     initCollapsibleSidebar();
 }
 
 // ---------------------- Keyboard Shortcuts ----------------------
+
 
 function initKeyboardShortcuts() {
     let copiedNode = null;
@@ -535,30 +528,6 @@ function initModalHandlers() {
 
     document.getElementById('asl-view-modal').addEventListener('click', (e) => {
         if (e.target.id === 'asl-view-modal') document.getElementById('asl-view-modal').classList.remove('visible');
-    });
-}
-
-// ---------------------- Tool Editor Handlers ----------------------
-
-function initToolEditorHandlers() {
-    document.getElementById('new-tool-btn').addEventListener('click', () => openToolEditor());
-    document.getElementById('close-tool-editor').addEventListener('click', closeToolEditor);
-    document.getElementById('cancel-tool-btn').addEventListener('click', closeToolEditor);
-    document.getElementById('save-tool-btn').addEventListener('click', saveToolDefinition);
-    document.getElementById('add-argument-btn').addEventListener('click', () => addArgumentRow());
-    document.getElementById('validate-syntax-btn').addEventListener('click', validateToolSyntax);
-
-    document.getElementById('template-selector').addEventListener('change', (e) => {
-        if (e.target.value === 'addition') {
-            document.getElementById('tool-implementation').value = TOOL_TEMPLATE_ADDITION;
-            document.getElementById('tool-name').value = 'addition';
-            document.getElementById('tool-description').value = 'Add two numbers together';
-            document.getElementById('tool-return-schema').value = '{"result": "int", "success": "bool"}';
-
-            document.getElementById('tool-arguments').innerHTML = '';
-            addArgumentRow({ name: 'a', type: 'int', required: true, description: 'First number' });
-            addArgumentRow({ name: 'b', type: 'int', required: true, description: 'Second number' });
-        }
     });
 }
 

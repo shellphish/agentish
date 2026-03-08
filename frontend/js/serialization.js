@@ -92,7 +92,9 @@ export function serializeToASL() {
             state: { schema: state.appState.schema },
             nodes: aslNodes,
             edges,
-            tools: state.globalTools
+            tools: Object.fromEntries(
+                Object.entries(state.globalTools).filter(([, def]) => def.type !== 'custom')
+            )
         }
     };
 }
@@ -117,6 +119,7 @@ export function configureFromASL(asl) {
         for (const key of Object.keys(rawTools)) {
             if (!Object.prototype.hasOwnProperty.call(rawTools, key)) continue;
             if (!isSafeKey(key)) continue;
+            if (rawTools[key]?.type === 'custom') continue; // custom tools not supported
             state.globalTools[key] = rawTools[key];
         }
     }
@@ -229,11 +232,29 @@ function _validateTopology(asl) {
         }
     }
 
-    // Check 4: Entry has outgoing edges
+    // Check 4: Entry has exactly one outgoing edge to an LLM node
     if (!entryId) {
         errors.push("No entry node found in the graph.");
-    } else if ((flowAdj.get(entryId) || []).length === 0) {
-        errors.push("Entry node has no outgoing edges. The graph is empty.");
+    } else {
+        const entryOutgoing = flowAdj.get(entryId) || [];
+        if (entryOutgoing.length === 0) {
+            errors.push("Entry node has no outgoing edge. Connect it to an LLM Node.");
+        } else if (entryOutgoing.length > 1) {
+            errors.push(
+                `Entry node has ${entryOutgoing.length} outgoing edges. ` +
+                `It must have exactly one, connecting directly to an LLM Node.`
+            );
+        } else {
+            const entryTargetId = entryOutgoing[0];
+            if (!llmIds.has(entryTargetId)) {
+                const targetNode = nodeById.get(entryTargetId);
+                const targetType = targetNode ? targetNode.type : "Unknown";
+                errors.push(
+                    `Entry node must connect directly to an LLM Node, ` +
+                    `but it connects to a ${targetType} node (${label(entryTargetId)}).`
+                );
+            }
+        }
     }
 
     // Check 1: At least one terminal LLM node
