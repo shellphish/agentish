@@ -179,7 +179,7 @@ export function renderStateSchemaDisplay() {
 
         const tdType = document.createElement('td');
         tdType.style.cssText = 'padding: 6px 8px; border-bottom: 1px solid #1e293b; color: #94a3b8; font-family: \'JetBrains Mono\', monospace; font-size: 0.75em; word-break: break-word; white-space: normal; line-height: 1.4;';
-        tdType.textContent = varType;
+        tdType.textContent = varName.toLowerCase() === 'messages' ? 'List[Message]' : varType;
 
         tr.appendChild(tdName);
         tr.appendChild(tdType);
