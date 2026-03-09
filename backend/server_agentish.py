@@ -217,9 +217,7 @@ def single_static(path):
 def root():
     if _use_single_mode():
         return single_index()
-    challenges = _list_challenges()
-    links = ''.join(f'<li><a href="/{html_escape(c["id"])}/">{html_escape(c["name"])}</a></li>' for c in challenges)
-    return f'<html><body><h2>Challenges</h2><ul>{links}</ul></body></html>'
+    return '', 404
 
 
 challenge_bp = Blueprint('challenge', __name__, url_prefix='/<challenge_id>')
