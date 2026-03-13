@@ -221,6 +221,16 @@
             The merge node sees all outputs in the shared state.
         </p>
 
+        <div class="callout callout-warning">
+            <strong>Agentish constraint:</strong> An LLM node&rsquo;s output may connect to
+            <strong>at most one other LLM node</strong>. True parallel fan-out from a single LLM
+            node to multiple LLM nodes is not supported &mdash; the topology validator will block
+            export if this rule is violated. Worker nodes are not subject to this limit (an LLM
+            can bind any number of Worker nodes). If you need to dispatch to multiple parallel
+            agents, restructure so each parallel branch is reached through a dedicated
+            dispatcher LLM that feeds into exactly one downstream LLM.
+        </div>
+
 
         <!-- ============================================================== -->
         <!-- 3.4 ROUTER                                                      -->
@@ -491,7 +501,7 @@
             <tbody>
                 <tr><td>Single Agent</td><td>Entry point &rarr; one agent</td><td>Direct edge</td></tr>
                 <tr><td>Pipeline</td><td>Agents in sequence</td><td>Direct edge</td></tr>
-                <tr><td>Fan-out / Fan-in</td><td>One node &rarr; multiple direct edges &rarr; merge node</td><td>Direct edge</td></tr>
+                <tr><td>Fan-out / Fan-in</td><td>One LLM &rarr; one downstream LLM per branch &rarr; merge node (each branch is a separate LLM-to-LLM chain; an LLM may not connect directly to more than 1 other LLM)</td><td>Direct edge</td></tr>
                 <tr><td>Router</td><td>Router node &rarr; multiple targets</td><td>Conditional edge</td></tr>
                 <tr><td>Hierarchy</td><td>Coordinator agent + worker sub-agents</td><td>Workers are callable functions, not edges</td></tr>
                 <tr><td>Cyclic</td><td>Edges that loop back; controlled by iteration limits or router</td><td>Direct (back-edge) or conditional edge</td></tr>

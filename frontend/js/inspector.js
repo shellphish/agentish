@@ -425,12 +425,35 @@ function renderInitialStateTable(def, node, wrapper) {
             }
         });
 
+        // Find keys that were removed
+        const oldKeys = Object.keys(node.properties[def.key] || {});
+        const newKeys = Object.keys(newInitialState);
+        const removedKeys = oldKeys.filter(k => !newKeys.includes(k));
+
         node.properties[def.key] = newInitialState;
 
         const mergedSchema = { ...DEFAULT_SCHEMA, ...newInitialState };
         state.appState.schema = mergedSchema;
         state.appState.schemaRaw = JSON.stringify(mergedSchema, null, 2);
         renderStateSchemaDisplay();
+
+        // Clean up stale variable references from all other nodes
+        if (removedKeys.length > 0) {
+            const allNodes = state.graph._nodes || [];
+            allNodes.forEach(n => {
+                if (!n.properties) return;
+                ['input_state_keys', 'output_state_keys'].forEach(prop => {
+                    if (Array.isArray(n.properties[prop])) {
+                        n.properties[prop] = n.properties[prop].filter(k => !removedKeys.includes(k));
+                    }
+                });
+                if (Array.isArray(n.properties.structured_output_schema)) {
+                    n.properties.structured_output_schema = n.properties.structured_output_schema.filter(
+                        row => !removedKeys.includes(row.name)
+                    );
+                }
+            });
+        }
 
         state.graph.setDirtyCanvas(true, true);
     }

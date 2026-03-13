@@ -94,6 +94,16 @@
             </tbody>
         </table>
 
+        <!-- Output Connection Rule -->
+        <h2>Output Connection Rule</h2>
+
+        <div class="callout callout-warning">
+            <strong>Rule:</strong> An LLM Node&rsquo;s output may connect to <strong>at most one
+            other LLM node</strong>. Connecting to multiple LLM nodes simultaneously (fan-out) is
+            not allowed and will be blocked both in the editor and at export time. Worker nodes are
+            not subject to this limit &mdash; an LLM node may bind any number of Worker nodes.
+        </div>
+
         <!-- The Terminal Node Rule -->
         <h2>The Terminal Node Rule</h2>
 
@@ -247,6 +257,7 @@ Name: confidence         Type: float  Description: "Confidence score 0.0-1.0"
             <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
                 <li>The LLM Node is the primary building block &mdash; an AI agent with prompts, tools, and structured output.</li>
                 <li>At least one LLM Node must have no outgoing edge (the terminal node rule).</li>
+                <li>An LLM Node&rsquo;s output may connect to <strong>at most 1 other LLM node</strong> (unlimited Worker nodes allowed).</li>
                 <li>Each node needs a <strong>unique title</strong>.</li>
                 <li>System prompts need four components: identity, focus, constraints, output format.</li>
                 <li>Template variables (<code>{var}</code>) inject state data into prompts at runtime.</li>

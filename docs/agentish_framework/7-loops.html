@@ -55,6 +55,14 @@
             there is no decision point to break the cycle. The validator will block this.
         </div>
 
+        <div class="callout">
+            <strong>Reminder &mdash; one outgoing LLM connection:</strong> Even inside a loop,
+            an LLM Node&rsquo;s output connects to exactly <strong>one</strong> downstream node
+            &mdash; either one other LLM node or one Router node. It cannot connect to multiple
+            nodes simultaneously. The loop back-edge is created by the Router, not by the LLM
+            directly wiring itself to multiple targets.
+        </div>
+
         <!-- The Loop Problem -->
         <h2>The Problem: What Happens on Re-Entry?</h2>
         <p>
@@ -305,6 +313,7 @@ to avoid endless loops."</span></code></div>
             <strong>Key Takeaways:</strong>
             <ul style="margin: 0.5rem 0 0 1.5rem; list-style: disc;">
                 <li>Loops require a Router with a back-edge and an exit edge.</li>
+                <li>An LLM Node&rsquo;s output always connects to <strong>exactly one</strong> downstream node (one LLM or one Router). The Router creates the branching.</li>
                 <li>Loop target LLM Nodes <strong>must</strong> have <code>loop_mode</code> set (fresh or continue).</li>
                 <li>Use a <strong>feedback state variable</strong> to give the LLM new context on each iteration.</li>
                 <li>Write clear, specific exit criteria in the Router prompt.</li>

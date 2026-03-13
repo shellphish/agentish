@@ -45,9 +45,31 @@ function collectEdges(serializedGraph) {
     return edges;
 }
 
+// ---------------------- State Cleaner ----------------------
+
+export function cleanStaleStateVariables() {
+    const validKeys = new Set(Object.keys(state.appState.schema || {}));
+    const allNodes = state.graph._nodes || [];
+    allNodes.forEach(n => {
+        if (!n.properties) return;
+        ['input_state_keys', 'output_state_keys'].forEach(prop => {
+            if (Array.isArray(n.properties[prop])) {
+                n.properties[prop] = n.properties[prop].filter(k => validKeys.has(k));
+            }
+        });
+        if (Array.isArray(n.properties.structured_output_schema)) {
+            n.properties.structured_output_schema = n.properties.structured_output_schema.filter(
+                row => !row.name || validKeys.has(row.name)
+            );
+        }
+    });
+}
+
 // ---------------------- ASL Export ----------------------
 
 export function serializeToASL() {
+    cleanStaleStateVariables();
+
     const serializedGraph = state.graph.serialize();
     const nodes = serializedGraph.nodes || [];
     const edges = collectEdges(serializedGraph);
@@ -179,6 +201,24 @@ export function configureFromASL(asl) {
     });
 
     updateSummary();
+
+    // Warn on import if any LLM fans out to more than 1 other LLM node
+    const importedNodes = asl?.graph?.nodes || [];
+    const importedEdges = asl?.graph?.edges || [];
+    const importedLlmIds = new Set(importedNodes.filter(n => n.type === "LLMNode").map(n => String(n.id)));
+    for (const id of importedLlmIds) {
+        const llmTargets = importedEdges.filter(
+            e => String(e.from) === id && importedLlmIds.has(String(e.to))
+        );
+        if (llmTargets.length > 1) {
+            const n = importedNodes.find(n => String(n.id) === id);
+            showToast(
+                `Warning: LLM node '${n?.label || id}' connects to ${llmTargets.length} other LLM nodes — this will fail validation.`,
+                "warning"
+            );
+        }
+    }
+
     showToast("ASL graph loaded", "success");
 }
 
@@ -293,6 +333,45 @@ function _validateTopology(asl) {
         }
     }
 
+    // Check 8: LLM nodes may connect to at most 1 other LLM node
+    for (const id of llmIds) {
+        const llmTargets = (flowAdj.get(id) || []).filter(tid => llmIds.has(tid));
+        if (llmTargets.length > 1) {
+            errors.push(
+                `LLM node ${label(id)} connects to ${llmTargets.length} other LLM nodes. ` +
+                `An LLM node may connect to at most 1 other LLM node.`
+            );
+        }
+    }
+
+    // Check 6: input_state_keys must be non-empty for all LLM/Router nodes except the entry-connected LLM
+    const entryConnectedLlmId = (() => {
+        const entryOut = entryId ? (flowAdj.get(entryId) || []) : [];
+        return entryOut.length === 1 && llmIds.has(entryOut[0]) ? entryOut[0] : null;
+    })();
+
+    for (const node of nodes) {
+        const nId = String(node.id);
+        if (nId === entryId) continue;
+        if (nId === entryConnectedLlmId) continue;
+        if (llmIds.has(nId) || routerIds.has(nId)) {
+            const keys = node.config?.input_state_keys || [];
+            if (keys.length === 0) {
+                errors.push(`Node ${label(nId)} has no Input State selected. Select at least one state variable.`);
+            }
+        }
+    }
+
+    // Check 7: Router nodes must have descriptions for all routes
+    for (const id of routerIds) {
+        const node = nodeById.get(id);
+        const routerValues = node?.config?.router_values || [];
+        const missingCount = routerValues.filter(rv => !rv.description || rv.description.trim() === '').length;
+        if (missingCount > 0) {
+            errors.push(`Router node ${label(id)} has ${missingCount} route(s) with missing descriptions.`);
+        }
+    }
+
     // Check 5: Loop LLM nodes must declare loop_mode
     for (const id of llmIds) {
         const incomingCount = edges.filter(
@@ -372,6 +451,8 @@ function _validateTopology(asl) {
     return { errors, warnings };
 }
 
+export { _validateTopology as validateTopology };
+
 export function downloadASL() {
     try {
         const asl = serializeToASL();
@@ -391,6 +472,8 @@ export function downloadASL() {
 export function serializeToLayout() {
     const serialized = state.graph.serialize();
     return {
+        last_node_id: serialized.last_node_id,
+        last_link_id: serialized.last_link_id,
         nodes: serialized.nodes || [],
         links: serialized.links || [],
         groups: serialized.groups || [],

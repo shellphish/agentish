@@ -99,6 +99,27 @@ function LLMNode() {
         }, 0);
     };
 
+    this.onConnectOutput = function (slot, type, input, inputNode, inputSlot) {
+        if (!inputNode || inputNode.type !== "asl/llm") return true;
+        let existingLlmTargets = 0;
+        if (this.outputs) {
+            for (const output of this.outputs) {
+                if (!output.links) continue;
+                for (const linkId of output.links) {
+                    const link = state.graph && state.graph.links[linkId];
+                    if (!link) continue;
+                    const targetNode = state.graph._nodes_by_id[link.target_id];
+                    if (targetNode && targetNode.type === "asl/llm") existingLlmTargets++;
+                }
+            }
+        }
+        if (existingLlmTargets >= 1) {
+            showToast("An LLM node can only connect to at most 1 other LLM node.", "warning");
+            return false;
+        }
+        return true;
+    };
+
     const getToolsStartY = () => {
         const slotHeight = LiteGraph.NODE_SLOT_HEIGHT || 20;
         const numRows = Math.max(

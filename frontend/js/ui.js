@@ -13,7 +13,7 @@ import {
 } from './utils.js';
 import { ensureSingleEntry, createNode } from './nodes.js';
 import { renderInspector, renderEmptyInspector } from './inspector.js';
-import { serializeToASL, serializeToLayout, configureFromASL, downloadASL, downloadLayout, viewASL } from './serialization.js';
+import { serializeToASL, serializeToLayout, configureFromASL, downloadASL, downloadLayout, viewASL, cleanStaleStateVariables } from './serialization.js';
 
 // =====================================================
 // Public init — called once from main.js
@@ -166,6 +166,34 @@ function initDropdownMenus() {
 
 // ---------------------- Import Handlers ----------------------
 
+function fixLastNodeId() {
+    const maxId = Math.max(0, ...(state.graph._nodes || []).map(n => n.id));
+    if (state.graph.last_node_id < maxId) state.graph.last_node_id = maxId;
+    const maxLinkId = Math.max(0, ...Object.keys(state.graph.links || {}).map(Number));
+    if (state.graph.last_link_id < maxLinkId) state.graph.last_link_id = maxLinkId;
+}
+
+function warnLlmFanOut() {
+    const allNodes = state.graph._nodes || [];
+    allNodes.filter(n => n.type === "asl/llm").forEach(n => {
+        let llmTargets = 0;
+        (n.outputs || []).forEach(output => {
+            (output.links || []).forEach(linkId => {
+                const link = state.graph.links[linkId];
+                if (!link) return;
+                const target = state.graph._nodes_by_id[link.target_id];
+                if (target && target.type === "asl/llm") llmTargets++;
+            });
+        });
+        if (llmTargets > 1) {
+            showToast(
+                `Warning: LLM node '${n.title}' connects to ${llmTargets} other LLM nodes — this will fail validation.`,
+                "warning"
+            );
+        }
+    });
+}
+
 function initImportHandlers() {
     // Auto-detect import
     document.getElementById("file-input").addEventListener("change", (event) => {
@@ -180,12 +208,14 @@ function initImportHandlers() {
                     showToast("ASL specification loaded", "success");
                 } else {
                     state.graph.configure(data);
+                    fixLastNodeId();
                     if (data.extra?.stateSchema) {
                         state.appState.schema = normalizeSchemaToLowercase(data.extra.stateSchema);
                         state.appState.schemaRaw = JSON.stringify(state.appState.schema, null, 2);
                         renderStateSchemaDisplay();
                     }
                     updateSummary();
+                    warnLlmFanOut();
                     showToast("Layout loaded", "success");
                 }
             } catch (err) {
@@ -232,6 +262,7 @@ function initImportHandlers() {
                     throw new Error("Invalid Layout format: missing nodes array");
                 }
                 state.graph.configure(data);
+                fixLastNodeId();
                 if (data.extra?.stateSchema) {
                     state.appState.schema = normalizeSchemaToLowercase(data.extra.stateSchema);
                     state.appState.schemaRaw = JSON.stringify(state.appState.schema, null, 2);
@@ -243,6 +274,7 @@ function initImportHandlers() {
                     renderStateSchemaDisplay();
                 }
                 updateSummary();
+                warnLlmFanOut();
                 showToast("Layout loaded", "success");
             } catch (err) {
                 showToast(`Failed to load layout: ${err.message}`, "error");
@@ -274,12 +306,14 @@ function initImportHandlers() {
                 const layoutContent = await layoutFile.async("string");
                 const data = JSON.parse(layoutContent);
                 state.graph.configure(data);
+                fixLastNodeId();
                 if (data.extra?.stateSchema || data.config?.state_schema) {
                     state.appState.schema = normalizeSchemaToLowercase(data.extra?.stateSchema || data.config?.state_schema);
                     state.appState.schemaRaw = JSON.stringify(state.appState.schema, null, 2);
                     renderStateSchemaDisplay();
                 }
                 updateSummary();
+                warnLlmFanOut();
                 showToast("Bundle imported (Layout)", "success");
             } else if (aslFile) {
                 const aslContent = await aslFile.async("string");
@@ -335,7 +369,7 @@ function setBadgeStatus(target, status) {
     }
 }
 
-function validateASLBeforeSubmit() {
+export function validateASLBeforeSubmit() {
     const errors = [];
     const serializedGraph = state.graph.serialize();
     const nodes = serializedGraph.nodes || [];
@@ -346,6 +380,16 @@ function validateASLBeforeSubmit() {
         const additionalVars = Object.keys(initialState).filter(key => key !== 'count' && key !== 'messages');
         if (additionalVars.length === 0) {
             errors.push("Entry Node must have at least one additional variable in Initial State (beyond 'count' and 'messages')");
+        }
+    }
+
+    // Find the LLM node directly connected from the entry node (exempt from input_state_keys check)
+    let entryConnectedNodeId = null;
+    if (entryNode) {
+        const entryOutputLinks = entryNode.outputs?.[0]?.links || [];
+        if (entryOutputLinks.length > 0) {
+            const link = (serializedGraph.links || []).find(l => l[0] === entryOutputLinks[0]);
+            if (link) entryConnectedNodeId = link[3];
         }
     }
 
@@ -363,8 +407,42 @@ function validateASLBeforeSubmit() {
 
         if (node.type === "asl/llm") {
             const schema = node.properties?.structured_output_schema;
-            if (!schema || Object.keys(schema).length === 0) {
+            if (!schema || schema.length === 0) {
                 errors.push(`LLM Node "${nodeTitle}": Output Schema cannot be empty`);
+            }
+        }
+
+        // input_state_keys must be non-empty for all LLM/Router nodes except the entry-connected LLM
+        if ((node.type === "asl/llm" || node.type === "asl/router") && node.id !== entryConnectedNodeId) {
+            const keys = node.properties?.input_state_keys || [];
+            if (keys.length === 0) {
+                const typeName = node.type === "asl/router" ? "Router Node" : "LLM Node";
+                errors.push(`${typeName} "${nodeTitle}": Input State cannot be empty`);
+            }
+        }
+
+        // LLM nodes may connect to at most 1 other LLM node
+        if (node.type === "asl/llm") {
+            let llmTargets = 0;
+            (node.outputs || []).forEach(output => {
+                (output.links || []).forEach(linkId => {
+                    const link = (serializedGraph.links || []).find(l => l[0] === linkId);
+                    if (!link) return;
+                    const target = nodes.find(n => n.id === link[3]);
+                    if (target && target.type === "asl/llm") llmTargets++;
+                });
+            });
+            if (llmTargets > 1) {
+                errors.push(`LLM Node "${nodeTitle}" connects to ${llmTargets} other LLM nodes. An LLM node may connect to at most 1 other LLM node.`);
+            }
+        }
+
+        // Router nodes must have descriptions for all routes
+        if (node.type === "asl/router") {
+            const routerValues = node.properties?.router_values || [];
+            const missingCount = routerValues.filter(rv => !rv.description || rv.description.trim() === '').length;
+            if (missingCount > 0) {
+                errors.push(`Router Node "${nodeTitle}": ${missingCount} route(s) are missing descriptions`);
             }
         }
     });
@@ -415,6 +493,7 @@ async function handleBundleDownload() {
 
         // Step 1: Validate
         updateBundleStep('validate', 'in_progress', 'Checking ASL specification...');
+        cleanStaleStateVariables();
         const validation = validateASLBeforeSubmit();
 
         if (!validation.valid) {

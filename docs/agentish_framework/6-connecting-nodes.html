@@ -80,7 +80,7 @@
                 <tr>
                     <td><strong>LLM Node</strong></td>
                     <td>1+ inputs (expands as you connect more edges)</td>
-                    <td>1 output</td>
+                    <td>1 output &mdash; may connect to <strong>at most 1 other LLM node</strong> (unlimited Worker nodes allowed)</td>
                 </tr>
                 <tr>
                     <td><strong>Router Node</strong></td>
@@ -157,6 +157,10 @@
                     <td>&ldquo;Router node &lsquo;X&rsquo; has N outgoing flow edge(s). Routers must have at least 2.&rdquo;</td>
                 </tr>
                 <tr>
+                    <td>An LLM node may connect to at most 1 other LLM node.</td>
+                    <td>&ldquo;LLM node &lsquo;X&rsquo; connects to N other LLM nodes. An LLM node may connect to at most 1 other LLM node.&rdquo;</td>
+                </tr>
+                <tr>
                     <td>Cycles without a Router are infinite loops.</td>
                     <td>&ldquo;Infinite loop detected: cycle [...] contains no Router node.&rdquo;</td>
                 </tr>
@@ -167,6 +171,26 @@
                 <tr>
                     <td>Loop target LLM nodes must have loop_mode configured.</td>
                     <td>&ldquo;LLM node &lsquo;X&rsquo; has multiple incoming edges but &lsquo;loop_mode&rsquo; is not configured.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>All LLM/Router nodes (except the first LLM) must have Input State selected.</td>
+                    <td>&ldquo;Node &lsquo;X&rsquo; has no Input State selected. Select at least one state variable.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>All Router routes must have a description.</td>
+                    <td>&ldquo;Router node &lsquo;X&rsquo; has N route(s) with missing descriptions.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>System Message cannot be empty on any LLM, Router, or Worker node.</td>
+                    <td>&ldquo;LLM Node &lsquo;X&rsquo;: System Message cannot be empty.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>Output Schema cannot be empty on any LLM node.</td>
+                    <td>&ldquo;LLM Node &lsquo;X&rsquo;: Output Schema cannot be empty.&rdquo;</td>
+                </tr>
+                <tr>
+                    <td>Entry Node must define at least one custom state variable (beyond &lsquo;count&rsquo; and &lsquo;messages&rsquo;).</td>
+                    <td>&ldquo;Entry Node must have at least one additional variable in Initial State.&rdquo;</td>
                 </tr>
             </tbody>
         </table>
